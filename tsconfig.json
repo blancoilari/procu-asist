@@ -1,0 +1,20 @@
+{
+  "extends": "./.wxt/tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@modules/*": ["./modules/*"]
+    },
+    "types": ["chrome"]
+  },
+  "include": [
+    ".wxt/wxt.d.ts",
+    "entrypoints/**/*.ts",
+    "entrypoints/**/*.tsx",
+    "modules/**/*.ts"
+  ]
+}
