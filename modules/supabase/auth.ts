@@ -4,7 +4,6 @@
  */
 
 import { getSupabaseClient } from './client';
-import type { TierPlan } from '@/modules/tier/limits';
 
 export type AuthProvider = 'google' | 'azure' | 'linkedin_oidc';
 
@@ -13,8 +12,6 @@ export interface UserProfile {
   email: string;
   displayName: string;
   avatarUrl?: string;
-  tier: TierPlan;
-  trialEndsAt?: string;
 }
 
 /**
@@ -62,7 +59,6 @@ export async function signInWithOAuth(provider: AuthProvider): Promise<void> {
 export async function signOut(): Promise<void> {
   const supabase = getSupabaseClient();
   await supabase.auth.signOut();
-  await chrome.storage.local.remove('tl_tier');
 }
 
 /** Get current user profile (null if not signed in) */
@@ -74,17 +70,12 @@ export async function getCurrentUser(): Promise<UserProfile | null> {
 
   if (!user) return null;
 
-  // Fetch profile with tier info
+  // Fetch profile info
   const { data: profile } = await supabase
     .from('profiles')
-    .select('tier, trial_ends_at, display_name, avatar_url')
+    .select('display_name, avatar_url')
     .eq('id', user.id)
     .single();
-
-  const tier = (profile?.tier as TierPlan) ?? 'free';
-
-  // Cache tier locally for offline access
-  await chrome.storage.local.set({ tl_tier: tier });
 
   return {
     id: user.id,
@@ -92,8 +83,6 @@ export async function getCurrentUser(): Promise<UserProfile | null> {
     displayName:
       profile?.display_name ?? user.user_metadata?.full_name ?? user.email ?? '',
     avatarUrl: profile?.avatar_url ?? user.user_metadata?.avatar_url,
-    tier,
-    trialEndsAt: profile?.trial_ends_at,
   };
 }
 

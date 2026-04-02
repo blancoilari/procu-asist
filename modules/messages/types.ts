@@ -35,8 +35,7 @@ export type ProcuAsistMessage =
   | SignInMessage
   | SignOutMessage
   | GetUserMessage
-  | SyncDataMessage
-  | CheckLimitMessage;
+  | SyncDataMessage;
 
 export interface SetupPinMessage {
   type: 'SETUP_PIN';
@@ -244,11 +243,6 @@ export interface GetUserMessage {
 export interface SyncDataMessage {
   type: 'SYNC_DATA';
   direction: 'push' | 'pull';
-}
-
-export interface CheckLimitMessage {
-  type: 'CHECK_LIMIT';
-  action: 'add_bookmark' | 'add_monitor' | 'download_pdf';
 }
 
 /** Response types for type safety */

@@ -46,7 +46,6 @@ import { handleSessionExpired } from './auto-reconnect';
 import { scanMonitoredCases } from './case-monitor';
 import { signInWithOAuth, signOut, getCurrentUser } from '@/modules/supabase/auth';
 import { syncAll } from '@/modules/supabase/sync';
-import { checkLimit } from '@/modules/tier/enforcer';
 
 export function setupMessageRouter() {
   chrome.runtime.onMessage.addListener(
@@ -369,11 +368,6 @@ async function handleMessage(
     case 'SYNC_DATA': {
       const syncResult = await syncAll(message.direction);
       return syncResult;
-    }
-
-    case 'CHECK_LIMIT': {
-      const limitResult = await checkLimit(message.action);
-      return limitResult;
     }
 
     default:

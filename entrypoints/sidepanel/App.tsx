@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Bookmark, Case, Monitor, MovementAlert } from '@/modules/portals/types';
 import type { ProcuAsistSettings } from '@/modules/storage/settings-store';
 import type { UserProfile } from '@/modules/supabase/auth';
+import { DONATE_URL } from '@/modules/tier/limits';
 import { useDarkMode } from '@/modules/ui/use-dark-mode';
 import Onboarding, { isOnboardingDone } from '@/modules/ui/Onboarding';
 
@@ -116,39 +117,13 @@ export default function App() {
 }
 
 // ──────────────────────────────────────────────────────────
-// Connection Badge
+// Version Badge
 // ──────────────────────────────────────────────────────────
 
 function ConnectionBadge() {
-  const [tier, setTier] = useState('Free');
-
-  useEffect(() => {
-    // Read tier from local storage (synced from Supabase on login)
-    const fetchTier = () => {
-      chrome.storage.local.get(['tl_tier', 'tl_user'], (result) => {
-        const tier = result.tl_tier as string | undefined;
-        if (tier) {
-          setTier(tier.charAt(0).toUpperCase() + tier.slice(1));
-          return;
-        }
-        // Fallback: read from user profile
-        const user = result.tl_user as Record<string, unknown> | undefined;
-        if (user?.tier) setTier((user.tier as string).charAt(0).toUpperCase() + (user.tier as string).slice(1));
-      });
-    };
-    fetchTier();
-
-    // Update tier when storage changes (e.g., after payment webhook)
-    const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
-      if (area === 'local' && (changes.tl_tier || changes.tl_user)) fetchTier();
-    };
-    chrome.storage.onChanged.addListener(listener);
-    return () => chrome.storage.onChanged.removeListener(listener);
-  }, []);
-
   return (
     <span className="rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary">
-      {tier}
+      v{chrome.runtime.getManifest().version}
     </span>
   );
 }
@@ -1146,9 +1121,6 @@ function SettingsTab() {
                   {user.email}
                 </p>
               </div>
-              <span className="rounded-full bg-primary-light px-2 py-0.5 text-[10px] font-semibold text-primary uppercase">
-                {user.tier}
-              </span>
             </div>
             {/* Sync buttons */}
             <div className="flex gap-2">
@@ -1258,8 +1230,23 @@ function SettingsTab() {
         Configuración avanzada
       </button>
 
+      {/* Donate */}
+      <button
+        onClick={() => chrome.tabs.create({ url: DONATE_URL })}
+        className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30 transition-colors"
+      >
+        <span>☕</span> Invitame un cafecito
+      </button>
+
+      {/* Disclaimer */}
+      <p className="mt-3 text-center text-[9px] text-text-secondary/50 leading-relaxed">
+        ProcuAsist se ofrece &quot;tal cual&quot;, sin garantías. No reemplaza el control
+        manual de actuaciones judiciales. El autor no es responsable por daños
+        derivados de su uso.
+      </p>
+
       {/* Version info */}
-      <p className="mt-3 text-center text-[10px] text-text-secondary/50">
+      <p className="mt-1 text-center text-[10px] text-text-secondary/50">
         ProcuAsist v{chrome.runtime.getManifest().version}
       </p>
     </div>

@@ -57,6 +57,18 @@ const STEPS = [
       'Opcional: sync cifrado en la nube',
     ],
   },
+  {
+    icon: '⚖',
+    title: 'Términos de uso',
+    description:
+      'ProcuAsist es gratuito y se ofrece "tal cual" (as is), sin garantías de ningún tipo. Al continuar, aceptás estos términos:',
+    features: [
+      'No reemplaza el control manual de actuaciones judiciales',
+      'El autor no es responsable por daños directos o indirectos derivados de su uso',
+      'No se garantiza la descarga exitosa de archivos ni la detección de todos los movimientos',
+      'Usalo como herramienta complementaria, no como único medio de seguimiento',
+    ],
+  },
 ];
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
@@ -144,7 +156,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             isLast ? 'flex-1' : 'flex-1'
           }`}
         >
-          {isLast ? 'Comenzar' : 'Siguiente'}
+          {isLast ? 'Acepto y comenzar' : 'Siguiente'}
         </button>
       </div>
     </div>

@@ -445,11 +445,11 @@ function AccountPage() {
           <div>
             <p className="text-sm font-medium">Plan actual</p>
             <p className="text-xs text-text-secondary">
-              3 marcadores, 1 monitor, 5 movimientos PDF
+              Gratuito — todas las funciones habilitadas, sin límites
             </p>
           </div>
-          <span className="rounded-full bg-primary-light px-3 py-1 text-xs font-medium text-primary">
-            Free
+          <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
+            Gratis
           </span>
         </div>
       </section>
