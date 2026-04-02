@@ -240,7 +240,7 @@ export async function pushSettings(settings: ProcuAsistSettings): Promise<void> 
       user_id: user.id,
       dark_mode: settings.darkMode,
       keep_alive_mev: settings.keepAliveMev,
-      keep_alive_pjn: settings.keepAlivePjn,
+      keep_alive_eje: settings.keepAliveEje,
       auto_reconnect: settings.autoReconnect,
       mev_departamento: settings.mevDepartamento || '',
     },
@@ -276,7 +276,7 @@ export async function pullSettings(): Promise<ProcuAsistSettings | null> {
   return {
     darkMode: data.dark_mode,
     keepAliveMev: data.keep_alive_mev,
-    keepAlivePjn: data.keep_alive_pjn,
+    keepAliveEje: data.keep_alive_eje,
     autoReconnect: data.auto_reconnect,
     mevDepartamento: data.mev_departamento,
   };

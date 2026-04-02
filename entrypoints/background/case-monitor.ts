@@ -113,7 +113,7 @@ async function scanSingleCase(
   tabId: number
 ): Promise<number> {
   if (monitor.portal !== 'mev') {
-    // PJN scan not yet implemented
+    // EJE scan not yet implemented
     return 0;
   }
 

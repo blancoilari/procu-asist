@@ -1,5 +1,5 @@
 /**
- * PJN/EJE (Expediente Judicial Electrónico) portal selectors and URL patterns.
+ * EJE/JUSCABA (Expediente Judicial Electrónico) portal selectors and URL patterns.
  *
  * Portal: https://eje.jus.gov.ar (Federal)
  *         https://eje.juscaba.gob.ar (CABA — same stack)
@@ -9,11 +9,11 @@
  * The portal is a full SPA with Angular Material components.
  */
 
-export const PJN_BASE_URL = 'https://eje.jus.gov.ar';
-export const PJN_API_BASE = 'https://eje.jus.gov.ar/iol-api';
+export const EJE_BASE_URL = 'https://eje.jus.gov.ar';
+export const EJE_API_BASE = 'https://eje.jus.gov.ar/iol-api';
 
 /** Keycloak SSO URLs */
-export const PJN_SSO = {
+export const EJE_SSO = {
   base: 'https://sso.pjn.gov.ar',
   realm: 'pjn',
   loginFormId: '#kc-form-login',
@@ -23,14 +23,14 @@ export const PJN_SSO = {
 } as const;
 
 /** SPA route patterns */
-export const PJN_ROUTES = {
+export const EJE_ROUTES = {
   home: '/iol-ui/p/inicio',
   search: '/iol-ui/p/expedientes',
   /** Case detail opens inline within search results — no separate URL */
 } as const;
 
-/** API endpoints (relative to PJN_API_BASE) */
-export const PJN_API = {
+/** API endpoints (relative to EJE_API_BASE) */
+export const EJE_API = {
   /** POST — search cases. Body: info={"filter":"{...}","tipoBusqueda":"CAU","page":1,"size":10} */
   searchCases: '/api/public/expedientes/lista',
   /** GET ?expId=X — case header (CUIJ, carátula, fecha, estado) */
@@ -50,7 +50,7 @@ export const PJN_API = {
 } as const;
 
 /** DOM selectors for the Angular SPA */
-export const PJN_SELECTORS = {
+export const EJE_SELECTORS = {
   /** Root Angular app component */
   appRoot: 'iol-root',
 
@@ -121,8 +121,8 @@ export const PJN_SELECTORS = {
   },
 } as const;
 
-/** Regex patterns for PJN data */
-export const PJN_PATTERNS = {
+/** Regex patterns for EJE data */
+export const EJE_PATTERNS = {
   /** CUIJ format: EXP J-XX-XXXXXXXX-X/YYYY-X or similar */
   cuij: /EXP\s+[A-Z]-\d{2}-\d{8}-\d\/\d{4}-\d/,
   /** Case number: NNNNNN/YYYY-S */

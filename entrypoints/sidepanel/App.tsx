@@ -376,7 +376,7 @@ function BookmarkCard({
       </span>
     ) : (
       <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 dark:bg-purple-900 dark:text-purple-300">
-        PJN
+        EJE
       </span>
     );
 
@@ -518,7 +518,7 @@ function EmptyBookmarks({ hasSearch }: { hasSearch: boolean }) {
       <p className="text-xs leading-relaxed">
         {hasSearch
           ? 'Intentá con otro término de búsqueda.'
-          : 'Navegá a una causa en MEV o PJN y hacé clic en "Guardar" para agregarla acá.'}
+          : 'Navegá a una causa en MEV o EJE y hacé clic en "Guardar" para agregarla acá.'}
       </p>
     </div>
   );
@@ -784,7 +784,7 @@ function MonitorCard({
       </span>
     ) : (
       <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 dark:bg-purple-900 dark:text-purple-300">
-        PJN
+        EJE
       </span>
     );
 
@@ -1209,10 +1209,10 @@ function SettingsTab() {
         onChange={(v) => handleToggle('keepAliveMev', v)}
       />
       <SettingToggle
-        label="Keep-Alive PJN"
-        description="Mantiene la sesión activa en PJN"
-        checked={settings.keepAlivePjn}
-        onChange={(v) => handleToggle('keepAlivePjn', v)}
+        label="Keep-Alive EJE"
+        description="Mantiene la sesión activa en EJE"
+        checked={settings.keepAliveEje}
+        onChange={(v) => handleToggle('keepAliveEje', v)}
       />
       <SettingToggle
         label="Auto-reconexión"

@@ -29,7 +29,7 @@ Todos los cambios notables del proyecto se documentan en este archivo.
 **Portales judiciales**
 - Content script para MEV (Mesa de Entradas Virtual - SCBA)
   - Auto-login, seleccion de departamento, extraccion de causas y movimientos
-- Content script para PJN (Poder Judicial de la Nacion)
+- Content script para EJE (Poder Judicial de CABA - JUSCABA)
   - Auto-login, extraccion de causas
 - Content script para SCBA Notificaciones
   - Importacion de notificaciones

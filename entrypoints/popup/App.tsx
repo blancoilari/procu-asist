@@ -224,7 +224,7 @@ function SessionStatus() {
   const [mevStatus, setMevStatus] = useState<'checking' | 'active' | 'none'>(
     'checking'
   );
-  const [pjnStatus, setPjnStatus] = useState<'checking' | 'active' | 'none'>(
+  const [ejeStatus, setEjeStatus] = useState<'checking' | 'active' | 'none'>(
     'checking'
   );
 
@@ -236,15 +236,15 @@ function SessionStatus() {
       .catch(() => setMevStatus('none'));
 
     chrome.runtime
-      .sendMessage({ type: 'GET_CREDENTIALS', portal: 'pjn' })
-      .then((r) => setPjnStatus(r?.success ? 'active' : 'none'))
-      .catch(() => setPjnStatus('none'));
+      .sendMessage({ type: 'GET_CREDENTIALS', portal: 'eje' })
+      .then((r) => setEjeStatus(r?.success ? 'active' : 'none'))
+      .catch(() => setEjeStatus('none'));
   }, []);
 
   return (
     <div className="flex flex-col gap-2">
       <PortalRow label="MEV" status={mevStatus} />
-      <PortalRow label="PJN" status={pjnStatus} />
+      <PortalRow label="EJE" status={ejeStatus} />
     </div>
   );
 }

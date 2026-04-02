@@ -16,8 +16,8 @@ export const PORTAL_URLS: Record<PortalId, PortalConfig> = {
     heartbeatUrl: 'https://mev.scba.gov.ar/',
     loginUrlPattern: 'https://mev.scba.gov.ar/login',
   },
-  pjn: {
-    name: 'PJN - Expediente Judicial Electrónico',
+  eje: {
+    name: 'EJE - Expedientes Judiciales CABA',
     baseUrl: 'https://eje.jus.gov.ar',
     pattern: 'https://eje.jus.gov.ar/*',
     heartbeatUrl: 'https://eje.jus.gov.ar/',

@@ -5,7 +5,7 @@
 export interface ProcuAsistSettings {
   darkMode: boolean;
   keepAliveMev: boolean;
-  keepAlivePjn: boolean;
+  keepAliveEje: boolean;
   autoReconnect: boolean;
   /** Preferred MEV judicial department code (e.g., "80" for Avellaneda) */
   mevDepartamento: string;
@@ -16,7 +16,7 @@ const STORAGE_KEY = 'tl_settings';
 const DEFAULT_SETTINGS: ProcuAsistSettings = {
   darkMode: false,
   keepAliveMev: true,
-  keepAlivePjn: true,
+  keepAliveEje: true,
   autoReconnect: true,
   mevDepartamento: 'aa', // "TODOS los Deptos" by default
 };

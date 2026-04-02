@@ -8,12 +8,12 @@ import type { PortalId } from '@/modules/portals/types';
 
 const PORTAL_TAB_PATTERNS: Record<PortalId, string> = {
   mev: 'https://mev.scba.gov.ar/*',
-  pjn: 'https://eje.jus.gov.ar/*',
+  eje: 'https://eje.jus.gov.ar/*',
 };
 
 const PORTAL_HEARTBEAT_URLS: Record<PortalId, string> = {
   mev: 'https://mev.scba.gov.ar/busqueda.asp',
-  pjn: 'https://eje.jus.gov.ar/iol-api/session',
+  eje: 'https://eje.jus.gov.ar/iol-api/session',
 };
 
 export async function keepAlive(portal: PortalId): Promise<void> {
@@ -22,7 +22,7 @@ export async function keepAlive(portal: PortalId): Promise<void> {
   const settings = stored.tl_settings as Record<string, unknown> | undefined;
 
   if (portal === 'mev' && settings?.keepAliveMev === false) return;
-  if (portal === 'pjn' && settings?.keepAlivePjn === false) return;
+  if (portal === 'eje' && settings?.keepAliveEje === false) return;
 
   // Find open tabs matching the portal
   const tabs = await chrome.tabs.query({ url: PORTAL_TAB_PATTERNS[portal] });

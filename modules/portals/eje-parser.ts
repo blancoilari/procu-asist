@@ -1,19 +1,19 @@
 /**
- * PJN/EJE HTML + API response parsing functions.
+ * EJE/JUSCABA HTML + API response parsing functions.
  *
  * The EJE portal is an Angular SPA, so most data comes from API responses
  * rather than static HTML. However, we also provide DOM parsing for cases
  * where we intercept the rendered Angular components.
  */
 
-import { PJN_SELECTORS, PJN_PATTERNS } from './pjn-selectors';
+import { EJE_SELECTORS, EJE_PATTERNS } from './eje-selectors';
 
 // ────────────────────────────────────────────────────────
 // Types
 // ────────────────────────────────────────────────────────
 
 /** Parsed case data from EJE */
-export interface PjnCaseData {
+export interface EjeCaseData {
   expId: string;
   cuij: string;
   numero: string;
@@ -26,7 +26,7 @@ export interface PjnCaseData {
 }
 
 /** Parsed actuación (movement) from EJE */
-export interface PjnActuacion {
+export interface EjeActuacion {
   actId: string;
   titulo: string;
   numero: string;
@@ -37,7 +37,7 @@ export interface PjnActuacion {
 }
 
 /** Case header from API response */
-export interface PjnEncabezadoResponse {
+export interface EjeEncabezadoResponse {
   tipoExpediente?: string;
   cuij?: string;
   numero?: number;
@@ -51,13 +51,13 @@ export interface PjnEncabezadoResponse {
 }
 
 /** Actuaciones page from API response */
-export interface PjnActuacionesResponse {
+export interface EjeActuacionesResponse {
   totalElements: number;
   totalPages: number;
-  content: PjnActuacionItem[];
+  content: EjeActuacionItem[];
 }
 
-export interface PjnActuacionItem {
+export interface EjeActuacionItem {
   actId: number;
   titulo: string;
   numero: string;
@@ -79,12 +79,12 @@ export interface PjnActuacionItem {
 /** Check if the current page is the Keycloak SSO login page */
 export function isKeycloakLoginPage(doc: Document): boolean {
   return (
-    !!doc.querySelector(PJN_SSO_SELECTORS.loginForm) ||
+    !!doc.querySelector(EJE_SSO_SELECTORS.loginForm) ||
     window.location.hostname === 'sso.pjn.gov.ar'
   );
 }
 
-const PJN_SSO_SELECTORS = {
+const EJE_SSO_SELECTORS = {
   loginForm: '#kc-form-login',
   username: '#username',
   password: '#password',
@@ -93,7 +93,7 @@ const PJN_SSO_SELECTORS = {
 
 /** Check if we're on the EJE SPA (Angular app loaded) */
 export function isEjeSpa(doc: Document): boolean {
-  return !!doc.querySelector(PJN_SELECTORS.appRoot);
+  return !!doc.querySelector(EJE_SELECTORS.appRoot);
 }
 
 /** Check if we're on the search/results page */
@@ -116,9 +116,9 @@ export function isHomePage(): boolean {
  */
 export function parseResultCards(
   doc: Document
-): PjnCaseData[] {
-  const cards = doc.querySelectorAll(PJN_SELECTORS.results.card);
-  const results: PjnCaseData[] = [];
+): EjeCaseData[] {
+  const cards = doc.querySelectorAll(EJE_SELECTORS.results.card);
+  const results: EjeCaseData[] = [];
 
   for (const card of cards) {
     const data = parseCardElement(card as HTMLElement);
@@ -131,9 +131,9 @@ export function parseResultCards(
 /**
  * Parse a single case card element.
  */
-function parseCardElement(card: HTMLElement): PjnCaseData | null {
+function parseCardElement(card: HTMLElement): EjeCaseData | null {
   // CUIJ + Carátula are in the title area
-  const caratulaEl = card.querySelector(PJN_SELECTORS.results.caratulaText);
+  const caratulaEl = card.querySelector(EJE_SELECTORS.results.caratulaText);
   if (!caratulaEl) return null;
 
   const fullText = caratulaEl.textContent?.trim() ?? '';
@@ -145,29 +145,29 @@ function parseCardElement(card: HTMLElement): PjnCaseData | null {
   const caratula = lines.slice(1).join(' ').trim();
 
   // Extract case number from CUIJ
-  const numMatch = cuijLine.match(PJN_PATTERNS.caseNumber);
+  const numMatch = cuijLine.match(EJE_PATTERNS.caseNumber);
   const numero = numMatch ? `${numMatch[1]}/${numMatch[2]}-${numMatch[3]}` : '';
 
   // Fecha inicio
-  const fechaEl = card.querySelector(PJN_SELECTORS.results.fechaInicio);
+  const fechaEl = card.querySelector(EJE_SELECTORS.results.fechaInicio);
   const fechaText = fechaEl?.textContent?.trim() ?? '';
   const fechaInicio = fechaText.replace(/^Inicio:\s*/i, '').trim();
 
   // Estado badge
-  const badgeEl = card.querySelector(PJN_SELECTORS.results.statusBadge);
+  const badgeEl = card.querySelector(EJE_SELECTORS.results.statusBadge);
   const estado = badgeEl?.textContent?.trim() ?? '';
 
   // Last action
-  const lastActionEl = card.querySelector(PJN_SELECTORS.results.lastActionText);
+  const lastActionEl = card.querySelector(EJE_SELECTORS.results.lastActionText);
   const lastAction = lastActionEl?.textContent?.trim() ?? '';
 
   // Try to extract expId from any API call or data attribute
   // Angular components may store it — check href or data attrs
-  const linkEl = card.querySelector(PJN_SELECTORS.results.titleLink) as HTMLAnchorElement | null;
+  const linkEl = card.querySelector(EJE_SELECTORS.results.titleLink) as HTMLAnchorElement | null;
   let expId = '';
   if (linkEl) {
     const href = linkEl.getAttribute('href') ?? '';
-    const expIdMatch = href.match(PJN_PATTERNS.expId);
+    const expIdMatch = href.match(EJE_PATTERNS.expId);
     if (expIdMatch) expId = expIdMatch[1];
   }
 
@@ -189,12 +189,12 @@ function parseCardElement(card: HTMLElement): PjnCaseData | null {
  */
 export function parseActuacionesTable(
   doc: Document
-): PjnActuacion[] {
-  const rows = doc.querySelectorAll(PJN_SELECTORS.actuaciones.row);
-  const actuaciones: PjnActuacion[] = [];
+): EjeActuacion[] {
+  const rows = doc.querySelectorAll(EJE_SELECTORS.actuaciones.row);
+  const actuaciones: EjeActuacion[] = [];
 
   for (const row of rows) {
-    const cells = row.querySelectorAll(PJN_SELECTORS.actuaciones.cells);
+    const cells = row.querySelectorAll(EJE_SELECTORS.actuaciones.cells);
     if (cells.length < 5) continue;
 
     const titleLink = cells[0]?.querySelector('a');
@@ -232,9 +232,9 @@ export function parseActuacionesTable(
  * Parse case header from API /expedientes/encabezado response.
  */
 export function parseCaseHeaderApi(
-  data: PjnEncabezadoResponse,
+  data: EjeEncabezadoResponse,
   expId: string
-): PjnCaseData {
+): EjeCaseData {
   const fechaMs = data.fechaInicio ?? 0;
   const fechaInicio = fechaMs
     ? new Date(fechaMs).toLocaleDateString('es-AR', {
@@ -261,8 +261,8 @@ export function parseCaseHeaderApi(
  * Parse actuaciones from API /expedientes/actuaciones response.
  */
 export function parseActuacionesApi(
-  data: PjnActuacionesResponse
-): PjnActuacion[] {
+  data: EjeActuacionesResponse
+): EjeActuacion[] {
   return data.content.map((item) => {
     const fechaMs = item.fechaFirma ?? item.fechaPublicacion ?? 0;
     const fechaFirma = fechaMs

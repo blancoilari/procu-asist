@@ -9,7 +9,7 @@ import { scanMonitoredCases } from './case-monitor';
 
 export const ALARMS = {
   KEEPALIVE_MEV: 'tl-keepalive-mev',
-  KEEPALIVE_PJN: 'tl-keepalive-pjn',
+  KEEPALIVE_EJE: 'tl-keepalive-eje',
   MONITOR_SCAN: 'tl-monitor-scan',
 } as const;
 
@@ -25,7 +25,7 @@ export function setupAlarms() {
 function createAlarms() {
   // Keep-alive heartbeats every 4 minutes (MEV timeout is ~20 min)
   chrome.alarms.create(ALARMS.KEEPALIVE_MEV, { periodInMinutes: 4 });
-  chrome.alarms.create(ALARMS.KEEPALIVE_PJN, { periodInMinutes: 4 });
+  chrome.alarms.create(ALARMS.KEEPALIVE_EJE, { periodInMinutes: 4 });
 
   // Case monitoring scan every 6 hours
   chrome.alarms.create(ALARMS.MONITOR_SCAN, { periodInMinutes: 360 });
@@ -38,8 +38,8 @@ async function handleAlarm(alarm: chrome.alarms.Alarm) {
     case ALARMS.KEEPALIVE_MEV:
       await keepAlive('mev');
       break;
-    case ALARMS.KEEPALIVE_PJN:
-      await keepAlive('pjn');
+    case ALARMS.KEEPALIVE_EJE:
+      await keepAlive('eje');
       break;
     case ALARMS.MONITOR_SCAN:
       await scanMonitoredCases();

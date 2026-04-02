@@ -4,7 +4,7 @@ Extensión Chrome para abogados argentinos que automatiza la interacción con po
 
 ## Funcionalidades
 
-- **Auto-login** en portales judiciales (MEV, PJN, SCBA Notificaciones)
+- **Auto-login** en portales judiciales (MEV, EJE, SCBA Notificaciones)
 - **Keep-alive** de sesión para evitar desconexiones por inactividad
 - **Auto-reconexión** automática cuando la sesión expira
 - **Marcadores de causas** con búsqueda rápida y organización
@@ -22,7 +22,7 @@ Extensión Chrome para abogados argentinos que automatiza la interacción con po
 | Portal | URL | Funcionalidades |
 |--------|-----|-----------------|
 | MEV (Mesa de Entradas Virtual) | mev.scba.gov.ar | Auto-login, extracción de causas, monitoreo, PDF |
-| PJN (Poder Judicial de la Nación) | eje.jus.gov.ar | Auto-login, extracción de causas, monitoreo |
+| EJE (Poder Judicial de CABA) | eje.juscaba.gob.ar | Auto-login, extracción de causas, monitoreo |
 | SCBA Notificaciones | notificaciones.scba.gov.ar | Importación de notificaciones |
 
 ## Stack Tecnológico
@@ -86,7 +86,7 @@ procu-asist/
 │   │   ├── keep-alive.ts        # Mantener sesiones activas
 │   │   └── message-router.ts    # Router de mensajes IPC (~30 handlers)
 │   ├── mev-content.ts           # Content script para MEV
-│   ├── pjn-content.ts           # Content script para PJN
+│   ├── eje-content.ts           # Content script para EJE (JUSCABA)
 │   ├── scba-notif-content.ts    # Content script para SCBA Notificaciones
 │   ├── sidepanel/               # Panel lateral (dashboard principal)
 │   ├── popup/                   # Popup de la extensión

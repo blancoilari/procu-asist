@@ -1,5 +1,5 @@
 /**
- * Content script for PJN/EJE (Poder Judicial de la Nación)
+ * Content script for EJE/JUSCABA (Poder Judicial de la Ciudad Autónoma de Buenos Aires)
  * https://eje.jus.gov.ar/* and https://sso.pjn.gov.ar/*
  *
  * Handles:
@@ -11,7 +11,7 @@
  * - Rocket button + bookmark/monitor injection
  */
 
-import { PJN_SELECTORS, PJN_PATTERNS, PJN_API_BASE } from '@/modules/portals/pjn-selectors';
+import { EJE_SELECTORS, EJE_PATTERNS, EJE_API_BASE } from '@/modules/portals/eje-selectors';
 import {
   isKeycloakLoginPage,
   isEjeSpa,
@@ -20,15 +20,15 @@ import {
   parseActuacionesTable,
   parseActuacionesApi,
   parseCaseHeaderApi,
-} from '@/modules/portals/pjn-parser';
-import type { PjnCaseData, PjnActuacion, PjnActuacionesResponse, PjnEncabezadoResponse } from '@/modules/portals/pjn-parser';
+} from '@/modules/portals/eje-parser';
+import type { EjeCaseData, EjeActuacion, EjeActuacionesResponse, EjeEncabezadoResponse } from '@/modules/portals/eje-parser';
 
 export default defineContentScript({
   matches: ['https://eje.jus.gov.ar/*', 'https://sso.pjn.gov.ar/*'],
   runAt: 'document_idle',
 
   main() {
-    console.debug('[ProcuAsist] PJN content script loaded on:', window.location.hostname);
+    console.debug('[ProcuAsist] EJE content script loaded on:', window.location.hostname);
 
     const doc = document;
 
@@ -51,11 +51,11 @@ async function handleKeycloakLogin(doc: Document) {
 
   const response = await chrome.runtime.sendMessage({
     type: 'GET_CREDENTIALS',
-    portal: 'pjn',
+    portal: 'eje',
   });
 
   if (!response?.success || !response.credentials) {
-    console.debug('[ProcuAsist] No PJN credentials available for auto-login');
+    console.debug('[ProcuAsist] No EJE credentials available for auto-login');
     return;
   }
 
@@ -93,7 +93,7 @@ function handleEjeSpa(doc: Document) {
   console.debug('[ProcuAsist] EJE SPA detected');
 
   // Notify login success
-  chrome.runtime.sendMessage({ type: 'LOGIN_SUCCESS', portal: 'pjn' });
+  chrome.runtime.sendMessage({ type: 'LOGIN_SUCCESS', portal: 'eje' });
 
   // Inject rocket button
   injectRocketButton();
@@ -110,7 +110,7 @@ function handleEjeSpa(doc: Document) {
   // Check if we're already on the search page
   if (isSearchPage()) {
     // Wait for Angular to render cards
-    waitForElement(PJN_SELECTORS.results.card, () => {
+    waitForElement(EJE_SELECTORS.results.card, () => {
       handleSearchResults(doc);
     });
   }
@@ -121,11 +121,11 @@ function handleEjeSpa(doc: Document) {
 // ────────────────────────────────────────────────────────
 
 function handleSearchResults(doc: Document) {
-  console.debug('[ProcuAsist] PJN search results detected');
+  console.debug('[ProcuAsist] EJE search results detected');
 
   const cases = parseResultCards(doc);
   if (cases.length > 0) {
-    console.debug(`[ProcuAsist] Found ${cases.length} PJN cases`);
+    console.debug(`[ProcuAsist] Found ${cases.length} EJE cases`);
 
     // Send to background for sidepanel display
     chrome.runtime.sendMessage({
@@ -147,8 +147,8 @@ function handleSearchResults(doc: Document) {
 /**
  * Inject bookmark/monitor buttons on each case card.
  */
-function injectCardButtons(doc: Document, cases: PjnCaseData[]) {
-  const cards = doc.querySelectorAll(PJN_SELECTORS.results.card);
+function injectCardButtons(doc: Document, cases: EjeCaseData[]) {
+  const cards = doc.querySelectorAll(EJE_SELECTORS.results.card);
 
   cards.forEach((card, idx) => {
     if (card.querySelector('.procu-asist-card-actions')) return;
@@ -175,7 +175,7 @@ function injectCardButtons(doc: Document, cases: PjnCaseData[]) {
         type: 'ADD_BOOKMARK',
         caseData: {
           id: caseData.expId || caseData.cuij,
-          portal: 'pjn' as const,
+          portal: 'eje' as const,
           caseNumber: caseData.cuij || caseData.numero,
           title: caseData.caratula,
           court: caseData.tribunal,
@@ -201,7 +201,7 @@ function injectCardButtons(doc: Document, cases: PjnCaseData[]) {
         type: 'ADD_MONITOR',
         caseData: {
           id: caseData.expId || caseData.cuij,
-          portal: 'pjn' as const,
+          portal: 'eje' as const,
           caseNumber: caseData.cuij || caseData.numero,
           title: caseData.caratula,
           court: caseData.tribunal,
@@ -266,18 +266,18 @@ function interceptApiCalls() {
       // Intercept case header responses
       if (url.includes('/expedientes/encabezado')) {
         const clone = response.clone();
-        clone.json().then((data: PjnEncabezadoResponse) => {
-          const expIdMatch = url.match(PJN_PATTERNS.expId);
+        clone.json().then((data: EjeEncabezadoResponse) => {
+          const expIdMatch = url.match(EJE_PATTERNS.expId);
           const expId = expIdMatch?.[1] ?? '';
           const caseData = parseCaseHeaderApi(data, expId);
-          console.debug('[ProcuAsist] PJN case header intercepted:', caseData.cuij);
+          console.debug('[ProcuAsist] EJE case header intercepted:', caseData.cuij);
 
           // Send to background
           chrome.runtime.sendMessage({
             type: 'CASE_PAGE_DETECTED',
             caseData: {
               id: expId,
-              portal: 'pjn' as const,
+              portal: 'eje' as const,
               caseNumber: caseData.cuij || caseData.numero,
               title: caseData.caratula,
               court: caseData.tribunal,
@@ -294,9 +294,9 @@ function interceptApiCalls() {
       // Intercept actuaciones responses
       if (url.includes('/expedientes/actuaciones') && !url.includes('idEstadoActuacion')) {
         const clone = response.clone();
-        clone.json().then((data: PjnActuacionesResponse) => {
+        clone.json().then((data: EjeActuacionesResponse) => {
           const actuaciones = parseActuacionesApi(data);
-          console.debug(`[ProcuAsist] PJN actuaciones intercepted: ${actuaciones.length} items`);
+          console.debug(`[ProcuAsist] EJE actuaciones intercepted: ${actuaciones.length} items`);
         }).catch(() => {});
       }
     } catch {
@@ -312,7 +312,7 @@ function interceptApiCalls() {
 // ────────────────────────────────────────────────────────
 
 function startSessionMonitor() {
-  // PJN is an SPA — intercept fetch 401 responses
+  // EJE is an SPA — intercept fetch 401 responses
   const originalFetch = window.fetch;
   const wrappedFetch = window.fetch;
 
@@ -329,10 +329,10 @@ function startSessionMonitor() {
       const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request)?.url ?? '';
       // Only trigger for API calls, not all requests
       if (url.includes('/iol-api/') || url.includes('/api/')) {
-        console.debug('[ProcuAsist] PJN session expired (401/403)');
+        console.debug('[ProcuAsist] EJE session expired (401/403)');
         chrome.runtime.sendMessage({
           type: 'SESSION_EXPIRED',
-          portal: 'pjn',
+          portal: 'eje',
           returnUrl: window.location.href,
         });
       }
@@ -368,11 +368,11 @@ function watchSpaNavigation(doc: Document) {
     const currentPath = window.location.pathname + window.location.search;
     if (currentPath !== lastPath) {
       lastPath = currentPath;
-      console.debug('[ProcuAsist] PJN route changed:', currentPath);
+      console.debug('[ProcuAsist] EJE route changed:', currentPath);
 
       if (isSearchPage()) {
         // Wait for Angular to render new content
-        waitForElement(PJN_SELECTORS.results.card, () => {
+        waitForElement(EJE_SELECTORS.results.card, () => {
           handleSearchResults(doc);
         });
       }
@@ -459,7 +459,7 @@ function applyDarkModeIfEnabled() {
   chrome.storage.local.get('tl_settings', (result) => {
     const settings = result.tl_settings as Record<string, unknown> | undefined;
     if (settings?.darkMode) {
-      console.debug('[ProcuAsist] Dark mode enabled (PJN CSS injection pending)');
+      console.debug('[ProcuAsist] Dark mode enabled (EJE CSS injection pending)');
     }
   });
 }

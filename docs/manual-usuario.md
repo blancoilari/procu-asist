@@ -26,7 +26,7 @@
 ProcuAsist es una extension para Google Chrome que funciona como copiloto legal. Automatiza tareas repetitivas en los portales judiciales de la Provincia de Buenos Aires y Nacion:
 
 - **MEV** (Mesa de Entradas Virtual) — mev.scba.gov.ar
-- **PJN** (Poder Judicial de la Nacion) — eje.jus.gov.ar
+- **EJE** (Poder Judicial de CABA) — eje.juscaba.gob.ar
 - **SCBA Notificaciones** — notificaciones.scba.gov.ar
 
 Con ProcuAsist podes:
@@ -88,7 +88,7 @@ La primera vez que abras ProcuAsist, se va a mostrar un **asistente de configura
 ### Paso 3: Guardar credenciales de portales
 
 1. El asistente te pide las credenciales de los portales que uses
-2. Ingresa tu usuario y clave de MEV, PJN, o ambos
+2. Ingresa tu usuario y clave de MEV, EJE, o ambos
 3. Las credenciales se guardan **encriptadas** en tu computadora — nunca se envian a ningun servidor
 
 ---
@@ -102,7 +102,7 @@ Si no configuraste tus credenciales en el asistente inicial, o queres cambiarlas
 3. Ingresa tu PIN para desbloquear
 4. Completa usuario y clave para cada portal que uses:
    - **MEV**: Tu usuario y clave de mev.scba.gov.ar
-   - **PJN**: Tu usuario y clave de eje.jus.gov.ar
+   - **EJE**: Tu usuario y clave de eje.juscaba.gob.ar
 5. Hacé click en **"Guardar"**
 
 ### Seguridad de tus credenciales
@@ -287,7 +287,7 @@ ProcuAsist incluye un modo oscuro que se aplica tanto a los paneles de la extens
 
 Cuando esta activado:
 - El panel lateral, popup y opciones usan colores oscuros
-- Las paginas de MEV, PJN y SCBA tambien se oscurecen para reducir la fatiga visual
+- Las paginas de MEV, EJE y SCBA tambien se oscurecen para reducir la fatiga visual
 
 ---
 
@@ -309,7 +309,7 @@ Para acceder: click derecho en el icono de ProcuAsist → **"Opciones"**
 
 ### Secciones disponibles
 
-- **Credenciales de portales** — Cambiar usuario y clave de MEV/PJN
+- **Credenciales de portales** — Cambiar usuario y clave de MEV/EJE
 - **Departamento judicial preferido** — Para MEV, elegir tu departamento (ej: La Plata, Mar del Plata, Avellaneda, etc.)
 - **Keep-alive** — Activar/desactivar el mantenimiento de sesion por portal
 - **Auto-reconexion** — Activar/desactivar la reconexion automatica
@@ -357,7 +357,7 @@ MEV es la Mesa de Entradas Virtual de la Suprema Corte de la Provincia de Buenos
 
 ### Puedo agregar mas portales?
 
-Por el momento, ProcuAsist soporta MEV, PJN y SCBA Notificaciones. Se planea agregar mas portales en futuras versiones.
+Por el momento, ProcuAsist soporta MEV (Provincia de Buenos Aires), EJE (CABA) y SCBA Notificaciones. Se planea agregar PJN (Nacion) y mas portales en futuras versiones.
 
 ---
 

@@ -9,7 +9,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const { html, portal } = message as {
       type: string;
       html: string;
-      portal: 'mev' | 'pjn';
+      portal: 'mev' | 'eje';
     };
     try {
       const result = parseCaseHtml(html, portal);
@@ -38,7 +38,7 @@ interface ParseResult {
   isLoginPage: boolean;
 }
 
-function parseCaseHtml(html: string, portal: 'mev' | 'pjn'): ParseResult {
+function parseCaseHtml(html: string, portal: 'mev' | 'eje'): ParseResult {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
 
@@ -46,19 +46,19 @@ function parseCaseHtml(html: string, portal: 'mev' | 'pjn'): ParseResult {
     return parseMevHtml(doc, html);
   }
 
-  if (portal === 'pjn') {
-    return parsePjnHtml(doc);
+  if (portal === 'eje') {
+    return parseEjeHtml(doc);
   }
 
   return { movements: [], isLoginPage: false };
 }
 
 /**
- * Parse PJN/EJE HTML.
+ * Parse EJE/JUSCABA HTML.
  * Since EJE is an Angular SPA, the HTML we receive from API intercepts
  * may be limited. We extract what we can from the rendered content.
  */
-function parsePjnHtml(doc: Document): ParseResult {
+function parseEjeHtml(doc: Document): ParseResult {
   const movements: ParsedMovement[] = [];
 
   // Try to find actuaciones table (mat-table with mat-row elements)

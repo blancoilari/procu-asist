@@ -189,9 +189,9 @@ function CredentialsPage({
           />
           <MevDepartmentSelector />
           <PortalCredentials
-            portal="pjn"
-            label="PJN"
-            description="Poder Judicial de la Nación - EJE"
+            portal="eje"
+            label="EJE"
+            description="Poder Judicial de CABA - EJE JUSCABA"
           />
         </>
       ) : (
@@ -412,7 +412,7 @@ function AppearancePage() {
         <div>
           <p className="text-sm font-medium">Dark Mode</p>
           <p className="text-xs text-text-secondary">
-            Tema oscuro para los portales judiciales (MEV, PJN)
+            Tema oscuro para los portales judiciales (MEV, EJE)
           </p>
         </div>
         <button
