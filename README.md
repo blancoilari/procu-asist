@@ -13,7 +13,6 @@ Extensión Chrome para abogados argentinos que automatiza la interacción con po
 - **Descarga de adjuntos** desde los portales
 - **Importación masiva** de causas desde resultados de búsqueda
 - **Sincronización en la nube** vía Supabase (marcadores, monitores, alertas, configuración)
-- **Suscripciones tiered** (Free / Junior / Senior) vía MercadoPago
 - **Modo oscuro** en todos los paneles y páginas de portales
 - **Onboarding wizard** para nuevos usuarios
 - **Encriptación local** de credenciales con AES-GCM y PIN
@@ -31,8 +30,7 @@ Extensión Chrome para abogados argentinos que automatiza la interacción con po
 - **Framework**: [WXT](https://wxt.dev) 0.20 (Manifest V3)
 - **UI**: React 19 + TypeScript 5.9 (strict) + Tailwind CSS v4
 - **State**: Zustand 5 + chrome.storage.local (local-first)
-- **Backend**: Supabase (Auth + PostgreSQL + Edge Functions + RLS)
-- **Pagos**: MercadoPago Checkout Preferences API
+- **Backend**: Supabase (Auth + PostgreSQL + RLS)
 - **Crypto**: Web Crypto API (PBKDF2 + AES-GCM)
 - **PDF**: jsPDF 4
 
@@ -100,13 +98,9 @@ procu-asist/
 │   ├── pdf/                     # Generación de PDF y descarga de adjuntos
 │   ├── portals/                 # Selectores, parsers y tipos por portal
 │   ├── storage/                 # Stores locales (bookmarks, monitors, settings, credentials)
-│   ├── supabase/                # Cliente, auth, sync, checkout
-│   ├── tier/                    # Límites y enforcement por plan
+│   ├── supabase/                # Cliente, auth, sync
+│   ├── tier/                    # Configuración (app gratuita, sin límites)
 │   └── ui/                      # Componentes compartidos (dark mode, onboarding)
-├── supabase/
-│   └── functions/               # Edge Functions (Deno)
-│       ├── create-checkout/     # Crear preferencia MercadoPago
-│       └── mp-webhook/          # Webhook de pagos MercadoPago
 ├── public/icon/                 # Iconos de la extensión (16-128px + SVG)
 ├── assets/styles/               # Estilos globales (Tailwind)
 ├── wxt.config.ts                # Configuración WXT + manifest
@@ -121,18 +115,15 @@ procu-asist/
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_GOOGLE_CLIENT_ID=your-google-oauth-client-id
-
-# MercadoPago (solo para Edge Functions, configurar como Supabase secrets)
-# MP_ACCESS_TOKEN=your-mercadopago-access-token
 ```
 
-## Planes de Suscripción
+## Precio
 
-| Característica | Free | Junior | Senior |
-|---------------|------|--------|--------|
-| Marcadores | 3 | 50 | 500 |
-| Monitores | 1 | 50 | 500 |
-| PDFs/mes | 5 | 50 | Ilimitado |
+**Gratuito** — todas las funciones habilitadas, sin límites. Si te resulta útil, podés [invitarme un cafecito](https://cafecito.app/procuasist).
+
+## Disclaimer
+
+ProcuAsist se ofrece "tal cual" (as is), sin garantías de ningún tipo. No reemplaza el control manual de actuaciones judiciales. El autor no es responsable por daños directos o indirectos derivados de su uso.
 
 ## Licencia
 

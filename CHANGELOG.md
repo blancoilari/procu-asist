@@ -2,15 +2,24 @@
 
 Todos los cambios notables del proyecto se documentan en este archivo.
 
+## [0.2.0] - 2026-04-01
+
+### ProcuAsist ahora es gratuito
+
+- Eliminado sistema de planes pagos (Free/Junior/Senior) — todas las funciones sin limites
+- Eliminada integracion con MercadoPago (checkout y webhook)
+- Agregado boton "Invitame un cafecito" para donaciones voluntarias
+- Agregado disclaimer legal en ajustes y en el onboarding
+- Agregado paso de aceptacion de terminos de uso en el onboarding
+
 ## [0.1.0] - 2026-03-31
 
 ### Primera version
 
 **Infraestructura**
 - Scaffolding con WXT 0.20 + React 19 + TypeScript 5.9 + Tailwind CSS v4
-- Configuracion de Supabase (Auth, PostgreSQL, Edge Functions, RLS)
+- Configuracion de Supabase (Auth, PostgreSQL, RLS)
 - Integracion con Google OAuth via Supabase Auth
-- Integracion con MercadoPago para suscripciones
 
 **Seguridad**
 - Encriptacion AES-GCM de credenciales de portales
@@ -41,12 +50,6 @@ Todos los cambios notables del proyecto se documentan en este archivo.
 **Sincronizacion**
 - Sync bidireccional (push/pull) de marcadores, monitores, alertas y settings
 - Estrategia local-first con chrome.storage.local como fuente de verdad
-
-**Suscripciones**
-- Tres planes: Free, Junior, Senior
-- Checkout via MercadoPago (Edge Function create-checkout)
-- Webhook de pagos (Edge Function mp-webhook)
-- Enforcement de limites por plan (marcadores, monitores, PDFs/mes)
 
 **UI**
 - Side panel como dashboard principal

@@ -14,7 +14,7 @@
 10. [Descargar adjuntos](#10-descargar-adjuntos)
 11. [Importar causas en lote](#11-importar-causas-en-lote)
 12. [Modo oscuro](#12-modo-oscuro)
-13. [Planes y suscripciones](#13-planes-y-suscripciones)
+13. [Donaciones](#13-donaciones)
 14. [Pagina de opciones](#14-pagina-de-opciones)
 15. [Preguntas frecuentes](#15-preguntas-frecuentes)
 16. [Solucion de problemas](#16-solucion-de-problemas)
@@ -158,7 +158,7 @@ El panel tiene tres pestañas:
 
 ### Barra superior
 
-- Muestra tu plan actual (Free, Junior, Senior)
+- Muestra la version de ProcuAsist
 - Indicador de alertas no leidas
 - Buscador de causas
 
@@ -190,13 +190,7 @@ Los marcadores te permiten guardar causas para acceder rapido sin buscarlas cada
 1. En la lista de marcadores, busca la causa
 2. Hacé click en el boton de eliminar (icono de papelera)
 
-### Limites segun tu plan
-
-| Plan | Marcadores maximos |
-|------|-------------------|
-| Free | 3 |
-| Junior | 50 |
-| Senior | 500 |
+No hay limite de marcadores — podes guardar todas las causas que necesites.
 
 ---
 
@@ -256,15 +250,7 @@ Podes generar un PDF con los datos de una causa: caratula, juzgado, numero, esta
 - Lista completa de movimientos con fecha y descripcion
 - Fecha de generacion del PDF
 
-### Limites segun tu plan
-
-| Plan | PDFs por mes |
-|------|-------------|
-| Free | 5 |
-| Junior | 50 |
-| Senior | Ilimitado |
-
-El contador se reinicia el primer dia de cada mes.
+No hay limite en la generacion de PDFs.
 
 ---
 
@@ -305,49 +291,15 @@ Cuando esta activado:
 
 ---
 
-## 13. Planes y suscripciones
+## 13. Donaciones
 
-ProcuAsist tiene tres planes:
+ProcuAsist es **100% gratuito** — todas las funciones estan habilitadas sin limites.
 
-### Plan Free (Gratis)
+Si te resulta util y queres apoyar el desarrollo, podes invitarme un cafecito desde la seccion de Ajustes en el panel lateral (boton "Invitame un cafecito").
 
-- 3 marcadores
-- 1 monitor
-- 5 PDFs por mes
-- Auto-login y keep-alive incluidos
-- Ideal para probar la extension
+### Disclaimer
 
-### Plan Junior ($8.900/mes o $85.440/año)
-
-- 50 marcadores
-- 50 monitores
-- 50 PDFs por mes
-- Todo lo del plan Free
-- Ideal para abogados individuales
-
-### Plan Senior ($15.275/mes o $146.640/año)
-
-- 500 marcadores
-- 500 monitores
-- PDFs ilimitados
-- Todo lo del plan Junior
-- Ideal para estudios juridicos
-
-### Como suscribirse
-
-1. Abri el panel lateral o la pagina de opciones
-2. Hace click en **"Mejorar plan"**
-3. Elegí el plan y la frecuencia de pago (mensual o anual)
-4. Se abre una pagina de MercadoPago para completar el pago
-5. Una vez aprobado, tu plan se actualiza automaticamente
-
-### Metodos de pago
-
-Se aceptan todos los medios de pago de MercadoPago:
-- Tarjeta de credito y debito
-- Transferencia bancaria
-- Dinero en cuenta de MercadoPago
-- Rapipago y Pago Facil
+ProcuAsist se ofrece "tal cual" (as is), sin garantias de ningun tipo. No reemplaza el control manual de actuaciones judiciales. El autor no es responsable por daños directos o indirectos derivados de su uso. Usalo como herramienta complementaria, no como unico medio de seguimiento de causas.
 
 ---
 
@@ -362,7 +314,7 @@ Para acceder: click derecho en el icono de ProcuAsist → **"Opciones"**
 - **Keep-alive** — Activar/desactivar el mantenimiento de sesion por portal
 - **Auto-reconexion** — Activar/desactivar la reconexion automatica
 - **Modo oscuro** — Activar/desactivar tema oscuro
-- **Cuenta** — Ver tu email, plan actual, y cerrar sesion
+- **Cuenta** — Ver tu email y cerrar sesion
 - **Sincronizacion** — Forzar una sincronizacion manual con la nube
 
 ---
@@ -423,19 +375,12 @@ Por el momento, ProcuAsist soporta MEV, PJN y SCBA Notificaciones. Se planea agr
 1. **Verificá los permisos de Chrome**: Ir a `chrome://settings/content/notifications` y asegurarse de que las notificaciones estan permitidas.
 2. **Verificá que el monitor esta activo**: En el panel lateral → Monitores, confirmá que el monitor no esta pausado.
 3. **Forzá un escaneo**: Click en "Escanear ahora" para verificar si hay movimientos nuevos.
-4. **Verificá tu plan**: El plan Free permite solo 1 monitor activo.
 
 ### La extension no se ve en Chrome
 
 1. Ir a `chrome://extensions`
 2. Verificar que ProcuAsist esta habilitada (switch activado)
 3. Si no aparece, reinstalar la extension
-
-### Error "Se alcanzo el limite del plan"
-
-Esto significa que llegaste al maximo de marcadores, monitores, o PDFs de tu plan actual. Opciones:
-- Eliminar marcadores o monitores existentes para liberar espacio
-- Mejorar tu plan (Junior o Senior)
 
 ### La sesion se desconecta a pesar del keep-alive
 
@@ -464,4 +409,4 @@ Si tenes dudas o problemas que no se resuelven con este manual, contactanos:
 
 ---
 
-*ProcuAsist v0.1.0 — Copiloto Legal para Abogados Argentinos*
+*ProcuAsist v0.2.0 — Copiloto Legal para Abogados Argentinos*

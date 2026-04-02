@@ -41,7 +41,6 @@ Toda la comunicacion entre content scripts, popup, sidepanel y background pasa p
 | **Settings** | `UPDATE_SETTINGS`, `GET_SETTINGS` | Preferencias del usuario |
 | **Auth** | `SIGN_IN`, `SIGN_OUT`, `GET_USER` | Autenticacion OAuth |
 | **Sync** | `SYNC_DATA` | Sincronizacion push/pull con Supabase |
-| **Tier** | `CHECK_LIMIT` | Verificacion de limites del plan |
 | **UI** | `OPEN_SIDEPANEL`, `GENERATE_PDF`, `DOWNLOAD_ATTACHMENT`, `BULK_IMPORT` | Acciones de UI |
 
 ### Como agregar un nuevo mensaje
@@ -88,39 +87,6 @@ CryptoKey AES-GCM (256 bits)
 5. Google muestra pantalla de consentimiento
 6. Callback retorna token → Supabase valida y crea sesion
 7. Se guarda perfil en chrome.storage.local como tl_user
-8. Se guarda tier en chrome.storage.local como tl_tier
-```
-
-## Sistema de Tiers
-
-Definido en `modules/tier/limits.ts`:
-
-| Plan | Marcadores | Monitores | PDFs/mes | Precio mensual |
-|------|-----------|-----------|----------|----------------|
-| Free | 3 | 1 | 5 | $0 |
-| Junior | 50 | 50 | 50 | $8.900 |
-| Senior | 500 | 500 | Ilimitado | $15.275 |
-
-### Enforcement
-
-`modules/tier/enforcer.ts` expone `checkLimit(action)` que:
-
-1. Lee el tier actual de `chrome.storage.local` (`tl_tier`)
-2. Obtiene el conteo actual (bookmarks, monitors, o PDF downloads del mes)
-3. Retorna `{ allowed, currentCount, limit, tierPlan }`
-
-El conteo de PDFs se trackea por mes en `tl_pdf_downloads` con reset automatico al cambiar de mes.
-
-### Flujo de pago
-
-```
-1. Usuario elige plan → CHECKOUT request al background
-2. Background llama Edge Function create-checkout
-3. Edge Function crea preferencia en MercadoPago
-4. Usuario es redirigido a MercadoPago para pagar
-5. MercadoPago envia IPN a Edge Function mp-webhook
-6. Webhook actualiza tabla subscriptions + profiles en Supabase
-7. Extension detecta cambio de tier en proximo sync
 ```
 
 ## Estructura de Storage
@@ -133,13 +99,12 @@ Claves en `chrome.storage.local`:
 | `tl_monitors` | `Monitor[]` | Causas monitoreadas |
 | `tl_alerts` | `MovementAlert[]` | Alertas de movimientos nuevos |
 | `tl_settings` | `ProcuAsistSettings` | Preferencias del usuario |
-| `tl_tier` | `TierPlan` | Plan actual del usuario |
 | `tl_user` | `UserProfile` | Perfil del usuario autenticado |
 | `tl_master_salt` | `string` (base64) | Salt para derivacion de clave |
 | `tl_pin_test` | `string` (base64) | Texto encriptado para verificar PIN |
 | `tl_credentials_mev` | `string` (base64) | Credenciales MEV encriptadas |
 | `tl_credentials_pjn` | `string` (base64) | Credenciales PJN encriptadas |
-| `tl_pdf_downloads` | `PdfCounter` | Contador de PDFs del mes actual |
+| `tl_onboarding_done` | `boolean` | Si el usuario completo el onboarding |
 
 ## Como agregar soporte para un nuevo portal
 
@@ -167,31 +132,6 @@ Claves en `chrome.storage.local`:
 6. **Agregar URLs** en `modules/portals/urls.ts`
 
 7. **Actualizar message-router.ts** si se necesitan handlers especificos
-
-## Edge Functions (Supabase)
-
-### Deploy
-
-```bash
-# Configurar secretos
-npx supabase secrets set MP_ACCESS_TOKEN=APP_USR-...
-
-# Deploy
-npx supabase functions deploy create-checkout
-npx supabase functions deploy mp-webhook
-```
-
-### Testing local
-
-```bash
-npx supabase functions serve create-checkout --env-file .env
-```
-
-### Variables de entorno disponibles (automaticas en Supabase)
-
-- `SUPABASE_URL` — URL del proyecto
-- `SUPABASE_SERVICE_ROLE_KEY` — Clave de servicio (admin)
-- `MP_ACCESS_TOKEN` — Token de MercadoPago (configurado como secret)
 
 ## Scripts disponibles
 
