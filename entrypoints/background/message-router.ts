@@ -37,15 +37,13 @@ import {
   markAllAlertsRead,
 } from '@/modules/storage/monitor-store';
 import { getSettings, updateSettings } from '@/modules/storage/settings-store';
-import { generateCasePdf } from '@/modules/pdf/case-pdf-generator';
+import { generateCaseZip } from '@/modules/pdf/case-zip-generator';
 import {
   downloadMevAttachment,
   findMevTab,
 } from '@/modules/pdf/attachment-downloader';
 import { handleSessionExpired } from './auto-reconnect';
 import { scanMonitoredCases } from './case-monitor';
-import { signInWithOAuth, signOut, getCurrentUser } from '@/modules/supabase/auth';
-import { syncAll } from '@/modules/supabase/sync';
 
 export function setupMessageRouter() {
   chrome.runtime.onMessage.addListener(
@@ -102,11 +100,16 @@ async function handleMessage(
     }
 
     case 'GET_CREDENTIALS': {
-      const creds = await getCredentials(message.portal);
-      if (!creds) {
-        return { success: false, reason: 'no_credentials' };
+      try {
+        const creds = await getCredentials(message.portal);
+        if (!creds) {
+          return { success: false, reason: 'no_credentials' };
+        }
+        return { success: true, credentials: creds };
+      } catch {
+        // Vault is locked — return gracefully instead of throwing
+        return { success: false, reason: 'vault_locked' };
       }
-      return { success: true, credentials: creds };
     }
 
     // --- Session Management ---
@@ -182,45 +185,40 @@ async function handleMessage(
       return { status: 'ok' };
     }
 
-    // --- PDF ---
-    case 'GENERATE_PDF': {
-      console.debug(
-        '[ProcuAsist] PDF generation for:',
-        message.caseData.caseNumber
-      );
+    case 'GENERATE_ZIP': {
+      console.debug('[ProcuAsist] ZIP generation for:', message.caseData.caseNumber);
       try {
-        const dataUri = generateCasePdf({
-          caseNumber: message.caseData.caseNumber,
-          title: message.caseData.title,
-          court: message.caseData.court,
-          portal: message.caseData.portal,
-          portalUrl: message.caseData.portalUrl,
-          fechaInicio: message.caseData.fechaInicio,
-          estadoPortal: message.caseData.estadoPortal,
-          numeroReceptoria: message.caseData.numeroReceptoria,
-          movements: message.caseData.movements.map((m) => ({
-            date: m.date,
-            description: m.description,
-            type: m.type,
-            hasDocuments: m.hasDocuments,
-          })),
-          attachments: message.caseData.attachments,
-        });
+        const mevTabId = await findMevTab();
+        if (!mevTabId) {
+          return { success: false, error: 'No hay una pestaña de MEV abierta. Abrí MEV primero.' };
+        }
 
-        // Trigger download via chrome.downloads
-        const filename = `expediente_${message.caseData.caseNumber.replace(/[^a-zA-Z0-9-]/g, '_')}.pdf`;
+        const result = await generateCaseZip(message.caseData, mevTabId);
+
+        if (!result.success || !result.blob) {
+          return { success: false, error: result.error ?? 'Error al generar ZIP' };
+        }
+
+        // Convert Blob to base64 data URI for chrome.downloads
+        const arrayBuffer = await result.blob.arrayBuffer();
+        const uint8 = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
+        const base64 = btoa(binary);
+        const dataUri = `data:application/zip;base64,${base64}`;
+
         await chrome.downloads.download({
           url: dataUri,
-          filename,
+          filename: result.filename!,
           saveAs: true,
         });
 
-        return { success: true, filename };
+        return { success: true, filename: result.filename, stats: result.stats };
       } catch (err) {
-        console.error('[ProcuAsist] PDF generation error:', err);
+        console.error('[ProcuAsist] ZIP generation error:', err);
         return {
           success: false,
-          error: err instanceof Error ? err.message : 'PDF generation failed',
+          error: err instanceof Error ? err.message : 'ZIP generation failed',
         };
       }
     }
@@ -339,35 +337,6 @@ async function handleMessage(
         }
       }
       return { status: 'ok', imported };
-    }
-
-    // --- Auth & Sync ---
-    case 'SIGN_IN': {
-      try {
-        await signInWithOAuth(message.provider);
-        const user = await getCurrentUser();
-        return { success: true, user };
-      } catch (err) {
-        return {
-          success: false,
-          error: err instanceof Error ? err.message : 'Sign-in failed',
-        };
-      }
-    }
-
-    case 'SIGN_OUT': {
-      await signOut();
-      return { success: true };
-    }
-
-    case 'GET_USER': {
-      const user = await getCurrentUser();
-      return { success: true, user };
-    }
-
-    case 'SYNC_DATA': {
-      const syncResult = await syncAll(message.direction);
-      return syncResult;
     }
 
     default:

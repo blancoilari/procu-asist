@@ -10,31 +10,28 @@
 6. [El panel lateral (Side Panel)](#6-el-panel-lateral-side-panel)
 7. [Marcadores de causas](#7-marcadores-de-causas)
 8. [Monitoreo de causas y alertas](#8-monitoreo-de-causas-y-alertas)
-9. [Generar PDF de un expediente](#9-generar-pdf-de-un-expediente)
-10. [Descargar adjuntos](#10-descargar-adjuntos)
-11. [Importar causas en lote](#11-importar-causas-en-lote)
-12. [Modo oscuro](#12-modo-oscuro)
-13. [Donaciones](#13-donaciones)
-14. [Pagina de opciones](#14-pagina-de-opciones)
-15. [Preguntas frecuentes](#15-preguntas-frecuentes)
-16. [Solucion de problemas](#16-solucion-de-problemas)
+9. [Descargar el expediente completo (ZIP)](#9-descargar-el-expediente-completo-zip)
+10. [Importar causas en lote](#10-importar-causas-en-lote)
+11. [Modo oscuro](#11-modo-oscuro)
+12. [Donaciones](#12-donaciones)
+13. [Pagina de opciones](#13-pagina-de-opciones)
+14. [Preguntas frecuentes](#14-preguntas-frecuentes)
+15. [Solucion de problemas](#15-solucion-de-problemas)
 
 ---
 
 ## 1. Que es ProcuAsist
 
-ProcuAsist es una extension para Google Chrome que funciona como copiloto legal. Automatiza tareas repetitivas en los portales judiciales de la Provincia de Buenos Aires y Nacion:
+ProcuAsist es una extension para Google Chrome que funciona como copiloto legal. Automatiza tareas repetitivas en los portales judiciales de la Provincia de Buenos Aires y CABA:
 
-- **MEV** (Mesa de Entradas Virtual) — mev.scba.gov.ar
-- **EJE** (Poder Judicial de CABA) — eje.juscaba.gob.ar
-- **SCBA Notificaciones** — notificaciones.scba.gov.ar
+- **MEV** (Mesa de Entradas Virtual - Provincia de Buenos Aires) — mev.scba.gov.ar
+- **JUSCABA** (Poder Judicial de CABA) — eje.juscaba.gob.ar
 
 Con ProcuAsist podes:
 - Entrar automaticamente a los portales sin escribir usuario y clave cada vez
 - Guardar causas como marcadores para acceder rapido
 - Recibir notificaciones cuando hay movimientos nuevos en tus causas
-- Generar PDFs con los datos del expediente
-- Descargar adjuntos de las causas
+- **Descargar el expediente completo en un ZIP** con todos los pasos procesales, sus documentos y adjuntos
 - Y mucho mas
 
 ---
@@ -48,18 +45,18 @@ Vas a recibir un archivo `.zip` con la extension. Guardalo en tu computadora (po
 ### Paso 2: Abrir la pagina de extensiones de Chrome
 
 1. Abri Google Chrome
-2. En la barra de direcciones, escribi: `chrome://extensions` y presiona Enter
-3. En la esquina superior derecha, activa el switch **"Modo desarrollador"**
+2. En la barra de direcciones, escribi: `chrome://extensions` y presioná Enter
+3. En la esquina superior derecha, activá el switch **"Modo desarrollador"**
 
 ### Paso 3: Instalar la extension
 
 **Opcion A** — Arrastrar el .zip:
-- Arrastra el archivo .zip directamente a la pagina de extensiones
+- Arrastráel archivo .zip directamente a la pagina de extensiones
 
 **Opcion B** — Cargar descomprimida:
 1. Descomprimí el .zip en una carpeta
 2. Hacé click en **"Cargar descomprimida"**
-3. Selecciona la carpeta donde descomprimiste la extension
+3. Seleccioná la carpeta donde descomprimiste la extension
 
 ### Paso 4: Verificar la instalacion
 
@@ -72,37 +69,31 @@ Vas a recibir un archivo `.zip` con la extension. Guardalo en tu computadora (po
 
 La primera vez que abras ProcuAsist, se va a mostrar un **asistente de configuracion** (onboarding) que te guia paso a paso.
 
-### Paso 1: Iniciar sesion con Google
+### Paso 1: Crear tu PIN de seguridad
 
 1. Hacé click en el icono de ProcuAsist o abri el panel lateral
-2. Se va a mostrar el boton **"Iniciar sesion con Google"**
-3. Hacé click y elegí tu cuenta de Google
-4. Esto crea tu cuenta en ProcuAsist (no se comparte tu clave de Google)
+2. El asistente te pide crear un **PIN de 4 a 8 digitos**
+3. Este PIN protege las credenciales de los portales judiciales que guardes
+4. **Importante**: Recordá tu PIN. Si lo olvidás, vas a tener que volver a configurar tus credenciales
 
-### Paso 2: Crear tu PIN de seguridad
-
-1. Despues de iniciar sesion, el asistente te pide crear un **PIN de 4 a 8 digitos**
-2. Este PIN protege las credenciales de los portales judiciales que guardes
-3. **Importante**: Recordá tu PIN. Si lo olvidás, vas a tener que volver a configurar tus credenciales
-
-### Paso 3: Guardar credenciales de portales
+### Paso 2: Guardar credenciales de portales
 
 1. El asistente te pide las credenciales de los portales que uses
-2. Ingresa tu usuario y clave de MEV, EJE, o ambos
+2. Ingresá tu usuario y clave de MEV, JUSCABA, o ambos
 3. Las credenciales se guardan **encriptadas** en tu computadora — nunca se envian a ningun servidor
 
 ---
 
 ## 4. Configurar credenciales de portales
 
-Si no configuraste tus credenciales en el asistente inicial, o queres cambiarlas:
+Si no configuraste tus credenciales en el asistente inicial, o querés cambiarlas:
 
 1. Hacé click derecho en el icono de ProcuAsist → **"Opciones"**
 2. O navegá a la seccion **Credenciales** en la pagina de opciones
-3. Ingresa tu PIN para desbloquear
-4. Completa usuario y clave para cada portal que uses:
+3. Ingresá tu PIN para desbloquear
+4. Completá usuario y clave para cada portal que uses:
    - **MEV**: Tu usuario y clave de mev.scba.gov.ar
-   - **EJE**: Tu usuario y clave de eje.juscaba.gob.ar
+   - **JUSCABA**: Tu usuario y clave de eje.juscaba.gob.ar
 5. Hacé click en **"Guardar"**
 
 ### Seguridad de tus credenciales
@@ -120,7 +111,7 @@ Una vez que tus credenciales estan guardadas y el PIN esta desbloqueado:
 
 ### Como funciona
 
-1. Navega a cualquier portal soportado (ej: mev.scba.gov.ar)
+1. Navegá a cualquier portal soportado (ej: mev.scba.gov.ar)
 2. ProcuAsist detecta la pagina de login automaticamente
 3. Completa usuario, clave y departamento judicial por vos
 4. Hace click en "Ingresar" automaticamente
@@ -156,12 +147,6 @@ El panel tiene tres pestañas:
 2. **Monitores** — Causas que estas siguiendo, con alertas de movimientos
 3. **Configuracion** — Acceso rapido a opciones
 
-### Barra superior
-
-- Muestra la version de ProcuAsist
-- Indicador de alertas no leidas
-- Buscador de causas
-
 ---
 
 ## 7. Marcadores de causas
@@ -171,13 +156,9 @@ Los marcadores te permiten guardar causas para acceder rapido sin buscarlas cada
 ### Agregar un marcador
 
 **Desde el portal:**
-1. Navega a la pagina de una causa (ej: procesales.asp en MEV)
+1. Navegá a la pagina de una causa en MEV (procesales.asp)
 2. ProcuAsist detecta los datos automaticamente
-3. Hacé click en el boton **"Agregar a marcadores"** que aparece en la pagina
-
-**Desde resultados de busqueda:**
-1. Busca causas en el portal normalmente
-2. En los resultados, cada causa tiene un boton para marcarla
+3. Hacé click en el boton **"⭐ Guardar"** que aparece en la pagina
 
 ### Ver marcadores
 
@@ -200,8 +181,8 @@ El monitoreo te avisa automaticamente cuando hay movimientos nuevos en una causa
 
 ### Activar monitoreo en una causa
 
-1. Navega a la pagina de la causa en el portal
-2. Hacé click en **"Monitorear esta causa"**
+1. Navegá a la pagina de la causa en el portal
+2. Hacé click en **"👁 Monitorear"**
 3. ProcuAsist va a revisar periodicamente si hay movimientos nuevos
 
 ### Como funcionan las alertas
@@ -230,41 +211,75 @@ Si no queres esperar al escaneo automatico, podes forzar un escaneo haciendo cli
 
 ---
 
-## 9. Generar PDF de un expediente
+## 9. Descargar el expediente completo (ZIP)
 
-Podes generar un PDF con los datos de una causa: caratula, juzgado, numero, estado, y la lista de movimientos.
+Esta es la funcion principal de ProcuAsist para MEV. Genera un archivo ZIP con todos los documentos del expediente.
 
-### Como generar un PDF
+### Como descargarlo
 
-1. Navega a la pagina de la causa en el portal
+1. Navegá a la pagina de una causa en MEV (procesales.asp)
 2. ProcuAsist extrae los datos automaticamente
-3. En el panel lateral, hacé click en **"Generar PDF"**
-4. El PDF se descarga automaticamente en tu carpeta de descargas
+3. Hacé click en el boton **"📦 ZIP"** que aparece en la esquina inferior derecha de la pantalla
 
-### Contenido del PDF
+### Seleccionar qué pasos descargar
 
-- Numero de causa y caratula
-- Juzgado y fuero
-- Estado del expediente
-- Fecha de inicio
-- Lista completa de movimientos con fecha y descripcion
-- Fecha de generacion del PDF
+Al hacer click en ZIP, aparece una pantalla de seleccion:
 
-No hay limite en la generacion de PDFs.
+- Todos los pasos procesales aparecen listados con su fecha, fojas y descripcion
+- Por defecto estan **todos seleccionados** — podes desmarcar los que no queres
+- Botones "Seleccionar todos" y "Deseleccionar todos" para mayor comodidad
+- El boton "Descargar seleccionados (N)" muestra cuantos pasos vas a descargar
+- Si no seleccionas ninguno y das Cancelar, no se descarga nada
+
+### Progreso de la descarga
+
+Una vez que confirmaste la seleccion:
+- Aparece una barra de progreso en pantalla
+- Se va mostrando en que paso esta la descarga ("Descargando documento 3 de 7...")
+- Esto puede tardar varios minutos segun el tamaño del expediente y la velocidad del portal
+
+### Que contiene el ZIP
+
+```
+expediente_AL-12345-2025.zip
+└── AL-12345-2025_expte_completo/
+    ├── resumen.pdf                                      ← Tabla con todos los movimientos
+    ├── 001_fs-1-3_fecha_29-12-2025_AUTOS.pdf           ← PDF de cada paso seleccionado
+    ├── 002_fs-4-15_fecha_29-12-2025_INTERLOCUTORIO.pdf
+    ├── 003_fs-29-36_fecha_04-02-2026_RECURSO_DE_APELACION.pdf
+    ├── 003_..._adjunto_1.pdf                           ← Adjuntos del paso
+    └── _verificacion.txt                               ← Solo aparece si hubo errores
+```
+
+**Nombre de cada archivo:** numero de orden + fojas + fecha + descripcion del tramite
+
+### Contenido de cada PDF de paso procesal
+
+Cada PDF incluye toda la informacion del proveido:
+- **Juzgado** y departamento
+- **Datos del expediente**: caratula, fecha inicio, numero de receptoria, numero de expediente, estado
+- **Informacion del paso**: fecha, tipo de tramite, si esta firmado, numero de fojas
+- **Referencias**: adjuntos con links clickables (hacé click en el PDF para abrir el documento original), despacho y observaciones
+- **Datos de presentacion**: fecha del escrito, quien firmo, numero de presentacion electronica
+- **Texto completo del proveido**
+
+### Si hubo errores en la descarga
+
+- El boton ZIP se pone en **amarillo** (en vez de verde) cuando el ZIP se genero pero con algun error
+- Aparece un cuadro en pantalla con el detalle de que archivos fallaron y por que
+- Dentro del ZIP aparece un archivo `_verificacion.txt` con el mismo detalle
+- El error mas comun es que el servidor del portal no responde — podes intentar descargar de vuelta
+
+### Adjuntos que no se descargan
+
+Los adjuntos (VER ADJUNTO) se obtienen del servidor `docs.scba.gov.ar`, que a veces es lento o da error. ProcuAsist intenta varias veces antes de darse por vencido. Si igual falla:
+- Se genera un archivo `_adjunto_X_ERROR.txt` explicando el error
+- El resto del expediente se descarga igualmente
+- Podes abrir el link del adjunto desde el PDF del paso procesal (es un hipervínculo clickable)
 
 ---
 
-## 10. Descargar adjuntos
-
-Cuando una causa tiene documentos adjuntos (escritos, cedulas, resoluciones):
-
-1. Navega a la pagina del movimiento que tiene adjuntos
-2. ProcuAsist detecta los links de "VER ADJUNTO"
-3. Podes descargar los adjuntos directamente desde el panel lateral
-
----
-
-## 11. Importar causas en lote
+## 10. Importar causas en lote
 
 Si tenes muchas causas en los resultados de busqueda del portal:
 
@@ -275,23 +290,18 @@ Si tenes muchas causas en los resultados de busqueda del portal:
 
 ---
 
-## 12. Modo oscuro
+## 11. Modo oscuro
 
-ProcuAsist incluye un modo oscuro que se aplica tanto a los paneles de la extension como a las paginas de los portales judiciales.
+ProcuAsist incluye un modo oscuro que se aplica a los paneles de la extension.
 
 ### Activar/desactivar
 
-1. Ir a **Opciones** (click derecho en icono → Opciones)
-2. Buscar la opcion **"Modo oscuro"**
-3. Activar o desactivar el switch
-
-Cuando esta activado:
-- El panel lateral, popup y opciones usan colores oscuros
-- Las paginas de MEV, EJE y SCBA tambien se oscurecen para reducir la fatiga visual
+1. En el panel lateral → pestaña **"Configuracion"**
+2. Activar o desactivar el switch **"Modo oscuro"**
 
 ---
 
-## 13. Donaciones
+## 12. Donaciones
 
 ProcuAsist es **100% gratuito** — todas las funciones estan habilitadas sin limites.
 
@@ -303,27 +313,25 @@ ProcuAsist se ofrece "tal cual" (as is), sin garantias de ningun tipo. No reempl
 
 ---
 
-## 14. Pagina de opciones
+## 13. Pagina de opciones
 
 Para acceder: click derecho en el icono de ProcuAsist → **"Opciones"**
 
 ### Secciones disponibles
 
-- **Credenciales de portales** — Cambiar usuario y clave de MEV/EJE
+- **Credenciales de portales** — Cambiar usuario y clave de MEV/JUSCABA
 - **Departamento judicial preferido** — Para MEV, elegir tu departamento (ej: La Plata, Mar del Plata, Avellaneda, etc.)
 - **Keep-alive** — Activar/desactivar el mantenimiento de sesion por portal
 - **Auto-reconexion** — Activar/desactivar la reconexion automatica
 - **Modo oscuro** — Activar/desactivar tema oscuro
-- **Cuenta** — Ver tu email y cerrar sesion
-- **Sincronizacion** — Forzar una sincronizacion manual con la nube
 
 ---
 
-## 15. Preguntas frecuentes
+## 14. Preguntas frecuentes
 
 ### Mis credenciales estan seguras?
 
-Si. Las credenciales se encriptan con AES-256-GCM (el mismo cifrado que usan los bancos) y se guardan unicamente en tu computadora. Nunca se envian a ningun servidor. Solo se desencriptan momentaneamente cuando ProcuAsist necesita hacer auto-login, y solo si ingresaste tu PIN.
+Si. Las credenciales se encriptan con AES-256-GCM (el mismo cifrado que usan los bancos) y se guardan unicamente en tu computadora. Nunca se envian a internet ni se almacenan en texto plano. Solo se desencriptan momentaneamente cuando ProcuAsist necesita hacer auto-login, y solo si ingresaste tu PIN.
 
 ### Que pasa si olvido mi PIN?
 
@@ -339,10 +347,6 @@ Para resetear:
 
 Por el momento, ProcuAsist funciona unicamente con **Google Chrome** version 120 o superior. Navegadores basados en Chromium (Edge, Brave, Opera) podrian funcionar pero no estan oficialmente soportados.
 
-### Puedo usar ProcuAsist en mas de una computadora?
-
-Si. Inicia sesion con tu misma cuenta de Google en ambas computadoras. Tus marcadores, monitores y configuracion se sincronizan automaticamente via la nube. Las credenciales de portales NO se sincronizan (por seguridad) — vas a tener que configurarlas en cada computadora.
-
 ### El auto-login funciona si Chrome esta cerrado?
 
 No. ProcuAsist necesita que Chrome este abierto para funcionar. El keep-alive y el monitoreo corren como procesos dentro de Chrome.
@@ -355,13 +359,26 @@ El escaneo automatico se ejecuta aproximadamente cada 15 minutos mientras Chrome
 
 MEV es la Mesa de Entradas Virtual de la Suprema Corte de la Provincia de Buenos Aires (SCBA). Es el portal donde se consultan expedientes de la justicia bonaerense. URL: mev.scba.gov.ar
 
-### Puedo agregar mas portales?
+### Por que a veces los adjuntos no se descargan?
 
-Por el momento, ProcuAsist soporta MEV (Provincia de Buenos Aires), EJE (CABA) y SCBA Notificaciones. Se planea agregar PJN (Nacion) y mas portales en futuras versiones.
+El servidor donde estan los adjuntos (docs.scba.gov.ar) es intermitente — a veces no responde en el primer intento. ProcuAsist reintenta automaticamente hasta 7 veces antes de darse por vencido. Si igual falla, el adjunto queda como error en el ZIP pero podes abrirlo manualmente haciendo click en el link dentro del PDF del paso procesal.
+
+### El ZIP tarda mucho en generarse, es normal?
+
+Si, especialmente en expedientes grandes. Por cada paso procesal, ProcuAsist tiene que:
+1. Abrir la pagina del proveido en el servidor del portal
+2. Convertirla a PDF
+3. Descargar cada adjunto
+
+Para un expediente de 20 pasos con adjuntos puede tardar varios minutos. La barra de progreso te muestra en que paso esta.
+
+### Puedo descargar solo algunos pasos y no todos?
+
+Si. Al hacer click en ZIP aparece una pantalla de seleccion donde podes elegir exactamente que pasos descargar. Por defecto estan todos seleccionados.
 
 ---
 
-## 16. Solucion de problemas
+## 15. Solucion de problemas
 
 ### El auto-login no funciona
 
@@ -391,6 +408,10 @@ Esto puede pasar si:
 
 ProcuAsist intentara reconectarse automaticamente. Si no puede, vas a ver la pagina de login del portal y podes refrescar para que intente de nuevo.
 
+### El boton ZIP se pone amarillo
+
+Significa que la descarga termino pero algunos archivos tuvieron errores. Aparece un cuadro con el detalle. Podes revisar el archivo `_verificacion.txt` dentro del ZIP para ver exactamente que fallo y volver a intentarlo manualmente.
+
 ### Chrome se volvio lento
 
 Si notas lentitud:
@@ -404,9 +425,8 @@ Si notas lentitud:
 
 Si tenes dudas o problemas que no se resuelven con este manual, contactanos:
 
-- **Email**: [configurar email de soporte]
 - **GitHub**: https://github.com/blancoilari/procu-asist/issues
 
 ---
 
-*ProcuAsist v0.2.0 — Copiloto Legal para Abogados Argentinos*
+*ProcuAsist v0.3.0 — Copiloto Legal para Abogados Argentinos*

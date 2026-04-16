@@ -2,6 +2,34 @@
 
 Todos los cambios notables del proyecto se documentan en este archivo.
 
+## [0.3.0] - 2026-04-15
+
+### Mejoras en descarga de expedientes (MEV)
+
+**Descarga ZIP — contenido enriquecido**
+- El PDF de cada paso procesal ahora incluye todos los metadatos del proveido: juzgado, datos del expediente (carátula, fecha inicio, receptoría, estado), info del paso procesal (trámite, firmado, fojas), sección REFERENCIAS con adjuntos, sección DATOS DE PRESENTACIÓN, y el texto del proveido con título de sección
+- Los adjuntos (VER ADJUNTO) en el PDF del paso son hipervínculos clickables que abren el documento original
+- Estructura del ZIP reorganizada: `resumen.pdf` ahora va dentro de la carpeta `_expte_completo`, se eliminó `urls_documentos.txt`
+- Nomenclatura de archivos mejorada: `001_fs-29-36_fecha_04-02-2026_DESC.pdf` (incluye fojas y prefijo "fecha")
+
+**Selección de pasos procesales**
+- Al hacer click en el botón ZIP se muestra un modal de selección
+- El usuario puede elegir qué pasos procesales descargar (por defecto todos seleccionados)
+- Botones "Seleccionar todos" y "Deseleccionar todos"
+
+**Confiabilidad en descarga de adjuntos**
+- Reintentos con backoff exponencial: hasta 7 intentos para docs.scba.gov.ar, 3 para mev.scba.gov.ar
+- Detección de páginas de error HTML servidas en lugar del archivo real
+- Validación de tamaño mínimo para evitar guardar respuestas vacías
+
+**Verificación post-descarga**
+- Si algún archivo falla, se genera `_verificacion.txt` dentro del ZIP con detalle de cada error
+- Se muestra un overlay visual en pantalla con el resumen de fallos
+- El botón ZIP cambia a amarillo cuando el ZIP se completó pero con errores
+
+**Simplificación de interfaz**
+- Eliminado el botón "📄 PDF" — solo existe "📦 ZIP" que descarga el expediente completo
+
 ## [0.2.0] - 2026-04-01
 
 ### ProcuAsist ahora es gratuito
@@ -29,10 +57,8 @@ Todos los cambios notables del proyecto se documentan en este archivo.
 **Portales judiciales**
 - Content script para MEV (Mesa de Entradas Virtual - SCBA)
   - Auto-login, seleccion de departamento, extraccion de causas y movimientos
-- Content script para EJE (Poder Judicial de CABA - JUSCABA)
+- Content script para JUSCABA (Poder Judicial de CABA)
   - Auto-login, extraccion de causas
-- Content script para SCBA Notificaciones
-  - Importacion de notificaciones
 
 **Gestion de sesion**
 - Keep-alive automatico para evitar expiracion de sesion

@@ -6,7 +6,7 @@ export type ProcuAsistMessage =
   | LoginSuccessMessage
   | CasePageDetectedMessage
   | OpenSidePanelMessage
-  | GeneratePdfMessage
+  | GenerateZipMessage
   | DownloadAttachmentMessage
   | GetCredentialsMessage
   | BulkImportMessage
@@ -31,11 +31,7 @@ export type ProcuAsistMessage =
   | GetAlertsMessage
   | MarkAlertReadMessage
   | MarkAllAlertsReadMessage
-  | RunScanNowMessage
-  | SignInMessage
-  | SignOutMessage
-  | GetUserMessage
-  | SyncDataMessage;
+  | RunScanNowMessage;
 
 export interface SetupPinMessage {
   type: 'SETUP_PIN';
@@ -82,8 +78,8 @@ export interface OpenSidePanelMessage {
   type: 'OPEN_SIDEPANEL';
 }
 
-export interface GeneratePdfMessage {
-  type: 'GENERATE_PDF';
+export interface GenerateZipMessage {
+  type: 'GENERATE_ZIP';
   caseData: {
     caseNumber: string;
     title: string;
@@ -95,15 +91,11 @@ export interface GeneratePdfMessage {
     numeroReceptoria?: string;
     movements: Array<{
       date: string;
+      fojas?: string;
       description: string;
       type?: string;
       hasDocuments: boolean;
       documentUrls: string[];
-    }>;
-    attachments?: Array<{
-      name: string;
-      url: string;
-      movementDate?: string;
     }>;
   };
 }
@@ -223,26 +215,6 @@ export interface MarkAllAlertsReadMessage {
 
 export interface RunScanNowMessage {
   type: 'RUN_SCAN_NOW';
-}
-
-// --- Auth & Sync Messages ---
-
-export interface SignInMessage {
-  type: 'SIGN_IN';
-  provider: 'google';
-}
-
-export interface SignOutMessage {
-  type: 'SIGN_OUT';
-}
-
-export interface GetUserMessage {
-  type: 'GET_USER';
-}
-
-export interface SyncDataMessage {
-  type: 'SYNC_DATA';
-  direction: 'push' | 'pull';
 }
 
 /** Response types for type safety */

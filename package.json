@@ -2,7 +2,7 @@
   "name": "procu-asist",
   "description": "Copiloto legal para abogados argentinos - Auto-login, marcadores, procuración automática y más",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -15,9 +15,9 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.101.0",
     "@tailwindcss/vite": "^4.2.2",
     "jspdf": "^4.2.1",
+    "jszip": "^3.10.1",
     "pdf-lib": "^1.17.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
