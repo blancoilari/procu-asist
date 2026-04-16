@@ -17,7 +17,6 @@ import { generateCasePdfBlob, type PdfCaseData } from './case-pdf-generator';
 import {
   fetchMevPageContent,
   downloadMevAttachment,
-  type ProveidoPageData,
 } from './attachment-downloader';
 import { MEV_BASE_URL } from '@/modules/portals/mev-selectors';
 
@@ -132,25 +131,27 @@ export async function generateCaseZip(
   let adjuntosFailed = 0;
   const failedItems: ZipFailedItem[] = [];
 
-  // Flatten all doc entries with their sequential index
-  const allDocs: Array<{ index: number; mov: ZipMovement; url: string }> = [];
-  let docIdx = 1;
+  // Flatten all doc entries
+  const allDocs: Array<{ mov: ZipMovement; url: string }> = [];
   for (const mov of movementsWithDocs) {
     for (const url of mov.documentUrls) {
-      allDocs.push({ index: docIdx++, mov, url });
+      allDocs.push({ mov, url });
     }
   }
 
   const total = allDocs.length;
 
-  for (const { index, mov, url } of allDocs) {
+  for (let di = 0; di < allDocs.length; di++) {
+    const { mov, url } = allDocs[di];
+    const docNum = di + 1;
+
     onProgress?.(
-      `Descargando documento ${index} de ${total}...`,
-      index,
+      `Descargando documento ${docNum} de ${total}...`,
+      docNum,
       total
     );
 
-    const baseFilename = buildFilename(index, mov.date, mov.description, mov.fojas);
+    const baseFilename = buildFilename(mov.date, mov.description, mov.fojas);
 
     // Fetch the proveido content (text + adjunto URLs), parsed inside the MEV tab
     const pageResult = await fetchMevPageContent(mevTabId, url);
@@ -158,7 +159,7 @@ export async function generateCaseZip(
     if ('error' in pageResult) {
       proveidosFailed++;
       failedItems.push({
-        type: 'proveido', index, date: mov.date,
+        type: 'proveido', index: docNum, date: mov.date,
         description: mov.description, url: toAbsoluteUrl(url),
         error: pageResult.error,
       });
@@ -175,7 +176,6 @@ export async function generateCaseZip(
     // Generate PDF from the proveido content with full metadata
     try {
       const proveidoPdfBlob = generateProveidoPdf({
-        index,
         date: mov.date,
         fojas: mov.fojas,
         description: mov.description,
@@ -196,7 +196,7 @@ export async function generateCaseZip(
     } catch (err) {
       proveidosFailed++;
       failedItems.push({
-        type: 'proveido', index, date: mov.date,
+        type: 'proveido', index: docNum, date: mov.date,
         description: mov.description, url: toAbsoluteUrl(url),
         error: String(err),
       });
@@ -207,38 +207,53 @@ export async function generateCaseZip(
     }
 
     // Download VER ADJUNTO binary files found inside this proveido
-    for (let ai = 0; ai < parsed.adjuntoUrls.length; ai++) {
-      const adjUrl = parsed.adjuntoUrls[ai];
-      const adjName = `${baseFilename}_adjunto_${ai + 1}`;
+    // Batch in parallel groups of 3 for speed
+    const BATCH_SIZE = 3;
+    for (let bi = 0; bi < parsed.adjuntoUrls.length; bi += BATCH_SIZE) {
+      const batch = parsed.adjuntoUrls.slice(bi, bi + BATCH_SIZE).map((adjUrl, j) => ({
+        adjUrl,
+        adjName: `${baseFilename}_adjunto_${bi + j + 1}`,
+        ai: bi + j,
+      }));
 
       onProgress?.(
-        `Descargando adjunto ${ai + 1} de paso ${index}...`,
-        index,
+        `Descargando adjuntos de paso ${docNum}...`,
+        docNum,
         total
       );
 
-      const adjResult = await downloadMevAttachment(mevTabId, adjUrl, adjName);
+      const batchResults = await Promise.allSettled(
+        batch.map(({ adjUrl, adjName }) =>
+          downloadMevAttachment(mevTabId, adjUrl, adjName)
+        )
+      );
 
-      if (adjResult.success && adjResult.attachment) {
-        const att = adjResult.attachment;
-        const ext = getExtensionFromMime(att.mimeType);
-        expedienteFolder.file(`${adjName}${ext}`, att.base64, { base64: true });
-        adjuntosDownloaded++;
-      } else {
-        adjuntosFailed++;
-        failedItems.push({
-          type: 'adjunto', index, date: mov.date,
-          description: `Adjunto ${ai + 1} de ${mov.description}`,
-          url: adjUrl,
-          error: adjResult.error ?? 'desconocido',
-        });
-        expedienteFolder.file(
-          `${adjName}_ERROR.txt`,
-          `No se pudo descargar este adjunto.\nURL: ${adjUrl}\nError: ${adjResult.error ?? 'desconocido'}\n`
-        );
+      for (let j = 0; j < batch.length; j++) {
+        const { adjUrl, adjName, ai } = batch[j];
+        const settled = batchResults[j];
+        const adjResult = settled.status === 'fulfilled'
+          ? settled.value
+          : { success: false as const, error: String((settled as PromiseRejectedResult).reason) };
+
+        if (adjResult.success && adjResult.attachment) {
+          const att = adjResult.attachment;
+          const ext = getExtensionFromMime(att.mimeType);
+          expedienteFolder.file(`${adjName}${ext}`, att.base64, { base64: true });
+          adjuntosDownloaded++;
+        } else {
+          adjuntosFailed++;
+          failedItems.push({
+            type: 'adjunto', index: docNum, date: mov.date,
+            description: `Adjunto ${ai + 1} de ${mov.description}`,
+            url: adjUrl,
+            error: adjResult.error ?? 'desconocido',
+          });
+          expedienteFolder.file(
+            `${adjName}_ERROR.txt`,
+            `No se pudo descargar este adjunto.\nURL: ${adjUrl}\nError: ${adjResult.error ?? 'desconocido'}\n`
+          );
+        }
       }
-
-      await delay(200);
     }
 
     await delay(300);
@@ -306,7 +321,6 @@ export async function generateCaseZip(
 // ── Proveido PDF Generator ───────────────────────────────
 
 interface ProveidoPdfInput {
-  index: number;
   date: string;
   fojas?: string;
   description: string;
@@ -336,6 +350,7 @@ interface ProveidoPdfInput {
     despacho?: string;
     observacion?: string;
     observacionProfesional?: string;
+    rawFields?: Array<{ label: string; value: string }>;
   };
   datosPresentacion?: {
     fechaEscrito?: string;
@@ -359,7 +374,6 @@ function generateProveidoPdf(input: ProveidoPdfInput): Blob {
   const white: [number, number, number] = [255, 255, 255];
   const headerBg: [number, number, number] = [240, 245, 255];
   const lightGray: [number, number, number] = [200, 200, 200];
-  const green: [number, number, number] = [22, 163, 74];
 
   /** Check page break and add page if needed */
   const ensureSpace = (needed: number, currentY: number): number => {
@@ -380,7 +394,7 @@ function generateProveidoPdf(input: ProveidoPdfInput): Blob {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.text(
-    `${String(input.index).padStart(3, '0')} — ${input.date}`,
+    `${input.fojas ? 'fs ' + input.fojas : ''} — ${convertToIsoDate(input.date)}`,
     210 - MR,
     8,
     { align: 'right' }
@@ -394,8 +408,8 @@ function generateProveidoPdf(input: ProveidoPdfInput): Blob {
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     const juzLine = input.departamento
-      ? `${input.juzgadoName}  —  ${input.departamento}`
-      : input.juzgadoName;
+      ? `${sanitizeForPdf(input.juzgadoName)}  —  ${sanitizeForPdf(input.departamento)}`
+      : sanitizeForPdf(input.juzgadoName);
     const juzLines = doc.splitTextToSize(juzLine, CW) as string[];
     doc.text(juzLines, ML, y + 4);
     y += juzLines.length * 4 + 4;
@@ -405,17 +419,17 @@ function generateProveidoPdf(input: ProveidoPdfInput): Blob {
   const datos = input.datosExpediente;
   // Calculate box height dynamically
   let boxContentH = 8; // base padding
-  const caratulaText = datos?.caratula || input.title || 'Sin caratula';
+  const caratulaText = sanitizeForPdf(datos?.caratula || input.title || 'Sin caratula');
   doc.setFontSize(8);
   const caratulaLines = doc.splitTextToSize(caratulaText, CW - 30) as string[];
   boxContentH += caratulaLines.length * 3.5 + 2;
 
   // Metadata items
   const metaItemsStr: string[] = [];
-  if (datos?.fechaInicio) metaItemsStr.push(`Inicio: ${datos.fechaInicio}`);
-  if (datos?.estado) metaItemsStr.push(`Estado: ${datos.estado}`);
-  if (datos?.nroReceptoria) metaItemsStr.push(`Receptoria: ${datos.nroReceptoria}`);
-  if (datos?.nroExpediente) metaItemsStr.push(`Expediente: ${datos.nroExpediente}`);
+  if (datos?.fechaInicio) metaItemsStr.push(`Inicio: ${sanitizeForPdf(datos.fechaInicio)}`);
+  if (datos?.estado) metaItemsStr.push(`Estado: ${sanitizeForPdf(datos.estado)}`);
+  if (datos?.nroReceptoria) metaItemsStr.push(`Receptoria: ${sanitizeForPdf(datos.nroReceptoria)}`);
+  if (datos?.nroExpediente) metaItemsStr.push(`Expediente: ${sanitizeForPdf(datos.nroExpediente)}`);
   if (metaItemsStr.length > 0) boxContentH += 8;
 
   const boxH = Math.max(28, boxContentH + 10);
@@ -461,7 +475,7 @@ function generateProveidoPdf(input: ProveidoPdfInput): Blob {
 
     let pasoText = '';
     if (paso.fecha) pasoText += `Fecha: ${paso.fecha}`;
-    pasoText += ` — Tramite: ${paso.tramite}`;
+    pasoText += ` — Tramite: ${sanitizeForPdf(paso.tramite)}`;
     if (paso.firmado) pasoText += ' (FIRMADO)';
     if (paso.fojas) pasoText += ` — Fojas: ${paso.fojas}`;
 
@@ -476,7 +490,7 @@ function generateProveidoPdf(input: ProveidoPdfInput): Blob {
     doc.setTextColor(...dark);
     doc.text('Desc.:', ML, y + 4);
     doc.setFont('helvetica', 'normal');
-    const descFallback = doc.splitTextToSize(input.description, CW - 20) as string[];
+    const descFallback = doc.splitTextToSize(sanitizeForPdf(input.description), CW - 20) as string[];
     doc.text(descFallback, ML + 18, y + 4);
     y += descFallback.length * 3.5 + 2;
     doc.setFontSize(7.5);
@@ -487,7 +501,12 @@ function generateProveidoPdf(input: ProveidoPdfInput): Blob {
 
   // ── 5. REFERENCIAS ──
   const refs = input.referencias;
-  if (refs && (refs.adjuntos.length > 0 || refs.despacho || refs.observacion || refs.observacionProfesional)) {
+  const hasRefContent = refs && (
+    refs.adjuntos.length > 0 ||
+    (refs.rawFields && refs.rawFields.length > 0) ||
+    refs.despacho || refs.observacion || refs.observacionProfesional
+  );
+  if (hasRefContent) {
     y = ensureSpace(10, y);
 
     // Section separator
@@ -505,49 +524,69 @@ function generateProveidoPdf(input: ProveidoPdfInput): Blob {
     doc.setFont('helvetica', 'normal');
 
     // Adjuntos with clickable links
-    for (const adj of refs.adjuntos) {
+    for (const adj of refs!.adjuntos) {
       y = ensureSpace(6, y);
       doc.setTextColor(...primary);
-      const adjLabel = `${adj.nombre}  VER ADJUNTO`;
+      const adjLabel = sanitizeForPdf(`${adj.nombre}  VER ADJUNTO`);
       doc.text(adjLabel, ML + 2, y + 4);
-      // Make it clickable
       const textWidth = doc.getTextWidth(adjLabel);
       doc.link(ML + 2, y, textWidth, 5, { url: adj.url });
       y += 6;
     }
 
-    // Despacho
-    if (refs.despacho) {
-      y = ensureSpace(8, y);
-      doc.setTextColor(...dark);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Despachado en:', ML + 2, y + 4);
-      doc.setFont('helvetica', 'normal');
-      const despLines = doc.splitTextToSize(refs.despacho, CW - 30) as string[];
-      doc.text(despLines, ML + 30, y + 4);
-      y += despLines.length * 3.5 + 3;
-    }
-
-    // Observación
-    if (refs.observacion) {
-      y = ensureSpace(8, y);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Observacion:', ML + 2, y + 4);
-      doc.setFont('helvetica', 'normal');
-      const obsLines = doc.splitTextToSize(refs.observacion, CW - 28) as string[];
-      doc.text(obsLines, ML + 28, y + 4);
-      y += obsLines.length * 3.5 + 3;
-    }
-
-    // Observación del Profesional
-    if (refs.observacionProfesional) {
-      y = ensureSpace(8, y);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Obs. Profesional:', ML + 2, y + 4);
-      doc.setFont('helvetica', 'normal');
-      const obsPLines = doc.splitTextToSize(refs.observacionProfesional, CW - 34) as string[];
-      doc.text(obsPLines, ML + 34, y + 4);
-      y += obsPLines.length * 3.5 + 3;
+    // Render all fields from rawFields (captures everything in REFERENCIAS)
+    if (refs!.rawFields && refs!.rawFields.length > 0) {
+      for (const field of refs!.rawFields) {
+        y = ensureSpace(8, y);
+        if (field.value) {
+          // Key-value pair
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...dark);
+          const label = sanitizeForPdf(`${field.label}:`);
+          doc.text(label, ML + 2, y + 4);
+          doc.setFont('helvetica', 'normal');
+          const labelW = Math.min(doc.getTextWidth(label) + 3, 60);
+          const valLines = doc.splitTextToSize(sanitizeForPdf(field.value), CW - labelW - 4) as string[];
+          doc.text(valLines, ML + 2 + labelW, y + 4);
+          y += valLines.length * 3.5 + 3;
+        } else {
+          // Sub-section header (e.g., "NOTIFICACION ELECTRONICA")
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...gray);
+          doc.text(sanitizeForPdf(field.label), ML + 2, y + 4);
+          y += 6;
+        }
+      }
+    } else {
+      // Fallback: render legacy fields if rawFields is empty
+      if (refs!.despacho) {
+        y = ensureSpace(8, y);
+        doc.setTextColor(...dark);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Despachado en:', ML + 2, y + 4);
+        doc.setFont('helvetica', 'normal');
+        const despLines = doc.splitTextToSize(sanitizeForPdf(refs!.despacho), CW - 30) as string[];
+        doc.text(despLines, ML + 30, y + 4);
+        y += despLines.length * 3.5 + 3;
+      }
+      if (refs!.observacion) {
+        y = ensureSpace(8, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Observacion:', ML + 2, y + 4);
+        doc.setFont('helvetica', 'normal');
+        const obsLines = doc.splitTextToSize(sanitizeForPdf(refs!.observacion), CW - 28) as string[];
+        doc.text(obsLines, ML + 28, y + 4);
+        y += obsLines.length * 3.5 + 3;
+      }
+      if (refs!.observacionProfesional) {
+        y = ensureSpace(8, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Obs. Profesional:', ML + 2, y + 4);
+        doc.setFont('helvetica', 'normal');
+        const obsPLines = doc.splitTextToSize(sanitizeForPdf(refs!.observacionProfesional), CW - 34) as string[];
+        doc.text(obsPLines, ML + 34, y + 4);
+        y += obsPLines.length * 3.5 + 3;
+      }
     }
   }
 
@@ -583,7 +622,7 @@ function generateProveidoPdf(input: ProveidoPdfInput): Blob {
       doc.text(label, ML + 2, y + 4);
       doc.setFont('helvetica', 'normal');
       const labelW = doc.getTextWidth(label) + 3;
-      const valLines = doc.splitTextToSize(value, CW - labelW - 4) as string[];
+      const valLines = doc.splitTextToSize(sanitizeForPdf(value), CW - labelW - 4) as string[];
       doc.text(valLines, ML + 2 + labelW, y + 4);
       y += valLines.length * 3.5 + 2;
     }
@@ -606,7 +645,8 @@ function generateProveidoPdf(input: ProveidoPdfInput): Blob {
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
 
-  const paragraphs = input.content.split('\n').filter((l) => l.trim().length > 0);
+  const sanitizedContent = sanitizeForPdf(input.content);
+  const paragraphs = sanitizedContent.split('\n').filter((l) => l.trim().length > 0);
 
   for (const para of paragraphs) {
     const lines = doc.splitTextToSize(para.trim(), CW) as string[];
@@ -632,7 +672,7 @@ function generateProveidoPdf(input: ProveidoPdfInput): Blob {
     doc.setFontSize(6.5);
     doc.setTextColor(...gray);
     doc.text(
-      `${input.caseNumber} — Paso ${input.index} — Pag. ${i}/${pageCount}`,
+      `${input.caseNumber} — ${input.fojas ? 'fs ' + input.fojas : convertToIsoDate(input.date)} — Pag. ${i}/${pageCount}`,
       210 - MR,
       PH - 5,
       { align: 'right' }
@@ -644,15 +684,41 @@ function generateProveidoPdf(input: ProveidoPdfInput): Blob {
 
 // ── Helpers ──────────────────────────────────────────────
 
-function buildFilename(index: number, date: string, description: string, fojas?: string): string {
-  const safeDate = date.replace(/\//g, '-');
-  const safeFojas = fojas ? fojas.replace(/\//g, '-') : 'sin';
+/** Sanitize text for jsPDF's built-in helvetica font (WinAnsiEncoding) */
+function sanitizeForPdf(text: string): string {
+  return text
+    .replace(/\u00ba/g, '\u00b0')    // º (ordinal) -> ° (degree, better font support)
+    .replace(/\u00aa/g, 'a.')        // ª -> a.
+    .replace(/[\u2018\u2019]/g, "'") // smart quotes -> straight
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/\u2013/g, '-')        // en-dash
+    .replace(/\u2014/g, '--')       // em-dash
+    .replace(/\u2026/g, '...');     // ellipsis
+}
+
+function buildFilename(date: string, description: string, fojas?: string): string {
+  const isoDate = convertToIsoDate(date);
+  const safeFojas = fojas ? fojas.replace(/\//g, '-') : '';
   const safeDesc = description
     .substring(0, 35)
     .replace(/[^a-zA-Z0-9\s-]/g, '')
     .trim()
     .replace(/\s+/g, '_');
-  return `${String(index).padStart(3, '0')}_fs-${safeFojas}_fecha_${safeDate}_${safeDesc}`;
+  // fs-340_2026-04-15_RECURSO_DE_APELACION (with fojas)
+  // 2026-04-15_RECURSO_DE_APELACION (without fojas)
+  if (safeFojas) {
+    return `fs-${safeFojas}_${isoDate}_${safeDesc}`;
+  }
+  return `${isoDate}_${safeDesc}`;
+}
+
+/** Convert dd/mm/yyyy or dd-mm-yyyy to yyyy-mm-dd (ISO) for correct alphabetical sorting */
+function convertToIsoDate(dateStr: string): string {
+  const parts = dateStr.split(/[\/\-]/);
+  if (parts.length === 3 && parts[0].length <= 2) {
+    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+  }
+  return dateStr.replace(/\//g, '-');
 }
 
 function toAbsoluteUrl(url: string): string {

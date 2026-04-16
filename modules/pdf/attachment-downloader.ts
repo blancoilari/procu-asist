@@ -50,6 +50,7 @@ export interface ProveidoPageData {
     despacho?: string;
     observacion?: string;
     observacionProfesional?: string;
+    rawFields: Array<{ label: string; value: string }>;
   };
   datosPresentacion?: {
     fechaEscrito?: string;
@@ -62,7 +63,7 @@ export interface ProveidoPageData {
 /**
  * Download a single attachment from MEV (or docs.scba.gov.ar) using session cookies.
  * - docs.scba.gov.ar: fetched directly from the service worker (host_permissions
- *   bypasses CORS). The server is intermittent so we retry up to 4 times.
+ *   bypasses CORS). Retries up to 3 times with linear backoff.
  * - mev.scba.gov.ar: fetched via executeScript inside the MEV tab (session cookies).
  */
 export async function downloadMevAttachment(
@@ -79,7 +80,7 @@ export async function downloadMevAttachment(
   // We temporarily inject Access-Control-Allow-Origin via declarativeNetRequest
   // so the service worker can read the response, then retry on transient failures.
   if (fullUrl.includes('docs.scba.gov.ar')) {
-    return downloadDocsScba(fullUrl, name, 7, 3000);
+    return downloadDocsScba(fullUrl, name, 3, 1500);
   }
 
   const maxRetries = 3;
@@ -216,7 +217,10 @@ export async function fetchMevPageContent(
           const resp = await fetch(pageUrl, { credentials: 'include' });
           if (!resp.ok) return { error: `HTTP ${resp.status}` };
 
-          const html = await resp.text();
+          // MEV is ASP Classic with ISO-8859-1/Windows-1252 encoding.
+          // Using resp.text() defaults to UTF-8 and corrupts special chars like "Nº".
+          const rawBuffer = await resp.arrayBuffer();
+          const html = new TextDecoder('windows-1252').decode(rawBuffer);
           const parser = new DOMParser();
           const doc = parser.parseFromString(html, 'text/html');
 
@@ -337,20 +341,35 @@ export async function fetchMevPageContent(
           let despacho = '';
           let observacion = '';
           let observacionProfesional = '';
+          const rawFields: Array<{ label: string; value: string }> = [];
 
-          // Find REFERENCIAS section — look for text "REFERENCIAS" in a td
-          let refSection = false;
+          // Capture ALL content between "REFERENCIAS" and the next section
+          let inRef = false;
           for (const td of allTds) {
             const t = td.textContent?.trim() ?? '';
             if (t === 'REFERENCIAS') {
-              refSection = true;
+              inRef = true;
               continue;
             }
-            if (refSection) {
-              // Stop at "DATOS DE PRESENTACIÓN" or "Texto del Proveído"
+            if (inRef) {
               if (t.includes('DATOS DE PRESENTACI') || t.includes('Texto del Prove')) {
-                refSection = false;
                 break;
+              }
+              if (!t || t.length < 3) continue;
+
+              // Try to split into label:value pairs
+              const colonIdx = t.indexOf(':');
+              if (colonIdx > 0 && colonIdx < 60) {
+                const label = t.substring(0, colonIdx).trim();
+                const value = t.substring(colonIdx + 1).trim();
+                rawFields.push({ label, value });
+                // Also populate legacy fields
+                if (label.startsWith('Despachado en')) despacho = value;
+                else if (label === 'Observacion' || label === 'Observación') observacion = value;
+                else if (label.startsWith('Observaci') && label.includes('Profesional')) observacionProfesional = value;
+              } else if (t.length > 3) {
+                // Sub-section headers (e.g., "NOTIFICACION ELECTRONICA")
+                rawFields.push({ label: t, value: '' });
               }
             }
           }
@@ -361,7 +380,6 @@ export async function fetchMevPageContent(
             if (linkText.includes('VER ADJUNTO') || linkText.includes('ADJUNTO')) {
               const href = a.getAttribute('href');
               if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
-              // Get adjunto name from preceding sibling text or parent
               let nombre = '';
               const parent = a.parentElement;
               if (parent) {
@@ -374,18 +392,6 @@ export async function fetchMevPageContent(
               } catch { /* skip malformed */ }
             }
           });
-
-          // Find despacho, observación fields
-          for (const td of allTds) {
-            const t = td.textContent?.trim() ?? '';
-            if (t.startsWith('Despachado en')) {
-              despacho = t.replace(/^Despachado en\s*/i, '').trim();
-            } else if (t.startsWith('Observación del Profesional')) {
-              observacionProfesional = t.replace(/^Observaci[oó]n del Profesional\s*/i, '').trim();
-            } else if (t.startsWith('Observación') && !t.startsWith('Observación del')) {
-              observacion = t.replace(/^Observaci[oó]n\s*/i, '').trim();
-            }
-          }
 
           // ── DATOS DE PRESENTACIÓN ──
           let fechaEscrito = '';
@@ -429,7 +435,7 @@ export async function fetchMevPageContent(
             departamento,
             datosExpediente: { caratula, fechaInicio, nroReceptoria, nroExpediente, estado },
             pasoProcesal: { fecha: pasoFecha, tramite: pasoTramite, firmado: pasoFirmado, fojas: pasoFojas },
-            referencias: { adjuntos, despacho, observacion, observacionProfesional },
+            referencias: { adjuntos, despacho, observacion, observacionProfesional, rawFields },
             datosPresentacion: hasDatosPresentacion ? { fechaEscrito, firmadoPor, nroPresentacionElectronica, presentadoPor } : undefined,
           };
         } catch (e) {
@@ -457,12 +463,10 @@ export async function findMevTab(): Promise<number | null> {
 }
 
 /**
- * Download a file from docs.scba.gov.ar by opening a background tab on that
- * domain and fetching from within it (same-origin, no CORS restrictions).
- *
- * The service-worker fetch fails because docs.scba.gov.ar doesn't send
- * Access-Control-Allow-Origin and Chrome blocks the response body.
- * Opening a tab there and running fetch() inside gives us the correct origin.
+ * Download a file from docs.scba.gov.ar using a direct fetch from the
+ * service worker. This works because the extension declares
+ * host_permissions for docs.scba.gov.ar/* in the manifest, which lets
+ * the service worker bypass CORS restrictions for that host.
  *
  * Retries with linear backoff because the server is intermittently unreliable.
  */
@@ -476,97 +480,38 @@ async function downloadDocsScba(
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (attempt > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delayMs * Math.pow(1.5, attempt)));
+      await new Promise((r) => setTimeout(r, delayMs * attempt));
     }
-
-    let tabId: number | undefined;
     try {
-      // Open a background tab at the docs.scba.gov.ar root to get
-      // a same-origin context from which to fetch the document.
-      const tab = await chrome.tabs.create({
-        url: 'https://docs.scba.gov.ar/',
-        active: false,
-      });
-      tabId = tab.id!;
-
-      // Wait for the tab to finish loading (max 20s)
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, 20000);
-        const listener = (id: number, info: chrome.tabs.OnUpdatedInfo) => {
-          if (id === tabId && info.status === 'complete') {
-            clearTimeout(timer);
-            chrome.tabs.onUpdated.removeListener(listener);
-            resolve();
-          }
-        };
-        chrome.tabs.onUpdated.addListener(listener);
-      });
-
-      // Verify the tab is still on docs.scba.gov.ar (wasn't redirected away)
-      const tabInfo = await chrome.tabs.get(tabId);
-      if (!tabInfo.url?.includes('docs.scba.gov.ar')) {
-        lastError = `Pestaña redirigida fuera de docs.scba.gov.ar: ${tabInfo.url}`;
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        lastError = `HTTP ${resp.status}`;
         continue;
       }
-
-      // Fetch from within the tab — same origin, no CORS
-      const results = await chrome.scripting.executeScript({
-        target: { tabId },
-        world: 'MAIN',
-        func: async (fileUrl: string) => {
-          try {
-            const resp = await fetch(fileUrl);
-            if (!resp.ok) return { error: `HTTP ${resp.status}` };
-            const contentType = resp.headers.get('content-type') ?? 'application/pdf';
-            const buffer = await resp.arrayBuffer();
-            const bytes = new Uint8Array(buffer);
-            let binary = '';
-            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-            return { base64: btoa(binary), mimeType: contentType, sizeBytes: buffer.byteLength };
-          } catch (e) {
-            return { error: String(e) };
-          }
-        },
-        args: [url],
-      });
-
-      const result = results[0]?.result as
-        | { base64: string; mimeType: string; sizeBytes: number }
-        | { error: string }
-        | null;
-
-      if (!result || 'error' in result) {
-        lastError = result?.error ?? 'Sin resultado del fetch en pestaña';
+      const contentType = resp.headers.get('content-type') ?? 'application/pdf';
+      if (contentType.includes('text/html')) {
+        lastError = 'Servidor devolvio HTML en vez del archivo';
         continue;
       }
-
-      // Validate response is not an HTML error page
-      if (result.mimeType.includes('text/html')) {
-        lastError = 'El servidor devolvió una página HTML en vez del archivo';
+      const buffer = await resp.arrayBuffer();
+      if (buffer.byteLength < 100) {
+        lastError = `Archivo muy pequeno (${buffer.byteLength} bytes)`;
         continue;
       }
-
-      // Validate minimum size (error pages tend to be tiny)
-      if (result.sizeBytes < 100) {
-        lastError = `Archivo demasiado pequeño (${result.sizeBytes} bytes), probablemente una página de error`;
-        continue;
-      }
-
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
       return {
         success: true,
         attachment: {
           name, url,
-          base64: result.base64,
-          mimeType: result.mimeType,
-          sizeBytes: result.sizeBytes,
+          base64: btoa(binary),
+          mimeType: contentType,
+          sizeBytes: buffer.byteLength,
         },
       };
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
-    } finally {
-      if (tabId !== undefined) {
-        try { chrome.tabs.remove(tabId); } catch { /* tab might already be closed */ }
-      }
     }
   }
 
