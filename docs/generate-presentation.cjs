@@ -383,7 +383,7 @@ async function buildPresentation() {
   s11.addText("github.com/blancoilari/procu-asist", { x: 0.7, y: 4.8, w: 8.6, h: 0.3, fontSize: 13, fontFace: "Calibri", color: C.darkGray, align: "center", margin: 0 });
 
   // Save
-  await pres.writeFile({ fileName: "C:/Users/Patricio/proyectos/plugin turbolex/docs/ProcuAsist-Presentacion.pptx" });
+  await pres.writeFile({ fileName: "ProcuAsist-Presentacion.pptx" });
   console.log("Presentation saved!");
 }
 
