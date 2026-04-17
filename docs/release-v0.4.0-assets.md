@@ -67,6 +67,7 @@ blancoilariasistente@gmail.com
 1. **`01-ajustes.png`** — Sidepanel Ajustes con autoría/cafecito/feedback (ventana entera Chrome + MEV de fondo).
 2. **`02-modal-pasos.png`** — Modal "Seleccionar pasos procesales a descargar" con varios pasos seleccionados.
 3. **`03-marcadores.png`** — Sidepanel Marcadores con 3 causas guardadas (números MEV, carátulas, juzgados).
+4. **`04-monitoreo.png`** — Sidepanel Monitoreo con 3 causas en seguimiento + FAB mostrando "Guardado" y "Monitoreando" (muestra la feature de seguimiento automático).
 
 ### Justificación de permisos (si el CWS la pide durante la revisión)
 
@@ -114,7 +115,7 @@ Cuando el CWS apruebe la extensión, vas a tener una URL del tipo `https://chrom
 ## 3. Checklist de publicación al CWS
 
 - [ ] `npm run zip` corrido — `.output/chrome-mv3.zip` generado
-- [ ] Capturas guardadas: `01-ajustes.png`, `02-modal-pasos.png`, `03-marcadores.png`
+- [ ] Capturas guardadas: `01-ajustes.png`, `02-modal-pasos.png`, `03-marcadores.png`, `04-monitoreo.png`
 - [ ] `git push origin master --tags` para subir el commit y el tag `v0.4.0` a GitHub
 - [ ] GitHub Release creado para `v0.4.0` con el ZIP adjunto y el changelog
 - [ ] Dashboard CWS abierto en https://chrome.google.com/webstore/devconsole
