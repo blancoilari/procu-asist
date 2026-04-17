@@ -2,6 +2,34 @@
 
 Todos los cambios notables del proyecto se documentan en este archivo.
 
+## [0.4.0] - 2026-04-17
+
+### Primera versión publicada en Chrome Web Store
+
+**Comunidad y feedback**
+- Mensaje de autoría visible en Onboarding y en Ajustes: hecho por un abogado de la matrícula, para colegas, gratis y sin fines de lucro
+- Nuevos botones en Ajustes y popup: "Reportar error o sugerencia" (mailto) e "Issues en GitHub"
+- Cafecito disponible también en el popup, no solo en el sidepanel
+
+**Documentación pública**
+- Nuevo `ROADMAP.md` orientado a colegas: hoja de ruta hasta v1.0.0 en lenguaje no técnico
+- Nuevo `PRIVACY.md` con política de privacidad detallada (requerida para Chrome Web Store)
+- Sección "Para abogados" agregada al inicio del README
+- Fix: URL correcta de JUSCABA en el README (`eje.jus.gov.ar`)
+
+**Limpieza interna**
+- Removido módulo Supabase completo (auth, sync, OAuth, client) — la extensión es 100% local
+- Removido permission `identity` y host de Supabase del manifest
+- Renombrados content scripts a la convención WXT `*.content.ts`
+- Rebrand consistente: EJE → JUSCABA en toda la UI y documentación
+
+**MEV — mejoras menores**
+- Columna "Fojas" agregada al PDF resumen y al parser de movimientos
+- Selector de "Departamento Judicial" en formulario de auto-login
+- `docs.scba.gov.ar` agregado a host_permissions (necesario para descarga de adjuntos)
+- Fix cosmético en generador de PDF: cálculo de ancho de columnas
+- Auto-reconexión silenciosa cuando el vault está bloqueado (sin spam de notificaciones)
+
 ## [0.3.0] - 2026-04-15
 
 ### Mejoras en descarga de expedientes (MEV)

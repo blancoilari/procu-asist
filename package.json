@@ -2,7 +2,7 @@
   "name": "procu-asist",
   "description": "Copiloto legal para abogados argentinos - Auto-login, marcadores, procuración automática y más",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
