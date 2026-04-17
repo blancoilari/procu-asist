@@ -27,6 +27,7 @@ export interface PdfCaseData {
 
 export interface PdfMovement {
   date: string;
+  fojas?: string;
   description: string;
   type?: string; // 'firmado' etc
   hasDocuments: boolean;
@@ -184,11 +185,14 @@ function drawCaseMetadata(
   doc.setFont('helvetica', 'bold');
   doc.text(data.caseNumber || 'Sin número', MARGIN_LEFT + 5, y + 8);
 
+  // Measure width at 14pt bold BEFORE changing font settings
+  const caseNumberWidth = doc.getTextWidth(data.caseNumber || 'Sin número');
+
   // Portal badge
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   const portalLabel = data.portal.toUpperCase();
-  const badgeX = MARGIN_LEFT + 5 + doc.getTextWidth(data.caseNumber || 'Sin número') + 4;
+  const badgeX = MARGIN_LEFT + 5 + caseNumberWidth + 4;
   doc.setFillColor(...COLORS.primary);
   doc.roundedRect(badgeX, y + 3, doc.getTextWidth(portalLabel) + 4, 6, 1, 1, 'F');
   doc.setTextColor(...COLORS.white);
@@ -249,25 +253,25 @@ function drawMovementsTable(
   doc.text(`Movimientos (${movements.length})`, MARGIN_LEFT, y + 5);
   y += 10;
 
-  // Table header
-  const colWidths = {
-    date: 22,
-    type: 18,
-    description: CONTENT_WIDTH - 22 - 18,
+  // Column widths: Fecha | Fojas | Firmado | Descripcion
+  const colDate = 22;
+  const colFojas = 14;
+  const colFirma = 14;
+  const colDesc = CONTENT_WIDTH - colDate - colFojas - colFirma;
+
+  const drawTableHeader = (yPos: number) => {
+    doc.setFillColor(...COLORS.primary);
+    doc.rect(MARGIN_LEFT, yPos, CONTENT_WIDTH, 7, 'F');
+    doc.setTextColor(...COLORS.white);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Fecha', MARGIN_LEFT + 2, yPos + 5);
+    doc.text('Fojas', MARGIN_LEFT + colDate + 2, yPos + 5);
+    doc.text('Firma', MARGIN_LEFT + colDate + colFojas + 2, yPos + 5);
+    doc.text('Descripcion', MARGIN_LEFT + colDate + colFojas + colFirma + 2, yPos + 5);
   };
 
-  doc.setFillColor(...COLORS.primary);
-  doc.rect(MARGIN_LEFT, y, CONTENT_WIDTH, 7, 'F');
-  doc.setTextColor(...COLORS.white);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Fecha', MARGIN_LEFT + 2, y + 5);
-  doc.text('Tipo', MARGIN_LEFT + colWidths.date + 2, y + 5);
-  doc.text(
-    'Descripción',
-    MARGIN_LEFT + colWidths.date + colWidths.type + 2,
-    y + 5
-  );
+  drawTableHeader(y);
   y += 7;
 
   // Table rows
@@ -277,31 +281,17 @@ function drawMovementsTable(
   for (let i = 0; i < movements.length; i++) {
     const mov = movements[i];
 
-    // Calculate row height based on description text wrap
     const descLines = doc.splitTextToSize(
-      mov.description,
-      colWidths.description - 4
+      mov.description || '',
+      colDesc - 4
     ) as string[];
     const rowHeight = Math.max(6, descLines.length * 3.5 + 2);
 
-    // Check page break
+    // Page break check
     if (y + rowHeight > PAGE_HEIGHT - MARGIN_BOTTOM) {
       doc.addPage();
       y = MARGIN_TOP;
-
-      // Redraw table header on new page
-      doc.setFillColor(...COLORS.primary);
-      doc.rect(MARGIN_LEFT, y, CONTENT_WIDTH, 7, 'F');
-      doc.setTextColor(...COLORS.white);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Fecha', MARGIN_LEFT + 2, y + 5);
-      doc.text('Tipo', MARGIN_LEFT + colWidths.date + 2, y + 5);
-      doc.text(
-        'Descripción',
-        MARGIN_LEFT + colWidths.date + colWidths.type + 2,
-        y + 5
-      );
+      drawTableHeader(y);
       y += 7;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
@@ -313,33 +303,29 @@ function drawMovementsTable(
       doc.rect(MARGIN_LEFT, y, CONTENT_WIDTH, rowHeight, 'F');
     }
 
-    // Row border
+    // Row bottom border
     doc.setDrawColor(...COLORS.lightGray);
     doc.line(MARGIN_LEFT, y + rowHeight, MARGIN_LEFT + CONTENT_WIDTH, y + rowHeight);
 
-    doc.setTextColor(...COLORS.dark);
-
     // Date
+    doc.setTextColor(...COLORS.dark);
     doc.text(mov.date, MARGIN_LEFT + 2, y + 4);
 
-    // Type badge
-    if (mov.type) {
+    // Fojas
+    doc.setTextColor(...COLORS.gray);
+    doc.text(mov.fojas ?? '', MARGIN_LEFT + colDate + 2, y + 4);
+
+    // Firma indicator (text, no emoji)
+    if (mov.type === 'firmado') {
       doc.setTextColor(...COLORS.green);
-      doc.text(mov.type, MARGIN_LEFT + colWidths.date + 2, y + 4);
-    }
-    if (mov.hasDocuments) {
-      doc.setTextColor(...COLORS.primary);
-      const typeX = mov.type
-        ? MARGIN_LEFT + colWidths.date + 2 + doc.getTextWidth(mov.type) + 2
-        : MARGIN_LEFT + colWidths.date + 2;
-      doc.text('📎', typeX, y + 4);
+      doc.text('Firm.', MARGIN_LEFT + colDate + colFojas + 2, y + 4);
     }
 
     // Description
     doc.setTextColor(...COLORS.dark);
     doc.text(
       descLines,
-      MARGIN_LEFT + colWidths.date + colWidths.type + 2,
+      MARGIN_LEFT + colDate + colFojas + colFirma + 2,
       y + 4
     );
 
@@ -354,6 +340,8 @@ function drawAttachmentsList(
   attachments: PdfAttachment[],
   y: number
 ): number {
+  if (attachments.length === 0) return y;
+
   // Check page break
   if (y + 20 > PAGE_HEIGHT - MARGIN_BOTTOM) {
     doc.addPage();
@@ -364,11 +352,20 @@ function drawAttachmentsList(
   doc.setTextColor(...COLORS.dark);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Adjuntos (${attachments.length})`, MARGIN_LEFT, y + 5);
-  y += 10;
+  doc.text(`Documentos del expediente (${attachments.length})`, MARGIN_LEFT, y + 5);
+  y += 8;
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...COLORS.gray);
+  doc.text(
+    'Los links abajo abren el documento firmado en el portal MEV.',
+    MARGIN_LEFT + 2,
+    y + 4
+  );
+  y += 8;
 
   doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
 
   for (const att of attachments) {
     if (y + 6 > PAGE_HEIGHT - MARGIN_BOTTOM) {
@@ -376,16 +373,15 @@ function drawAttachmentsList(
       y = MARGIN_TOP;
     }
 
+    // Bullet + name (no emoji — jsPDF Helvetica doesn't support them)
     doc.setTextColor(...COLORS.primary);
-    doc.text(`📎 ${att.name}`, MARGIN_LEFT + 2, y + 4);
+    const label = att.movementDate
+      ? `[doc] ${att.name} (${att.movementDate})`
+      : `[doc] ${att.name}`;
+    doc.text(label, MARGIN_LEFT + 2, y + 4);
 
-    if (att.movementDate) {
-      doc.setTextColor(...COLORS.gray);
-      doc.text(` (${att.movementDate})`, MARGIN_LEFT + 4 + doc.getTextWidth(`📎 ${att.name}`), y + 4);
-    }
-
-    // Make clickable link
-    doc.link(MARGIN_LEFT + 2, y, CONTENT_WIDTH, 5, { url: att.url });
+    // Clickable link over the text
+    doc.link(MARGIN_LEFT + 2, y, CONTENT_WIDTH - 4, 5, { url: att.url });
 
     y += 6;
   }

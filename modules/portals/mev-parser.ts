@@ -203,6 +203,7 @@ export function parseMovements(doc: Document): Movement[] {
 
     movements.push({
       date: fecha,
+      fojas,
       type: hasFirma ? 'firmado' : '',
       description: descripcion,
       hasDocuments: hasDocument,

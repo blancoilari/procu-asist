@@ -244,7 +244,7 @@ function SessionStatus() {
   return (
     <div className="flex flex-col gap-2">
       <PortalRow label="MEV" status={mevStatus} />
-      <PortalRow label="EJE" status={ejeStatus} />
+      <PortalRow label="JUSCABA" status={ejeStatus} />
     </div>
   );
 }

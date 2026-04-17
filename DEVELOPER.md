@@ -5,7 +5,7 @@ Documentacion tecnica para contribuidores y mantenimiento futuro.
 ## Arquitectura General
 
 ```
-Content Scripts (MEV, EJE, SCBA)
+Content Scripts (MEV, JUSCABA)
         |
         | chrome.runtime.sendMessage()
         v
@@ -103,7 +103,7 @@ Claves en `chrome.storage.local`:
 | `tl_master_salt` | `string` (base64) | Salt para derivacion de clave |
 | `tl_pin_test` | `string` (base64) | Texto encriptado para verificar PIN |
 | `tl_credentials_mev` | `string` (base64) | Credenciales MEV encriptadas |
-| `tl_credentials_eje` | `string` (base64) | Credenciales EJE encriptadas |
+| `tl_credentials_eje` | `string` (base64) | Credenciales JUSCABA encriptadas |
 | `tl_onboarding_done` | `boolean` | Si el usuario completo el onboarding |
 
 ## Como agregar soporte para un nuevo portal

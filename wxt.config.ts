@@ -17,14 +17,13 @@ export default defineConfig({
       'offscreen',
       'tabs',
       'downloads',
-      'identity',
     ],
     host_permissions: [
       'https://mev.scba.gov.ar/*',
+      'https://docs.scba.gov.ar/*',
       'https://eje.jus.gov.ar/*',
       'https://sso.pjn.gov.ar/*',
       'https://notificaciones.scba.gov.ar/*',
-      'https://lhnuzrradsnfvqyirynd.supabase.co/*',
     ],
     action: {},
     side_panel: {

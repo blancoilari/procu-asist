@@ -28,11 +28,11 @@ const STEPS = [
     icon: '⭐',
     title: 'Marcadores rápidos',
     description:
-      'Guardá tus expedientes favoritos con un click desde MEV o EJE. Accedelos desde el panel lateral sin buscar cada vez.',
+      'Guardá tus expedientes favoritos con un click desde MEV o JUSCABA. Accedelos desde el panel lateral sin buscar cada vez.',
     features: [
       'Click en el icono ⭐ dentro del expediente',
       'Buscar por número, carátula o juzgado',
-      'Importar causas desde SCBA-Notificaciones',
+      'Importar causas desde resultados de búsqueda',
     ],
   },
   {

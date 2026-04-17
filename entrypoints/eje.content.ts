@@ -25,6 +25,7 @@ import type { EjeCaseData, EjeActuacion, EjeActuacionesResponse, EjeEncabezadoRe
 
 export default defineContentScript({
   matches: ['https://eje.jus.gov.ar/*', 'https://sso.pjn.gov.ar/*'],
+  registration: 'manifest',
   runAt: 'document_idle',
 
   main() {

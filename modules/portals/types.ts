@@ -30,6 +30,7 @@ export interface CaseMetadata {
 /** A single movement within a case */
 export interface Movement {
   date: string;
+  fojas: string;
   type: string;
   description: string;
   hasDocuments: boolean;

@@ -15,6 +15,7 @@ import {
 
 export default defineContentScript({
   matches: ['https://notificaciones.scba.gov.ar/*'],
+  registration: 'manifest',
   runAt: 'document_idle',
 
   main() {

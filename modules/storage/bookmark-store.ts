@@ -1,20 +1,10 @@
 /**
- * Bookmark storage: local-first with Supabase sync.
- * Bookmarks are stored in chrome.storage.local and synced
- * to Supabase when the user is authenticated.
+ * Bookmark storage: local-first using chrome.storage.local.
  */
 
 import type { Bookmark, Case, PortalId } from '@/modules/portals/types';
-import { pushBookmarks } from '@/modules/supabase/sync';
 
 const STORAGE_KEY = 'tl_bookmarks';
-
-/** Fire-and-forget sync to Supabase (non-blocking) */
-function syncInBackground(bookmarks: Bookmark[]): void {
-  pushBookmarks(bookmarks).catch((err) =>
-    console.error('[ProcuAsist] Background sync failed:', err)
-  );
-}
 
 /** Get all bookmarks */
 export async function getBookmarks(): Promise<Bookmark[]> {
@@ -41,8 +31,6 @@ export async function addBookmark(caseData: Case): Promise<Bookmark> {
 
   bookmarks.push(bookmark);
   await chrome.storage.local.set({ [STORAGE_KEY]: bookmarks });
-
-  syncInBackground(bookmarks);
   return bookmark;
 }
 
@@ -60,8 +48,6 @@ export async function removeBookmark(
     b.position = i;
   });
   await chrome.storage.local.set({ [STORAGE_KEY]: bookmarks });
-
-  syncInBackground(bookmarks);
 }
 
 /** Update a bookmark's data (e.g., after a new movement is detected) */

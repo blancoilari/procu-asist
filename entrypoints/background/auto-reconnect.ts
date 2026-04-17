@@ -34,9 +34,9 @@ export async function handleSessionExpired(
   // Check if vault is unlocked (PIN was entered this session)
   if (!isUnlocked()) {
     console.debug(
-      '[ProcuAsist] Vault is locked, cannot auto-reconnect. Notifying user.'
+      '[ProcuAsist] Vault is locked — skipping auto-reconnect silently.'
     );
-    sendExpiryNotification(portal);
+    // Don't throw, don't notify — the session monitor will retry later
     return;
   }
 

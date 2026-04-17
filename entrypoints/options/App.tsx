@@ -185,13 +185,13 @@ function CredentialsPage({
           <PortalCredentials
             portal="mev"
             label="MEV"
-            description="Mesa de Entradas Virtual - SCBA (Provincia de Buenos Aires)"
+            description="MEV - Mesa de Entradas Virtual - Provincia de Buenos Aires"
           />
           <MevDepartmentSelector />
           <PortalCredentials
             portal="eje"
-            label="EJE"
-            description="Poder Judicial de CABA - EJE JUSCABA"
+            label="JUSCABA"
+            description="JUSCABA - Poder Judicial de CABA"
           />
         </>
       ) : (
@@ -412,7 +412,7 @@ function AppearancePage() {
         <div>
           <p className="text-sm font-medium">Dark Mode</p>
           <p className="text-xs text-text-secondary">
-            Tema oscuro para los portales judiciales (MEV, EJE)
+            Tema oscuro para los portales judiciales (MEV, JUSCABA)
           </p>
         </div>
         <button

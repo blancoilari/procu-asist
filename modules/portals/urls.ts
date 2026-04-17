@@ -10,14 +10,14 @@ interface PortalConfig {
 
 export const PORTAL_URLS: Record<PortalId, PortalConfig> = {
   mev: {
-    name: 'MEV - Mesa de Entradas Virtual',
+    name: 'MEV - Mesa de Entradas Virtual (Provincia de Buenos Aires)',
     baseUrl: 'https://mev.scba.gov.ar',
     pattern: 'https://mev.scba.gov.ar/*',
     heartbeatUrl: 'https://mev.scba.gov.ar/',
     loginUrlPattern: 'https://mev.scba.gov.ar/login',
   },
   eje: {
-    name: 'EJE - Expedientes Judiciales CABA',
+    name: 'JUSCABA - Poder Judicial de CABA',
     baseUrl: 'https://eje.jus.gov.ar',
     pattern: 'https://eje.jus.gov.ar/*',
     heartbeatUrl: 'https://eje.jus.gov.ar/',
