@@ -16,7 +16,7 @@ const STEPS = [
     icon: '🚀',
     title: 'Bienvenido a ProcuAsist',
     description:
-      'Tu copiloto legal para los portales judiciales. Automatizamos las tareas repetitivas para que puedas enfocarte en lo importante.',
+      'Tu copiloto legal para los portales judiciales. Hecho por un abogado de la matrícula, para colegas. Gratis y sin fines de lucro.',
     features: [
       'Auto-login y mantenimiento de sesión',
       'Marcadores rápidos de expedientes',
@@ -54,7 +54,7 @@ const STEPS = [
     features: [
       'Cifrado AES-256-GCM local',
       'PIN de acceso con bloqueo automático',
-      'Opcional: sync cifrado en la nube',
+      'Funciona offline: todo se guarda en tu navegador',
     ],
   },
   {

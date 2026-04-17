@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useDarkMode } from '@/modules/ui/use-dark-mode';
+import { DONATE_URL } from '@/modules/tier/limits';
 
 type LockStatus = {
   pinConfigured: boolean;
@@ -190,6 +191,26 @@ export default function App() {
           >
             Bloquear
           </button>
+
+          <hr className="border-border" />
+
+          <button
+            onClick={() => chrome.tabs.create({ url: DONATE_URL })}
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30 transition-colors"
+          >
+            <span>☕</span> Invitame un cafecito
+          </button>
+
+          <p className="text-center text-[10px] leading-relaxed text-text-secondary/70">
+            Hecho por un abogado, para colegas.
+            <br />
+            <a
+              href="mailto:blancoilariasistente@gmail.com?subject=ProcuAsist%20-%20feedback"
+              className="text-primary hover:underline"
+            >
+              Reportar error o sugerencia
+            </a>
+          </p>
         </div>
       )}
     </div>

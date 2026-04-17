@@ -1091,12 +1091,44 @@ function SettingsTab() {
         Configuración avanzada
       </button>
 
+      {/* Authoring + community block */}
+      <div className="mt-3 rounded-lg bg-bg-secondary/50 px-3 py-3">
+        <p className="text-[11px] leading-relaxed text-text-secondary">
+          Hecha por un abogado de la matrícula, para colegas. Es gratuita y sin
+          fines de lucro. Si te resulta útil podés invitarme un cafecito. Si
+          encontrás errores o tenés ideas, escribime — esta herramienta crece
+          con el feedback de quienes la usan.
+        </p>
+      </div>
+
       {/* Donate */}
       <button
         onClick={() => chrome.tabs.create({ url: DONATE_URL })}
         className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30 transition-colors"
       >
         <span>☕</span> Invitame un cafecito
+      </button>
+
+      {/* Feedback channels */}
+      <button
+        onClick={() =>
+          chrome.tabs.create({
+            url: 'mailto:blancoilariasistente@gmail.com?subject=ProcuAsist%20-%20feedback',
+          })
+        }
+        className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-bg-secondary px-4 py-2.5 text-sm text-text-secondary hover:bg-border transition-colors"
+      >
+        <span>📧</span> Reportar error o sugerencia
+      </button>
+      <button
+        onClick={() =>
+          chrome.tabs.create({
+            url: 'https://github.com/blancoilari/procu-asist/issues',
+          })
+        }
+        className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-bg-secondary px-4 py-2.5 text-sm text-text-secondary hover:bg-border transition-colors"
+      >
+        <span>🐙</span> Issues en GitHub
       </button>
 
       {/* Disclaimer */}

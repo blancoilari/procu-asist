@@ -2,6 +2,32 @@
 
 Extensión Chrome para abogados argentinos que automatiza la interacción con portales judiciales de la Provincia de Buenos Aires y CABA.
 
+> **Hecho por un abogado de la matrícula, para colegas. Es gratuito y sin fines de lucro.**
+
+---
+
+## Para abogados (instalación rápida)
+
+Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programación.
+
+**Qué hace:**
+- Te permite **descargar el expediente completo** de la MEV (Provincia BA) en un único ZIP, con un PDF resumen y todos los pasos procesales con sus adjuntos.
+- Guarda **marcadores** de tus expedientes favoritos, accesibles desde un panel lateral del navegador.
+- (Próximamente) Hace **monitoreo automático** y te avisa cuando hay movimientos nuevos.
+
+**Cómo instalarla:**
+- Próximamente en Chrome Web Store. Cuando esté publicada, vas a poder instalarla con un click. (Si todavía no está, escribime y te paso una versión para cargar manualmente.)
+
+**Cómo reportar errores o pedir features:**
+- Mail: [blancoilariasistente@gmail.com](mailto:blancoilariasistente@gmail.com?subject=ProcuAsist%20-%20feedback)
+- O abrí un issue en [GitHub Issues](https://github.com/blancoilari/procu-asist/issues)
+
+**Qué viene a futuro:** mirá el [ROADMAP.md](ROADMAP.md).
+
+**Manual de uso paso a paso:** [docs/manual-usuario.md](docs/manual-usuario.md).
+
+---
+
 ## Funcionalidades
 
 - **Auto-login** en portales judiciales (MEV, JUSCABA)
@@ -21,7 +47,7 @@ Extensión Chrome para abogados argentinos que automatiza la interacción con po
 | Portal | URL | Funcionalidades |
 |--------|-----|-----------------|
 | MEV (Mesa de Entradas Virtual - Provincia de Buenos Aires) | mev.scba.gov.ar | Auto-login, extracción de causas, monitoreo, descarga ZIP |
-| JUSCABA (Poder Judicial de CABA) | eje.juscaba.gob.ar | Auto-login, extracción de causas, monitoreo |
+| JUSCABA (Poder Judicial de CABA) | eje.jus.gov.ar | Auto-login, extracción de causas |
 
 ## Stack Tecnológico
 
