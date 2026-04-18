@@ -9,11 +9,13 @@ import type { PortalId } from '@/modules/portals/types';
 const PORTAL_TAB_PATTERNS: Record<PortalId, string> = {
   mev: 'https://mev.scba.gov.ar/*',
   eje: 'https://eje.jus.gov.ar/*',
+  pjn: 'https://scw.pjn.gov.ar/*',
 };
 
 const PORTAL_HEARTBEAT_URLS: Record<PortalId, string> = {
   mev: 'https://mev.scba.gov.ar/busqueda.asp',
   eje: 'https://eje.jus.gov.ar/iol-api/session',
+  pjn: 'https://scw.pjn.gov.ar/scw/homePrivado.seam',
 };
 
 export async function keepAlive(portal: PortalId): Promise<void> {

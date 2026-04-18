@@ -193,6 +193,11 @@ function CredentialsPage({
             label="JUSCABA"
             description="JUSCABA - Poder Judicial de CABA"
           />
+          <PortalCredentials
+            portal="pjn"
+            label="PJN"
+            description="PJN - Poder Judicial de la Nación (portal nacional + sistema de consultas web)"
+          />
         </>
       ) : (
         <div className="rounded-lg border border-border bg-bg-secondary p-6 text-center">
