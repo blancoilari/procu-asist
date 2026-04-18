@@ -3,7 +3,7 @@
  * https://eje.jus.gov.ar/* and https://sso.pjn.gov.ar/*
  *
  * Handles:
- * - Keycloak SSO auto-login (sso.pjn.gov.ar)
+ * - Keycloak SSO auto-login (sso.pjn.gov.ar) — shared con PJN: detecta portal desde redirect_uri
  * - SPA page detection (Angular app)
  * - Case card extraction from search results
  * - API interception for actuaciones data
@@ -22,6 +22,7 @@ import {
   parseCaseHeaderApi,
 } from '@/modules/portals/eje-parser';
 import type { EjeCaseData, EjeActuacion, EjeActuacionesResponse, EjeEncabezadoResponse } from '@/modules/portals/eje-parser';
+import type { PortalId } from '@/modules/portals/types';
 
 export default defineContentScript({
   matches: ['https://eje.jus.gov.ar/*', 'https://sso.pjn.gov.ar/*'],
@@ -45,18 +46,36 @@ export default defineContentScript({
 
 // ────────────────────────────────────────────────────────
 // Keycloak SSO Login (sso.pjn.gov.ar)
+// Compartido entre JUSCABA y PJN — detecta cuál portal usar
+// mirando el redirect_uri del query string.
 // ────────────────────────────────────────────────────────
 
+function detectPortalFromKeycloakUrl(): PortalId {
+  const redirectUri = new URL(window.location.href).searchParams.get('redirect_uri');
+  if (!redirectUri) return 'eje';
+  try {
+    const host = new URL(redirectUri).hostname;
+    if (host.endsWith('.jus.gov.ar')) return 'eje';
+    if (host.endsWith('.pjn.gov.ar') || host.endsWith('.csjn.gov.ar')) return 'pjn';
+  } catch {
+    // malformed redirect_uri — caer al default
+  }
+  return 'eje';
+}
+
 async function handleKeycloakLogin(doc: Document) {
-  console.debug('[ProcuAsist] Keycloak login page detected');
+  const portal = detectPortalFromKeycloakUrl();
+  console.debug(`[ProcuAsist] Keycloak login page detected (portal=${portal})`);
 
   const response = await chrome.runtime.sendMessage({
     type: 'GET_CREDENTIALS',
-    portal: 'eje',
+    portal,
   });
 
   if (!response?.success || !response.credentials) {
-    console.debug('[ProcuAsist] No EJE credentials available for auto-login');
+    console.debug(
+      `[ProcuAsist] No ${portal.toUpperCase()} credentials available for auto-login (reason=${response?.reason ?? 'unknown'})`
+    );
     return;
   }
 
@@ -64,7 +83,6 @@ async function handleKeycloakLogin(doc: Document) {
 
   const usernameInput = doc.querySelector('#username') as HTMLInputElement | null;
   const passwordInput = doc.querySelector('#password') as HTMLInputElement | null;
-  const submitBtn = doc.querySelector('#kc-login') as HTMLInputElement | null;
 
   if (!usernameInput || !passwordInput) {
     console.warn('[ProcuAsist] Keycloak login fields not found');
@@ -77,12 +95,38 @@ async function handleKeycloakLogin(doc: Document) {
   passwordInput.value = password;
   passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
 
-  // Submit after short delay
+  // Submit after short delay. Keycloak themes vary (JUSCABA usa el theme
+  // estándar con #kc-login; PJN tiene theme custom). Probamos cascada.
   setTimeout(() => {
-    if (submitBtn) {
-      console.debug('[ProcuAsist] Submitting Keycloak login');
-      submitBtn.click();
+    const form = usernameInput.closest('form') as HTMLFormElement | null;
+
+    const standardBtn = doc.querySelector('#kc-login') as HTMLElement | null;
+    if (standardBtn) {
+      console.debug('[ProcuAsist] Submitting Keycloak login via #kc-login');
+      standardBtn.click();
+      return;
     }
+
+    const formSubmit = form?.querySelector(
+      'button[type="submit"], input[type="submit"]'
+    ) as HTMLElement | null;
+    if (formSubmit) {
+      console.debug('[ProcuAsist] Submitting Keycloak login via form submit button');
+      formSubmit.click();
+      return;
+    }
+
+    if (form) {
+      console.debug('[ProcuAsist] Submitting Keycloak login via form.requestSubmit()');
+      if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit();
+      } else {
+        form.submit();
+      }
+      return;
+    }
+
+    console.warn('[ProcuAsist] No pude encontrar forma de enviar el formulario de Keycloak');
   }, 600);
 }
 
