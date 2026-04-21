@@ -3,18 +3,27 @@
  *
  * M1: confirma sesión desde portalpjn.pjn.gov.ar (LOGIN_SUCCESS).
  * M3: parsea listados de scw.pjn.gov.ar (Relacionados / Favoritos) y muestra
- *     un panel flotante de verificación. Sin UI de descarga todavía — eso
- *     llega en M5-M8.
+ *     un panel flotante de verificación.
+ * M4: parsea el detalle de un expediente (expediente.seam) y muestra datos
+ *     generales + estado de las cuatro pestañas. Acumula datos a medida que
+ *     el usuario cambia de tab (parse-on-visit).
  *
  * El auto-login contra Keycloak vive en eje.content.ts (compartido vía
- * detectPortalFromKeycloakUrl).
+ * detectPortalFromKeycloakUrl). Sin UI de descarga todavía — eso llega en M5-M8.
  */
 
 import {
+  isScwExpediente,
   isScwListadoPage,
+  parseExpedientePage,
   parseScwList,
+  type PjnExpedienteData,
+  type PjnTabName,
 } from '@/modules/portals/pjn-parser';
-import { renderDebugPanel } from '@/modules/portals/pjn-debug-panel';
+import {
+  renderDebugPanel,
+  renderExpedienteDebugPanel,
+} from '@/modules/portals/pjn-debug-panel';
 
 export default defineContentScript({
   matches: [
@@ -40,15 +49,26 @@ export default defineContentScript({
 
 function initScwDebug(): void {
   const url = new URL(window.location.href);
-  if (!isScwListadoPage(url.pathname)) return;
+  if (isScwListadoPage(url.pathname)) {
+    initListMode(url);
+    return;
+  }
+  if (isScwExpediente(url.pathname)) {
+    initExpedienteMode(url);
+    return;
+  }
+}
 
+// ────────────────────────────────────────────────────────
+// M3 — list mode
+// ────────────────────────────────────────────────────────
+
+function initListMode(url: URL): void {
   let debounce: number | undefined;
   let lastSignature = '';
 
   const parseAndRender = () => {
     const result = parseScwList(document, url);
-    // Dedupe: SCW has constantly-ticking DOM (analytics, timers) that
-    // retriggers the observer. Only log/render on real content change.
     const signature =
       result.mode +
       '|' +
@@ -77,11 +97,103 @@ function initScwDebug(): void {
 
   parseAndRender();
 
-  // SCW uses JSF AJAX postbacks for pagination/filters. Re-parse when the
-  // body subtree changes, debounced + deduped.
   const mo = new MutationObserver(() => {
     window.clearTimeout(debounce);
     debounce = window.setTimeout(parseAndRender, 300);
   });
   mo.observe(document.body, { childList: true, subtree: true });
+}
+
+// ────────────────────────────────────────────────────────
+// M4 — expediente mode
+// ────────────────────────────────────────────────────────
+
+function initExpedienteMode(url: URL): void {
+  let debounce: number | undefined;
+  let lastSignature = '';
+  let accumulated: PjnExpedienteData | null = null;
+
+  const parseAndRender = () => {
+    const fresh = parseExpedientePage(document, url);
+    accumulated = mergeExpediente(accumulated, fresh);
+
+    const signature = buildExpedienteSignature(accumulated);
+    if (signature === lastSignature) return;
+    lastSignature = signature;
+
+    console.groupCollapsed(
+      `%c[ProcuAsist PJN] expediente ${accumulated.datosGenerales?.expediente ?? '(sin cabecera)'} — tab activa: ${fresh.activeTab}`,
+      'color: #2a5d9f; font-weight: bold;'
+    );
+    console.log('datosGenerales:', accumulated.datosGenerales);
+    for (const tab of ['actuaciones', 'intervinientes', 'vinculados', 'recursos'] as PjnTabName[]) {
+      const st = accumulated.tabs[tab];
+      if (!st.loaded) {
+        console.log(`${tab}: (no visitada)`);
+      } else if (st.isEmpty) {
+        console.log(`${tab}: vacía`);
+      } else {
+        console.log(`${tab}: ${st.rows.length} filas`, st.rows);
+      }
+    }
+    if (accumulated.notas) console.log('notas:', accumulated.notas);
+    console.groupEnd();
+
+    renderExpedienteDebugPanel(accumulated);
+  };
+
+  parseAndRender();
+
+  // JSF AJAX reloads the tab content on click. Observe and re-parse, debounced.
+  const mo = new MutationObserver(() => {
+    window.clearTimeout(debounce);
+    debounce = window.setTimeout(parseAndRender, 300);
+  });
+  mo.observe(document.body, { childList: true, subtree: true });
+}
+
+/**
+ * Merge a fresh parse into the accumulated state. Tabs that were previously
+ * loaded are kept; datos generales are refreshed (favorito state can toggle).
+ * This way the user sees a growing picture as they click through tabs, even
+ * if JSF removes inactive tab DOM between AJAX updates.
+ */
+function mergeExpediente(
+  prev: PjnExpedienteData | null,
+  fresh: PjnExpedienteData
+): PjnExpedienteData {
+  if (!prev) return fresh;
+
+  const tabs = { ...prev.tabs };
+  for (const name of ['actuaciones', 'intervinientes', 'vinculados', 'recursos'] as PjnTabName[]) {
+    const freshTab = fresh.tabs[name];
+    const prevTab = prev.tabs[name];
+    // Prefer the fresh parse if it loaded data; otherwise keep the prior state.
+    if (freshTab.loaded) {
+      (tabs as Record<PjnTabName, unknown>)[name] = freshTab;
+    } else {
+      (tabs as Record<PjnTabName, unknown>)[name] = prevTab;
+    }
+  }
+
+  return {
+    datosGenerales: fresh.datosGenerales ?? prev.datosGenerales,
+    activeTab: fresh.activeTab !== 'unknown' ? fresh.activeTab : prev.activeTab,
+    tabs: tabs as PjnExpedienteData['tabs'],
+    notas: fresh.notas || prev.notas,
+  };
+}
+
+function buildExpedienteSignature(data: PjnExpedienteData): string {
+  const dg = data.datosGenerales;
+  const dgSig = dg
+    ? `${dg.expediente}|${dg.situacionActual}|${dg.isFavorito}`
+    : 'nodg';
+  const tabSigs = (['actuaciones', 'intervinientes', 'vinculados', 'recursos'] as PjnTabName[])
+    .map((name) => {
+      const st = data.tabs[name];
+      return `${name}:${st.loaded ? 1 : 0}:${st.isEmpty ? 1 : 0}:${st.rows.length}`;
+    })
+    .join(';');
+  return `${dgSig}|${data.activeTab}|${tabSigs}`;
 }
