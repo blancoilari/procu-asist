@@ -36,6 +36,31 @@ export const PJN_LIST_HEADERS = {
 
 export type PjnHeaderKey = keyof typeof PJN_LIST_HEADERS;
 
+/**
+ * Header fragments for the Actuaciones tab columns (plan §5.5.3).
+ */
+export const PJN_ACTUACIONES_HEADERS = {
+  oficina: 'oficina',
+  fecha: 'fecha',
+  tipo: 'tipo',
+  descripcion: 'descrip',
+  foja: 'fs',
+} as const;
+
+export type PjnActuacionHeaderKey = keyof typeof PJN_ACTUACIONES_HEADERS;
+
+/**
+ * Header fragments for the Intervinientes > PARTES table (plan §5.5.4).
+ */
+export const PJN_INTERVINIENTES_HEADERS = {
+  tipo: 'tipo',
+  nombre: 'nombre',
+  tomoFolio: 'tomo',
+  iej: 'e.j',
+} as const;
+
+export type PjnIntervinienteHeaderKey = keyof typeof PJN_INTERVINIENTES_HEADERS;
+
 export const PJN_SELECTORS = {
   scw: {
     /**
@@ -54,5 +79,32 @@ export const PJN_SELECTORS = {
     /** Star toggle in Relacionados rows (§5.7 of the plan) */
     favoritoLink: 'a[id$=":favorito:outputLink"]',
     favoritoLinkFallback: 'a[href*="favorito"], a[id*="favorito"]',
+  },
+  expediente: {
+    /** Tab strip uses PrimeFaces/RichFaces; the four tabs in order per plan §5.5.2 */
+    tabNames: ['actuaciones', 'intervinientes', 'vinculados', 'recursos'] as const,
+    /**
+     * Active tab indicators, in order of preference. The first matching
+     * element is treated as the currently-visible tab.
+     */
+    activeTabCandidates: [
+      '[role="tab"][aria-selected="true"]',
+      '.ui-tabs-selected',
+      '.rf-tab-lbl-act',
+      'li.active[role="tab"]',
+    ],
+    /** All tab labels, to enumerate them by name. */
+    tabLabelCandidates: [
+      '[role="tab"]',
+      '.ui-tabs-header',
+      '.rf-tab-hdr',
+    ],
+    /**
+     * "Ver históricas" button (plan §5.5.3). Detected by text, not id, since
+     * the control could be <button>, <a> or <input type=button> in JSF.
+     */
+    verHistoricasPattern: /ver\s+hist[óo]ricas/i,
+    /** Notas block label at the bottom of the actuaciones tab. */
+    notasLabelPattern: /^notas\b/i,
   },
 } as const;
