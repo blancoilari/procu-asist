@@ -17,6 +17,7 @@ export default defineConfig({
       'offscreen',
       'tabs',
       'downloads',
+      'webRequest',
     ],
     host_permissions: [
       'https://mev.scba.gov.ar/*',
