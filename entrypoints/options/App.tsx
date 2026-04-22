@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Scale } from 'lucide-react';
 import type { PortalId } from '@/modules/portals/types';
 import { MEV_DEPARTAMENTOS } from '@/modules/portals/mev-selectors';
 
@@ -19,7 +20,10 @@ export default function App() {
     <div className="mx-auto flex min-h-screen max-w-4xl bg-bg text-text">
       {/* Sidebar Navigation */}
       <nav className="w-56 border-r border-border p-4">
-        <h1 className="mb-6 text-xl font-bold text-primary">🚀 ProcuAsist</h1>
+        <h1 className="mb-6 flex items-center gap-2 text-xl font-bold text-primary">
+          <Scale size={22} strokeWidth={2.25} />
+          ProcuAsist
+        </h1>
         <ul className="flex flex-col gap-1">
           {(
             [

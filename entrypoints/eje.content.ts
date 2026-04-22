@@ -8,7 +8,7 @@
  * - Case card extraction from search results
  * - API interception for actuaciones data
  * - Session monitoring (401 detection)
- * - Rocket button + bookmark/monitor injection
+ * - Bookmark/monitor injection
  */
 
 import { EJE_SELECTORS, EJE_PATTERNS, EJE_API_BASE } from '@/modules/portals/eje-selectors';
@@ -23,6 +23,17 @@ import {
 } from '@/modules/portals/eje-parser';
 import type { EjeCaseData, EjeActuacion, EjeActuacionesResponse, EjeEncabezadoResponse } from '@/modules/portals/eje-parser';
 import type { PortalId } from '@/modules/portals/types';
+import { PORTAL_COLORS } from '@/modules/ui/portal-colors';
+import {
+  ICON_STAR,
+  ICON_EYE,
+  ICON_CHECK,
+  ICON_X,
+  ICON_LOADER,
+  iconLabel,
+} from '@/modules/ui/icon-strings';
+
+const EJE_COLOR = PORTAL_COLORS.eje;
 
 export default defineContentScript({
   matches: ['https://eje.jus.gov.ar/*', 'https://sso.pjn.gov.ar/*'],
@@ -140,9 +151,6 @@ function handleEjeSpa(doc: Document) {
   // Notify login success
   chrome.runtime.sendMessage({ type: 'LOGIN_SUCCESS', portal: 'eje' });
 
-  // Inject rocket button
-  injectRocketButton();
-
   // Start session monitoring
   startSessionMonitor();
 
@@ -210,11 +218,11 @@ function injectCardButtons(doc: Document, cases: EjeCaseData[]) {
     });
 
     // Bookmark button
-    const bookmarkBtn = createActionButton('⭐', 'Guardar');
+    const bookmarkBtn = createActionButton(ICON_STAR, 'Guardar');
     bookmarkBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       e.preventDefault();
-      bookmarkBtn.textContent = '⏳';
+      bookmarkBtn.innerHTML = iconLabel(ICON_LOADER, '');
 
       const resp = (await chrome.runtime.sendMessage({
         type: 'ADD_BOOKMARK',
@@ -232,15 +240,15 @@ function injectCardButtons(doc: Document, cases: EjeCaseData[]) {
         },
       })) as { success: boolean };
 
-      bookmarkBtn.textContent = resp?.success ? '✅' : '❌';
+      bookmarkBtn.innerHTML = iconLabel(resp?.success ? ICON_CHECK : ICON_X, '');
     });
 
     // Monitor button
-    const monitorBtn = createActionButton('👁', 'Monitorear');
+    const monitorBtn = createActionButton(ICON_EYE, 'Monitorear');
     monitorBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       e.preventDefault();
-      monitorBtn.textContent = '⏳';
+      monitorBtn.innerHTML = iconLabel(ICON_LOADER, '');
 
       const resp = (await chrome.runtime.sendMessage({
         type: 'ADD_MONITOR',
@@ -258,7 +266,7 @@ function injectCardButtons(doc: Document, cases: EjeCaseData[]) {
         },
       })) as { success: boolean };
 
-      monitorBtn.textContent = resp?.success ? '✅' : '❌';
+      monitorBtn.innerHTML = iconLabel(resp?.success ? ICON_CHECK : ICON_X, '');
     });
 
     container.appendChild(bookmarkBtn);
@@ -270,23 +278,27 @@ function injectCardButtons(doc: Document, cases: EjeCaseData[]) {
   });
 }
 
-function createActionButton(emoji: string, label: string): HTMLButtonElement {
+function createActionButton(iconSvg: string, label: string): HTMLButtonElement {
   const btn = document.createElement('button');
-  btn.textContent = `${emoji} ${label}`;
+  btn.innerHTML = iconLabel(iconSvg, label);
   Object.assign(btn.style, {
     padding: '3px 10px',
     borderRadius: '12px',
-    border: '1px solid #d1d5db',
+    border: `1px solid ${EJE_COLOR.primary}`,
     backgroundColor: 'white',
+    color: EJE_COLOR.primary,
     fontSize: '11px',
+    fontWeight: '600',
     cursor: 'pointer',
-    transition: 'background-color 0.2s',
+    transition: 'background-color 0.2s, color 0.2s',
   });
   btn.addEventListener('mouseenter', () => {
-    btn.style.backgroundColor = '#f3f4f6';
+    btn.style.backgroundColor = EJE_COLOR.primary;
+    btn.style.color = 'white';
   });
   btn.addEventListener('mouseleave', () => {
     btn.style.backgroundColor = 'white';
+    btn.style.color = EJE_COLOR.primary;
   });
   return btn;
 }
@@ -423,48 +435,6 @@ function watchSpaNavigation(doc: Document) {
       }
     }
   }
-}
-
-// ────────────────────────────────────────────────────────
-// UI Injections
-// ────────────────────────────────────────────────────────
-
-function injectRocketButton() {
-  if (document.getElementById('procu-asist-rocket')) return;
-
-  const btn = document.createElement('button');
-  btn.id = 'procu-asist-rocket';
-  btn.innerHTML = '🚀';
-  btn.title = 'Abrir ProcuAsist';
-  Object.assign(btn.style, {
-    position: 'fixed',
-    bottom: '20px',
-    right: '20px',
-    width: '48px',
-    height: '48px',
-    borderRadius: '50%',
-    border: 'none',
-    backgroundColor: '#2563eb',
-    color: 'white',
-    fontSize: '24px',
-    cursor: 'pointer',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-    zIndex: '999999',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'transform 0.2s',
-  });
-  btn.addEventListener('mouseenter', () => {
-    btn.style.transform = 'scale(1.1)';
-  });
-  btn.addEventListener('mouseleave', () => {
-    btn.style.transform = 'scale(1)';
-  });
-  btn.addEventListener('click', () => {
-    chrome.runtime.sendMessage({ type: 'OPEN_SIDEPANEL' });
-  });
-  document.body.appendChild(btn);
 }
 
 // ────────────────────────────────────────────────────────
