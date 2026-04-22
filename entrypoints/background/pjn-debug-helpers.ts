@@ -13,11 +13,13 @@
 
 import { getEvents } from '@/modules/portals/pjn-api-client';
 import { getToken, getTokenAgeMs, clearToken } from '@/modules/portals/pjn-token-store';
+import { downloadPjnPdf, findScwTab } from '@/modules/portals/pjn-downloader';
 
 type GlobalHelpers = {
   pjnGetEvents: typeof pjnGetEvents;
   pjnTokenStatus: typeof pjnTokenStatus;
   pjnClearToken: typeof clearToken;
+  pjnDownloadPdf: typeof pjnDownloadPdfDebug;
 };
 
 export function installPjnDebugHelpers(): void {
@@ -25,9 +27,10 @@ export function installPjnDebugHelpers(): void {
   target.pjnGetEvents = pjnGetEvents;
   target.pjnTokenStatus = pjnTokenStatus;
   target.pjnClearToken = clearToken;
+  target.pjnDownloadPdf = pjnDownloadPdfDebug;
 
   console.debug(
-    '[ProcuAsist PJN] Debug helpers: pjnGetEvents(), pjnTokenStatus(), pjnClearToken()'
+    '[ProcuAsist PJN] Debug helpers: pjnGetEvents(), pjnTokenStatus(), pjnClearToken(), pjnDownloadPdf(href)'
   );
 }
 
@@ -71,6 +74,36 @@ function formatMsDate(ms: unknown): string {
   } catch {
     return '(fecha inválida)';
   }
+}
+
+async function pjnDownloadPdfDebug(href: string) {
+  if (typeof href !== 'string' || !href) {
+    console.warn('Uso: pjnDownloadPdf("/scw/viewer.seam?id=...&tipoDoc=despacho")');
+    return { success: false, error: 'href inválido' };
+  }
+  const tabId = await findScwTab();
+  if (!tabId) {
+    console.warn(
+      'No hay pestaña scw.pjn.gov.ar abierta. Abrí el expediente y volvé a intentar.'
+    );
+    return { success: false, error: 'no-scw-tab' };
+  }
+  console.debug(`[ProcuAsist PJN] Descargando vía tab ${tabId}: ${href}`);
+  const result = await downloadPjnPdf(tabId, href);
+  if (!result.success) {
+    console.warn('Error:', result.error);
+    return result;
+  }
+  const dataUri = `data:${result.mimeType};base64,${result.base64}`;
+  await chrome.downloads.download({
+    url: dataUri,
+    filename: result.filename,
+    saveAs: false,
+  });
+  console.log(
+    `OK: ${result.filename} (${Math.round(result.sizeBytes / 1024)} KB, ${result.mimeType})`
+  );
+  return result;
 }
 
 function pjnTokenStatus() {

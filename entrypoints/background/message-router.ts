@@ -46,6 +46,10 @@ import { handleSessionExpired } from './auto-reconnect';
 import { scanMonitoredCases } from './case-monitor';
 import { getEvents } from '@/modules/portals/pjn-api-client';
 import { getToken, getTokenAgeMs } from '@/modules/portals/pjn-token-store';
+import {
+  downloadPjnPdf,
+  findScwTab,
+} from '@/modules/portals/pjn-downloader';
 
 export function setupMessageRouter() {
   chrome.runtime.onMessage.addListener(
@@ -339,6 +343,34 @@ async function handleMessage(
         }
       }
       return { status: 'ok', imported };
+    }
+
+    // --- PJN document download ---
+    case 'PJN_DOWNLOAD_PDF': {
+      const tabId = await findScwTab();
+      if (!tabId) {
+        return {
+          success: false,
+          error:
+            'No hay una pestaña de scw.pjn.gov.ar abierta. Abrí el expediente primero.',
+        };
+      }
+      const result = await downloadPjnPdf(
+        tabId,
+        message.href,
+        message.suggestedName
+      );
+      if (!result.success) return result;
+
+      if (message.saveToDisk) {
+        const dataUri = `data:${result.mimeType};base64,${result.base64}`;
+        await chrome.downloads.download({
+          url: dataUri,
+          filename: result.filename,
+          saveAs: false,
+        });
+      }
+      return result;
     }
 
     // --- PJN API (debug) ---
