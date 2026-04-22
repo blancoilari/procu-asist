@@ -32,7 +32,8 @@ export type ProcuAsistMessage =
   | MarkAlertReadMessage
   | MarkAllAlertsReadMessage
   | RunScanNowMessage
-  | PjnGetEventsDebugMessage;
+  | PjnGetEventsDebugMessage
+  | PjnDownloadPdfMessage;
 
 export interface SetupPinMessage {
   type: 'SETUP_PIN';
@@ -223,6 +224,14 @@ export interface PjnGetEventsDebugMessage {
   page?: number;
   pageSize?: number;
   fechaHasta?: number;
+}
+
+export interface PjnDownloadPdfMessage {
+  type: 'PJN_DOWNLOAD_PDF';
+  href: string;
+  suggestedName?: string;
+  /** If true, the background will trigger chrome.downloads with the blob. */
+  saveToDisk?: boolean;
 }
 
 /** Response types for type safety */
