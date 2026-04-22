@@ -44,6 +44,8 @@ import {
 } from '@/modules/pdf/attachment-downloader';
 import { handleSessionExpired } from './auto-reconnect';
 import { scanMonitoredCases } from './case-monitor';
+import { getEvents } from '@/modules/portals/pjn-api-client';
+import { getToken, getTokenAgeMs } from '@/modules/portals/pjn-token-store';
 
 export function setupMessageRouter() {
   chrome.runtime.onMessage.addListener(
@@ -337,6 +339,39 @@ async function handleMessage(
         }
       }
       return { status: 'ok', imported };
+    }
+
+    // --- PJN API (debug) ---
+    case 'PJN_GET_EVENTS_DEBUG': {
+      const hasToken = !!getToken();
+      const tokenAgeMs = getTokenAgeMs();
+      console.groupCollapsed(
+        `%c[ProcuAsist PJN] getEvents(page=${message.page ?? 0}) — token=${hasToken ? 'sí' : 'no'}${tokenAgeMs !== null ? ` age=${Math.round(tokenAgeMs / 1000)}s` : ''}`,
+        'color: #2a5d9f; font-weight: bold;'
+      );
+      const result = await getEvents({
+        page: message.page,
+        pageSize: message.pageSize,
+        fechaHasta: message.fechaHasta,
+      });
+      if (result.ok) {
+        console.log(
+          `hasNext=${result.data.hasNext} items=${result.data.items.length} numberOfItems=${result.data.numberOfItems}`
+        );
+        console.table(
+          result.data.items.map((e) => ({
+            fecha: new Date(e.fechaFirma).toISOString(),
+            tipo: e.tipo,
+            expediente: e.payload?.claveExpediente,
+            caratula: e.payload?.caratulaExpediente?.slice(0, 60),
+            hasDocument: e.hasDocument,
+          }))
+        );
+      } else {
+        console.warn('error:', result.error);
+      }
+      console.groupEnd();
+      return result;
     }
 
     default:

@@ -31,7 +31,8 @@ export type ProcuAsistMessage =
   | GetAlertsMessage
   | MarkAlertReadMessage
   | MarkAllAlertsReadMessage
-  | RunScanNowMessage;
+  | RunScanNowMessage
+  | PjnGetEventsDebugMessage;
 
 export interface SetupPinMessage {
   type: 'SETUP_PIN';
@@ -215,6 +216,13 @@ export interface MarkAllAlertsReadMessage {
 
 export interface RunScanNowMessage {
   type: 'RUN_SCAN_NOW';
+}
+
+export interface PjnGetEventsDebugMessage {
+  type: 'PJN_GET_EVENTS_DEBUG';
+  page?: number;
+  pageSize?: number;
+  fechaHasta?: number;
 }
 
 /** Response types for type safety */
