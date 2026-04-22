@@ -1,4 +1,23 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  Scale,
+  Star,
+  Eye,
+  Settings as SettingsIcon,
+  RefreshCw,
+  Hourglass,
+  Link as LinkIcon,
+  Clipboard,
+  FileText,
+  Trash2,
+  Pause,
+  Play,
+  Bell,
+  Search,
+  Coffee,
+  Mail,
+  Bug,
+} from 'lucide-react';
 import type { Bookmark, Case, Monitor, MovementAlert } from '@/modules/portals/types';
 import type { ProcuAsistSettings } from '@/modules/storage/settings-store';
 import { DONATE_URL } from '@/modules/tier/limits';
@@ -62,7 +81,10 @@ export default function App() {
     <div className="flex h-screen flex-col bg-bg text-text">
       {/* Header */}
       <header className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h1 className="text-lg font-bold text-primary">🚀 ProcuAsist</h1>
+        <h1 className="flex items-center gap-2 text-lg font-bold text-primary">
+          <Scale size={20} strokeWidth={2.25} />
+          ProcuAsist
+        </h1>
         <ConnectionBadge />
       </header>
 
@@ -89,18 +111,26 @@ export default function App() {
                 : 'text-text-secondary hover:text-text'
             }`}
           >
-            {tab === 'bookmarks' && '⭐ Marcadores'}
+            {tab === 'bookmarks' && (
+              <span className="inline-flex items-center gap-1.5">
+                <Star size={14} /> Marcadores
+              </span>
+            )}
             {tab === 'monitors' && (
-              <>
-                👁 Monitoreo
+              <span className="inline-flex items-center gap-1.5">
+                <Eye size={14} /> Monitoreo
                 {unreadCount > 0 && (
                   <span className="absolute -top-0.5 right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
-              </>
+              </span>
             )}
-            {tab === 'settings' && '⚙ Ajustes'}
+            {tab === 'settings' && (
+              <span className="inline-flex items-center gap-1.5">
+                <SettingsIcon size={14} /> Ajustes
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -123,6 +153,34 @@ function ConnectionBadge() {
   return (
     <span className="rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary">
       v{chrome.runtime.getManifest().version}
+    </span>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
+// Portal Badge
+// ──────────────────────────────────────────────────────────
+
+type PortalId = import('@/modules/portals/types').PortalId;
+
+const PORTAL_LABELS: Record<PortalId, string> = {
+  mev: 'MEV',
+  eje: 'JUSCABA',
+  pjn: 'PJN',
+};
+
+const PORTAL_BADGE_CLASS: Record<PortalId, string> = {
+  mev: 'bg-blue-100 text-blue-900 dark:bg-blue-900 dark:text-blue-200',
+  eje: 'bg-cyan-100 text-cyan-900 dark:bg-cyan-900 dark:text-cyan-200',
+  pjn: 'bg-red-100 text-red-900 dark:bg-red-900 dark:text-red-200',
+};
+
+function PortalBadge({ portal }: { portal: PortalId }) {
+  return (
+    <span
+      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${PORTAL_BADGE_CLASS[portal]}`}
+    >
+      {PORTAL_LABELS[portal]}
     </span>
   );
 }
@@ -312,11 +370,21 @@ function QuickAddBanner({
             : 'bg-primary text-white hover:bg-primary/90'
         }`}
       >
-        {alreadyBookmarked
-          ? '✓ Ya está en marcadores'
-          : added
-            ? '✓ Agregado'
-            : '⭐ Guardar en marcadores'}
+        <span className="inline-flex items-center justify-center gap-1.5">
+          {alreadyBookmarked ? (
+            <>
+              <Star size={14} fill="currentColor" /> Ya está en marcadores
+            </>
+          ) : added ? (
+            <>
+              <Star size={14} fill="currentColor" /> Agregado
+            </>
+          ) : (
+            <>
+              <Star size={14} /> Guardar en marcadores
+            </>
+          )}
+        </span>
       </button>
     </div>
   );
@@ -368,16 +436,7 @@ function BookmarkCard({
     return () => document.removeEventListener('click', handler);
   }, [showActions]);
 
-  const portalBadge =
-    bookmark.portal === 'mev' ? (
-      <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-        MEV
-      </span>
-    ) : (
-      <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 dark:bg-purple-900 dark:text-purple-300">
-        JUSCABA
-      </span>
-    );
+  const portalBadge = <PortalBadge portal={bookmark.portal} />;
 
   const timeAgo = getRelativeTime(bookmark.createdAt);
 
@@ -394,8 +453,11 @@ function BookmarkCard({
           {portalBadge}
           <span className="text-sm font-semibold">{bookmark.caseNumber}</span>
           {monitored && (
-            <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 dark:bg-violet-900 dark:text-violet-300" title="Monitoreando">
-              👁
+            <span
+              className="inline-flex items-center rounded bg-violet-100 px-1.5 py-0.5 text-violet-700 dark:bg-violet-900 dark:text-violet-300"
+              title="Monitoreando"
+            >
+              <Eye size={11} />
             </span>
           )}
         </div>
@@ -413,9 +475,12 @@ function BookmarkCard({
 
         {/* Last movement if available */}
         {bookmark.lastMovementDate && (
-          <div className="mt-1.5 rounded bg-amber-50 px-2 py-1 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-            📋 {bookmark.lastMovementDate}
-            {bookmark.lastMovementDesc && ` — ${bookmark.lastMovementDesc}`}
+          <div className="mt-1.5 flex items-center gap-1 rounded bg-amber-50 px-2 py-1 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+            <FileText size={11} />
+            <span>
+              {bookmark.lastMovementDate}
+              {bookmark.lastMovementDesc && ` — ${bookmark.lastMovementDesc}`}
+            </span>
           </div>
         )}
       </button>
@@ -443,7 +508,7 @@ function BookmarkCard({
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-bg-secondary"
             >
-              🔗 Abrir en portal
+              <LinkIcon size={13} /> Abrir en portal
             </button>
             <button
               onClick={() => {
@@ -454,7 +519,7 @@ function BookmarkCard({
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-bg-secondary"
             >
-              📋 Copiar carátula
+              <Clipboard size={13} /> Copiar carátula
             </button>
             <button
               onClick={async () => {
@@ -472,7 +537,7 @@ function BookmarkCard({
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-bg-secondary"
             >
-              {monitored ? '👁 Ya monitoreada' : '👁 Monitorear causa'}
+              <Eye size={13} /> {monitored ? 'Ya monitoreada' : 'Monitorear causa'}
             </button>
             <button
               onClick={() => {
@@ -482,7 +547,7 @@ function BookmarkCard({
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-bg-secondary"
             >
-              📄 Abrir para descargar PDF
+              <FileText size={13} /> Abrir para descargar PDF
             </button>
             <hr className="border-border" />
             <button
@@ -492,7 +557,7 @@ function BookmarkCard({
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
             >
-              🗑 Eliminar
+              <Trash2 size={13} /> Eliminar
             </button>
           </div>
         )}
@@ -508,7 +573,9 @@ function BookmarkCard({
 function EmptyBookmarks({ hasSearch }: { hasSearch: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-text-secondary">
-      <div className="text-4xl">{hasSearch ? '🔍' : '⭐'}</div>
+      <div className="text-text-secondary/50">
+        {hasSearch ? <Search size={40} /> : <Star size={40} />}
+      </div>
       <p className="text-sm font-medium">
         {hasSearch
           ? 'No se encontraron marcadores'
@@ -676,9 +743,17 @@ function MonitorsTab({ search }: { search: string }) {
               <button
                 onClick={handleScanNow}
                 disabled={scanning}
-                className="rounded-lg bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
-                {scanning ? '⏳ Escaneando...' : '🔄 Escanear ahora'}
+                {scanning ? (
+                  <>
+                    <Hourglass size={12} /> Escaneando...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={12} /> Escanear ahora
+                  </>
+                )}
               </button>
             </div>
           )}
@@ -717,7 +792,9 @@ function MonitorsTab({ search }: { search: string }) {
 
           {alerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-text-secondary">
-              <div className="text-4xl">🔔</div>
+              <div className="text-text-secondary/50">
+                <Bell size={40} />
+              </div>
               <p className="text-sm font-medium">No hay alertas</p>
               <p className="text-xs">
                 Las alertas aparecen cuando se detectan nuevos movimientos en
@@ -776,16 +853,7 @@ function MonitorCard({
     return () => document.removeEventListener('click', handler);
   }, [showActions]);
 
-  const portalBadge =
-    monitor.portal === 'mev' ? (
-      <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-        MEV
-      </span>
-    ) : (
-      <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 dark:bg-purple-900 dark:text-purple-300">
-        JUSCABA
-      </span>
-    );
+  const portalBadge = <PortalBadge portal={monitor.portal} />;
 
   return (
     <li className="group relative px-4 py-3 hover:bg-bg-secondary/50 transition-colors">
@@ -827,7 +895,8 @@ function MonitorCard({
         {/* Last known movement */}
         {monitor.lastKnownMovementDate && (
           <div className="mt-1.5 flex items-center gap-1 text-[10px] text-text-secondary">
-            <span>📋 Último mov: {monitor.lastKnownMovementDate}</span>
+            <FileText size={11} />
+            <span>Último mov: {monitor.lastKnownMovementDate}</span>
             <span>({monitor.lastKnownMovementCount} totales)</span>
           </div>
         )}
@@ -854,7 +923,7 @@ function MonitorCard({
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-bg-secondary"
             >
-              🔗 Abrir en portal
+              <LinkIcon size={13} /> Abrir en portal
             </button>
             <button
               onClick={() => {
@@ -863,7 +932,15 @@ function MonitorCard({
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-bg-secondary"
             >
-              {monitor.isActive ? '⏸ Pausar monitoreo' : '▶ Reanudar monitoreo'}
+              {monitor.isActive ? (
+                <>
+                  <Pause size={13} /> Pausar monitoreo
+                </>
+              ) : (
+                <>
+                  <Play size={13} /> Reanudar monitoreo
+                </>
+              )}
             </button>
             <hr className="border-border" />
             <button
@@ -873,7 +950,7 @@ function MonitorCard({
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
             >
-              🗑 Quitar del monitoreo
+              <Trash2 size={13} /> Quitar del monitoreo
             </button>
           </div>
         )}
@@ -927,7 +1004,9 @@ function AlertCard({
 
         {/* Movement info */}
         <div className="mb-1 flex items-center gap-1.5">
-          <span className="text-xs">📋 {alert.movementDate}</span>
+          <span className="inline-flex items-center gap-1 text-xs">
+            <FileText size={12} /> {alert.movementDate}
+          </span>
           {alert.movementType && (
             <span className="rounded bg-blue-100 px-1 py-0.5 text-[10px] text-blue-700 dark:bg-blue-900 dark:text-blue-300">
               {alert.movementType}
@@ -994,7 +1073,9 @@ function LastScanInfo() {
 function EmptyMonitors({ hasSearch }: { hasSearch: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-text-secondary">
-      <div className="text-4xl">{hasSearch ? '🔍' : '👁'}</div>
+      <div className="text-text-secondary/50">
+        {hasSearch ? <Search size={40} /> : <Eye size={40} />}
+      </div>
       <p className="text-sm font-medium">
         {hasSearch
           ? 'No se encontraron causas monitoreadas'
@@ -1106,7 +1187,7 @@ function SettingsTab() {
         onClick={() => chrome.tabs.create({ url: DONATE_URL })}
         className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30 transition-colors"
       >
-        <span>☕</span> Invitame un cafecito
+        <Coffee size={16} /> Invitame un cafecito
       </button>
 
       {/* Feedback channels */}
@@ -1118,7 +1199,7 @@ function SettingsTab() {
         }
         className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-bg-secondary px-4 py-2.5 text-sm text-text-secondary hover:bg-border transition-colors"
       >
-        <span>📧</span> Reportar error o sugerencia
+        <Mail size={16} /> Reportar error o sugerencia
       </button>
       <button
         onClick={() =>
@@ -1128,7 +1209,7 @@ function SettingsTab() {
         }
         className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-bg-secondary px-4 py-2.5 text-sm text-text-secondary hover:bg-border transition-colors"
       >
-        <span>🐙</span> Issues en GitHub
+        <Bug size={16} /> Issues en GitHub
       </button>
 
       {/* Disclaimer */}

@@ -5,13 +5,25 @@
  * Enables:
  * - Auto-login to SCBA Notificaciones
  * - Bulk import of cases from the notifications table into ProcuAsist bookmarks
- * - Rocket button for sidepanel access
  */
 
 import {
   SCBA_NOTIF_SELECTORS,
   SCBA_NOTIF_COLUMN_HEADERS,
 } from '@/modules/portals/scba-notif-selectors';
+import { SCBA_NOTIF_COLOR } from '@/modules/ui/portal-colors';
+import {
+  ICON_DOWNLOAD,
+  ICON_CHECK,
+  ICON_X,
+  ICON_LOADER,
+  ICON_ALERT,
+  iconLabel,
+} from '@/modules/ui/icon-strings';
+
+const SUCCESS_COLOR = '#16a34a';
+const DANGER_COLOR = '#dc2626';
+const WARN_COLOR = '#f59e0b';
 
 export default defineContentScript({
   matches: ['https://notificaciones.scba.gov.ar/*'],
@@ -28,8 +40,6 @@ export default defineContentScript({
     } else if (isNovedadesPage()) {
       handleNovedadesPage(doc);
     }
-
-    injectRocketButton();
   },
 });
 
@@ -110,12 +120,12 @@ function injectImportButton(doc: Document) {
 
   // Import all button
   const importAllBtn = document.createElement('button');
-  importAllBtn.textContent = '📥 Importar todas las causas';
+  importAllBtn.innerHTML = iconLabel(ICON_DOWNLOAD, 'Importar todas las causas');
   Object.assign(importAllBtn.style, {
     padding: '10px 20px',
     borderRadius: '12px',
     border: 'none',
-    backgroundColor: '#2563eb',
+    backgroundColor: SCBA_NOTIF_COLOR.primary,
     color: 'white',
     fontSize: '14px',
     fontWeight: '600',
@@ -132,7 +142,7 @@ function injectImportButton(doc: Document) {
   });
 
   importAllBtn.addEventListener('click', async () => {
-    importAllBtn.textContent = '⏳ Extrayendo causas...';
+    importAllBtn.innerHTML = iconLabel(ICON_LOADER, 'Extrayendo causas...');
     importAllBtn.style.backgroundColor = '#9ca3af';
     importAllBtn.disabled = true;
 
@@ -140,17 +150,17 @@ function injectImportButton(doc: Document) {
       const cases = extractCasesFromTable(doc);
 
       if (cases.length === 0) {
-        importAllBtn.textContent = '⚠ No se encontraron causas';
-        importAllBtn.style.backgroundColor = '#f59e0b';
+        importAllBtn.innerHTML = iconLabel(ICON_ALERT, 'No se encontraron causas');
+        importAllBtn.style.backgroundColor = WARN_COLOR;
         setTimeout(() => {
-          importAllBtn.textContent = '📥 Importar todas las causas';
-          importAllBtn.style.backgroundColor = '#2563eb';
+          importAllBtn.innerHTML = iconLabel(ICON_DOWNLOAD, 'Importar todas las causas');
+          importAllBtn.style.backgroundColor = SCBA_NOTIF_COLOR.primary;
           importAllBtn.disabled = false;
         }, 3000);
         return;
       }
 
-      importAllBtn.textContent = `⏳ Importando ${cases.length} causas...`;
+      importAllBtn.innerHTML = iconLabel(ICON_LOADER, `Importando ${cases.length} causas...`);
 
       // Send to background for bulk bookmark creation
       const response = (await chrome.runtime.sendMessage({
@@ -159,20 +169,20 @@ function injectImportButton(doc: Document) {
         source: 'scba-notificaciones',
       })) as { status: string; imported: number };
 
-      importAllBtn.textContent = `✅ ${response?.imported ?? cases.length} causas importadas`;
-      importAllBtn.style.backgroundColor = '#16a34a';
+      importAllBtn.innerHTML = iconLabel(ICON_CHECK, `${response?.imported ?? cases.length} causas importadas`);
+      importAllBtn.style.backgroundColor = SUCCESS_COLOR;
 
       // Show count badge
       showImportResult(container, cases.length);
     } catch (err) {
       console.error('[ProcuAsist] Bulk import error:', err);
-      importAllBtn.textContent = '❌ Error al importar';
-      importAllBtn.style.backgroundColor = '#dc2626';
+      importAllBtn.innerHTML = iconLabel(ICON_X, 'Error al importar');
+      importAllBtn.style.backgroundColor = DANGER_COLOR;
     }
 
     setTimeout(() => {
-      importAllBtn.textContent = '📥 Importar todas las causas';
-      importAllBtn.style.backgroundColor = '#2563eb';
+      importAllBtn.innerHTML = iconLabel(ICON_DOWNLOAD, 'Importar todas las causas');
+      importAllBtn.style.backgroundColor = SCBA_NOTIF_COLOR.primary;
       importAllBtn.disabled = false;
     }, 4000);
   });
@@ -358,40 +368,3 @@ function waitForElement(selector: string, callback: () => void, timeoutMs = 1000
   setTimeout(() => observer.disconnect(), timeoutMs);
 }
 
-function injectRocketButton() {
-  if (document.getElementById('procu-asist-rocket')) return;
-
-  const btn = document.createElement('button');
-  btn.id = 'procu-asist-rocket';
-  btn.innerHTML = '🚀';
-  btn.title = 'Abrir ProcuAsist';
-  Object.assign(btn.style, {
-    position: 'fixed',
-    bottom: '20px',
-    right: '20px',
-    width: '48px',
-    height: '48px',
-    borderRadius: '50%',
-    border: 'none',
-    backgroundColor: '#2563eb',
-    color: 'white',
-    fontSize: '24px',
-    cursor: 'pointer',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-    zIndex: '999999',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'transform 0.2s',
-  });
-  btn.addEventListener('mouseenter', () => {
-    btn.style.transform = 'scale(1.1)';
-  });
-  btn.addEventListener('mouseleave', () => {
-    btn.style.transform = 'scale(1)';
-  });
-  btn.addEventListener('click', () => {
-    chrome.runtime.sendMessage({ type: 'OPEN_SIDEPANEL' });
-  });
-  document.body.appendChild(btn);
-}

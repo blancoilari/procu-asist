@@ -1,28 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
-  <!-- Background: rounded square with gradient -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#2563eb"/>
       <stop offset="100%" stop-color="#1d4ed8"/>
-    </linearGradient>
-    <linearGradient id="shield" x1="40" y1="20" x2="88" y2="110" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
-      <stop offset="100%" stop-color="#dbeafe" stop-opacity="0.9"/>
     </linearGradient>
   </defs>
 
   <!-- Rounded square background -->
   <rect width="128" height="128" rx="28" fill="url(#bg)"/>
 
-  <!-- Shield / legal document shape -->
-  <path d="M64 18 L96 34 L96 68 C96 88 82 102 64 110 C46 102 32 88 32 68 L32 34 Z"
-        fill="url(#shield)" stroke="white" stroke-width="1.5" stroke-opacity="0.3"/>
+  <!-- Scales of justice: minimalist, monoline -->
+  <g stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Central vertical post -->
+    <line x1="64" y1="30" x2="64" y2="96"/>
+    <!-- Base -->
+    <line x1="46" y1="100" x2="82" y2="100"/>
+    <!-- Horizontal beam -->
+    <line x1="32" y1="44" x2="96" y2="44"/>
+    <!-- Left cords -->
+    <line x1="36" y1="44" x2="28" y2="64"/>
+    <line x1="36" y1="44" x2="44" y2="64"/>
+    <!-- Right cords -->
+    <line x1="92" y1="44" x2="84" y2="64"/>
+    <line x1="92" y1="44" x2="100" y2="64"/>
+  </g>
 
-  <!-- Checkmark / gavel symbol inside -->
-  <path d="M50 62 L60 72 L80 48"
-        stroke="#2563eb" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Pans (filled arcs) -->
+  <g fill="white">
+    <path d="M24 64 L48 64 A12 12 0 0 1 24 64 Z"/>
+    <path d="M80 64 L104 64 A12 12 0 0 1 80 64 Z"/>
+  </g>
 
-  <!-- Small "P" letter accent -->
-  <text x="64" y="98" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif"
-        font-size="14" font-weight="700" fill="white" opacity="0.7">PA</text>
+  <!-- Top pivot dot -->
+  <circle cx="64" cy="30" r="3.5" fill="white"/>
 </svg>

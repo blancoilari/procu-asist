@@ -3,7 +3,7 @@
  * https://mev.scba.gov.ar/*
  *
  * Handles: auto-login, post-login department selection, session monitoring,
- * case data extraction, rocket button injection, and dark mode.
+ * case data extraction, and dark mode.
  */
 
 import { MEV_SELECTORS } from '@/modules/portals/mev-selectors';
@@ -21,6 +21,20 @@ import {
   parseSearchResults,
   parseAdjuntos,
 } from '@/modules/portals/mev-parser';
+import { PORTAL_COLORS } from '@/modules/ui/portal-colors';
+import {
+  ICON_STAR,
+  ICON_EYE,
+  ICON_CHECK,
+  ICON_X,
+  ICON_LOADER,
+  ICON_PACKAGE,
+  iconLabel,
+} from '@/modules/ui/icon-strings';
+
+const MEV_COLORS = PORTAL_COLORS.mev;
+const SUCCESS_COLOR = '#16a34a';
+const DANGER_COLOR = '#dc2626';
 
 export default defineContentScript({
   matches: ['https://mev.scba.gov.ar/*'],
@@ -36,9 +50,6 @@ export default defineContentScript({
     } else if (isPosLoginPage(doc)) {
       handlePosLoginPage(doc);
     } else {
-      // Inject rocket button on all non-login pages
-      injectRocketButton();
-
       // Start session expiry monitoring
       startSessionMonitor();
 
@@ -315,44 +326,6 @@ function handleSessionExpired() {
 
 // --- UI Injections ---
 
-function injectRocketButton() {
-  if (document.getElementById('procu-asist-rocket')) return;
-
-  const btn = document.createElement('button');
-  btn.id = 'procu-asist-rocket';
-  btn.innerHTML = '🚀';
-  btn.title = 'Abrir ProcuAsist';
-  Object.assign(btn.style, {
-    position: 'fixed',
-    bottom: '20px',
-    right: '20px',
-    width: '48px',
-    height: '48px',
-    borderRadius: '50%',
-    border: 'none',
-    backgroundColor: '#2563eb',
-    color: 'white',
-    fontSize: '24px',
-    cursor: 'pointer',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-    zIndex: '999999',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'transform 0.2s',
-  });
-  btn.addEventListener('mouseenter', () => {
-    btn.style.transform = 'scale(1.1)';
-  });
-  btn.addEventListener('mouseleave', () => {
-    btn.style.transform = 'scale(1)';
-  });
-  btn.addEventListener('click', () => {
-    chrome.runtime.sendMessage({ type: 'OPEN_SIDEPANEL' });
-  });
-  document.body.appendChild(btn);
-}
-
 function injectBookmarkButton(caseData: {
   numero: string;
   caratula: string;
@@ -384,7 +357,7 @@ function injectBookmarkButton(caseData: {
     padding: '8px 16px',
     borderRadius: '24px',
     border: 'none',
-    backgroundColor: '#2563eb',
+    backgroundColor: MEV_COLORS.primary,
     color: 'white',
     fontSize: '13px',
     fontWeight: '600',
@@ -403,18 +376,18 @@ function injectBookmarkButton(caseData: {
     .then((r) => {
       const resp = r as { success: boolean; isBookmarked: boolean };
       if (resp?.success && resp.isBookmarked) {
-        btn.innerHTML = '✅ Guardado';
-        btn.style.backgroundColor = '#16a34a';
+        btn.innerHTML = iconLabel(ICON_CHECK, 'Guardado');
+        btn.style.backgroundColor = SUCCESS_COLOR;
         btn.dataset.saved = 'true';
       } else {
-        btn.innerHTML = '⭐ Guardar';
+        btn.innerHTML = iconLabel(ICON_STAR, 'Guardar');
       }
     });
 
   btn.addEventListener('click', async () => {
     if (btn.dataset.saved === 'true') return;
 
-    btn.innerHTML = '⏳...';
+    btn.innerHTML = iconLabel(ICON_LOADER, '');
     btn.disabled = true;
 
     try {
@@ -439,20 +412,24 @@ function injectBookmarkButton(caseData: {
       })) as { success: boolean };
 
       if (response?.success) {
-        btn.innerHTML = '✅ Guardado';
-        btn.style.backgroundColor = '#16a34a';
+        btn.innerHTML = iconLabel(ICON_CHECK, 'Guardado');
+        btn.style.backgroundColor = SUCCESS_COLOR;
         btn.dataset.saved = 'true';
       } else {
-        btn.innerHTML = '❌ Error';
+        btn.innerHTML = iconLabel(ICON_X, 'Error');
+        btn.style.backgroundColor = DANGER_COLOR;
         setTimeout(() => {
-          btn.innerHTML = '⭐ Guardar';
+          btn.innerHTML = iconLabel(ICON_STAR, 'Guardar');
+          btn.style.backgroundColor = MEV_COLORS.primary;
           btn.disabled = false;
         }, 2000);
       }
     } catch {
-      btn.innerHTML = '❌ Error';
+      btn.innerHTML = iconLabel(ICON_X, 'Error');
+      btn.style.backgroundColor = DANGER_COLOR;
       setTimeout(() => {
-        btn.innerHTML = '⭐ Guardar';
+        btn.innerHTML = iconLabel(ICON_STAR, 'Guardar');
+        btn.style.backgroundColor = MEV_COLORS.primary;
         btn.disabled = false;
       }, 2000);
     }
@@ -466,9 +443,9 @@ function injectBookmarkButton(caseData: {
   Object.assign(monBtn.style, {
     padding: '8px 16px',
     borderRadius: '24px',
-    border: 'none',
-    backgroundColor: '#7c3aed',
-    color: 'white',
+    border: `1px solid ${MEV_COLORS.primary}`,
+    backgroundColor: 'white',
+    color: MEV_COLORS.primary,
     fontSize: '13px',
     fontWeight: '600',
     cursor: 'pointer',
@@ -487,18 +464,20 @@ function injectBookmarkButton(caseData: {
     .then((r) => {
       const resp = r as { success: boolean; isMonitored: boolean };
       if (resp?.success && resp.isMonitored) {
-        monBtn.innerHTML = '👁 Monitoreando';
-        monBtn.style.backgroundColor = '#16a34a';
+        monBtn.innerHTML = iconLabel(ICON_EYE, 'Monitoreando');
+        monBtn.style.backgroundColor = SUCCESS_COLOR;
+        monBtn.style.color = 'white';
+        monBtn.style.border = 'none';
         monBtn.dataset.monitored = 'true';
       } else {
-        monBtn.innerHTML = '👁 Monitorear';
+        monBtn.innerHTML = iconLabel(ICON_EYE, 'Monitorear');
       }
     });
 
   monBtn.addEventListener('click', async () => {
     if (monBtn.dataset.monitored === 'true') return;
 
-    monBtn.innerHTML = '⏳...';
+    monBtn.innerHTML = iconLabel(ICON_LOADER, '');
     monBtn.disabled = true;
 
     try {
@@ -523,20 +502,34 @@ function injectBookmarkButton(caseData: {
       })) as { success: boolean };
 
       if (response?.success) {
-        monBtn.innerHTML = '👁 Monitoreando';
-        monBtn.style.backgroundColor = '#16a34a';
+        monBtn.innerHTML = iconLabel(ICON_EYE, 'Monitoreando');
+        monBtn.style.backgroundColor = SUCCESS_COLOR;
+        monBtn.style.color = 'white';
+        monBtn.style.border = 'none';
         monBtn.dataset.monitored = 'true';
       } else {
-        monBtn.innerHTML = '❌ Error';
+        monBtn.innerHTML = iconLabel(ICON_X, 'Error');
+        monBtn.style.backgroundColor = DANGER_COLOR;
+        monBtn.style.color = 'white';
+        monBtn.style.border = 'none';
         setTimeout(() => {
-          monBtn.innerHTML = '👁 Monitorear';
+          monBtn.innerHTML = iconLabel(ICON_EYE, 'Monitorear');
+          monBtn.style.backgroundColor = 'white';
+          monBtn.style.color = MEV_COLORS.primary;
+          monBtn.style.border = `1px solid ${MEV_COLORS.primary}`;
           monBtn.disabled = false;
         }, 2000);
       }
     } catch {
-      monBtn.innerHTML = '❌ Error';
+      monBtn.innerHTML = iconLabel(ICON_X, 'Error');
+      monBtn.style.backgroundColor = DANGER_COLOR;
+      monBtn.style.color = 'white';
+      monBtn.style.border = 'none';
       setTimeout(() => {
-        monBtn.innerHTML = '👁 Monitorear';
+        monBtn.innerHTML = iconLabel(ICON_EYE, 'Monitorear');
+        monBtn.style.backgroundColor = 'white';
+        monBtn.style.color = MEV_COLORS.primary;
+        monBtn.style.border = `1px solid ${MEV_COLORS.primary}`;
         monBtn.disabled = false;
       }, 2000);
     }
@@ -734,7 +727,7 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
 
   const btn = document.createElement('button');
   btn.id = 'procu-asist-zip';
-  btn.innerHTML = '📦 ZIP';
+  btn.innerHTML = iconLabel(ICON_PACKAGE, 'ZIP');
   btn.title = `Descargar expediente ${caseData.numero} como ZIP (resumen + adjuntos)`;
   Object.assign(btn.style, {
     position: 'fixed',
@@ -743,7 +736,7 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
     padding: '8px 16px',
     borderRadius: '24px',
     border: 'none',
-    backgroundColor: '#7c3aed',
+    backgroundColor: MEV_COLORS.primary,
     color: 'white',
     fontSize: '13px',
     fontWeight: '600',
@@ -786,7 +779,7 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
   const progressFill = document.createElement('div');
   Object.assign(progressFill.style, {
     height: '100%',
-    backgroundColor: '#7c3aed',
+    backgroundColor: MEV_COLORS.primary,
     borderRadius: '3px',
     width: '0%',
     transition: 'width 0.3s',
@@ -805,7 +798,7 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
     const selectedMovements = await showMovementSelectionModal(movements);
     if (!selectedMovements || selectedMovements.length === 0) return;
 
-    btn.innerHTML = '⏳ Preparando...';
+    btn.innerHTML = iconLabel(ICON_LOADER, 'Preparando...');
     btn.style.backgroundColor = '#9ca3af';
     btn.disabled = true;
     progressBar.style.display = 'flex';
@@ -862,8 +855,8 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
         const summary = s
           ? `${totalOk} descargados${totalFailed > 0 ? `, ${totalFailed} fallaron` : ''}`
           : 'listo';
-        btn.innerHTML = `✅ ZIP (${summary})`;
-        btn.style.backgroundColor = s?.allSuccessful ? '#16a34a' : '#f59e0b';
+        btn.innerHTML = iconLabel(ICON_CHECK, `ZIP (${summary})`);
+        btn.style.backgroundColor = s?.allSuccessful ? SUCCESS_COLOR : '#f59e0b';
         progressLabel.textContent = `Listo: ${summary}`;
         progressFill.style.width = '100%';
 
@@ -872,21 +865,21 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
           showVerificationOverlay(s.failedItems);
         }
       } else {
-        btn.innerHTML = `❌ ${response?.error ?? 'Error'}`;
-        btn.style.backgroundColor = '#dc2626';
+        btn.innerHTML = iconLabel(ICON_X, response?.error ?? 'Error');
+        btn.style.backgroundColor = DANGER_COLOR;
         progressLabel.textContent = response?.error ?? 'Error';
-        progressFill.style.backgroundColor = '#dc2626';
+        progressFill.style.backgroundColor = DANGER_COLOR;
         progressFill.style.width = '100%';
       }
     } catch (err) {
-      btn.innerHTML = '❌ Error';
-      btn.style.backgroundColor = '#dc2626';
+      btn.innerHTML = iconLabel(ICON_X, 'Error');
+      btn.style.backgroundColor = DANGER_COLOR;
       progressLabel.textContent = String(err);
     }
 
     setTimeout(() => {
-      btn.innerHTML = '📦 ZIP';
-      btn.style.backgroundColor = '#7c3aed';
+      btn.innerHTML = iconLabel(ICON_PACKAGE, 'ZIP');
+      btn.style.backgroundColor = MEV_COLORS.primary;
       btn.disabled = false;
       progressBar.style.display = 'none';
     }, 5000);

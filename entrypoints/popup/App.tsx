@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Scale, Coffee } from 'lucide-react';
 import { useDarkMode } from '@/modules/ui/use-dark-mode';
 import { DONATE_URL } from '@/modules/tier/limits';
 
@@ -93,7 +94,7 @@ export default function App() {
     <div className="w-72 bg-bg p-4 text-text">
       {/* Header */}
       <div className="mb-4 flex items-center gap-2">
-        <span className="text-xl">🚀</span>
+        <Scale size={20} className="text-primary" strokeWidth={2.25} />
         <h1 className="text-lg font-bold text-primary">ProcuAsist</h1>
       </div>
 
@@ -198,7 +199,7 @@ export default function App() {
             onClick={() => chrome.tabs.create({ url: DONATE_URL })}
             className="flex items-center justify-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30 transition-colors"
           >
-            <span>☕</span> Invitame un cafecito
+            <Coffee size={14} /> Invitame un cafecito
           </button>
 
           <p className="text-center text-[10px] leading-relaxed text-text-secondary/70">
