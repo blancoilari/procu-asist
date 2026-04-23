@@ -17,6 +17,12 @@ export const PJN_SCW_PATHS = {
   favoritos: '/scw/consultaListaFavoritos.seam',
   radicaciones: '/scw/consultaListaNoIniciados.seam',
   expediente: '/scw/expediente.seam',
+  /**
+   * Página dedicada de actuaciones históricas. "Ver históricas" en
+   * expediente.seam es un link — no un botón AJAX — que navega a esta URL
+   * con el mismo `cid`. Acá se listan las actuaciones antiguas paginadas.
+   */
+  actuacionesHistoricas: '/scw/actuacionesHistoricas.seam',
   viewer: '/scw/viewer.seam',
 } as const;
 

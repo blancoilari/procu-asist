@@ -13,6 +13,7 @@
  */
 
 import {
+  isScwActuacionesPage,
   isScwExpediente,
   isScwListadoPage,
   parseExpedientePage,
@@ -24,6 +25,15 @@ import {
   renderDebugPanel,
   renderExpedienteDebugPanel,
 } from '@/modules/portals/pjn-debug-panel';
+import {
+  collectAllActuaciones,
+  type PjnCollectorResult,
+} from '@/modules/portals/pjn-actuaciones-collector';
+
+export interface PjnCollectActuacionesMessage {
+  type: 'PJN_COLLECT_ACTUACIONES';
+  maxWaitMs?: number;
+}
 
 export default defineContentScript({
   matches: [
@@ -43,9 +53,62 @@ export default defineContentScript({
 
     if (window.location.hostname === 'scw.pjn.gov.ar') {
       initScwDebug();
+      installCollectorListener();
     }
   },
 });
+
+// ────────────────────────────────────────────────────────
+// M6a — listener para corridas iniciadas desde el SW
+// ────────────────────────────────────────────────────────
+
+function installCollectorListener(): void {
+  console.log(
+    `[ProcuAsist PJN M6a] listener instalado en ${window.location.href}`
+  );
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (!msg || typeof msg !== 'object') return false;
+
+    if (msg.type === 'PJN_PING') {
+      const pathname = window.location.pathname;
+      sendResponse({
+        ok: true,
+        url: window.location.href,
+        pathname,
+        isExpediente: isScwExpediente(pathname),
+        isActuacionesPage: isScwActuacionesPage(pathname),
+        timestamp: Date.now(),
+      });
+      return false;
+    }
+
+    if (msg.type !== 'PJN_COLLECT_ACTUACIONES') return false;
+
+    console.log('[ProcuAsist PJN M6a] mensaje recibido, iniciando collector…');
+    const { maxWaitMs } = msg as PjnCollectActuacionesMessage;
+    if (!isScwActuacionesPage(new URL(window.location.href).pathname)) {
+      sendResponse({
+        ok: false,
+        error:
+          'La pestaña scw no está en expediente.seam ni en actuacionesHistoricas.seam.',
+      } satisfies Partial<PjnCollectorResult>);
+      return false;
+    }
+    collectAllActuaciones({ maxWaitMs })
+      .then((result) => {
+        console.log('[ProcuAsist PJN M6a] enviando respuesta al SW', result);
+        sendResponse(result);
+      })
+      .catch((err) => {
+        console.error('[ProcuAsist PJN M6a] error no capturado', err);
+        sendResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        } satisfies Partial<PjnCollectorResult>);
+      });
+    return true; // respuesta asíncrona
+  });
+}
 
 function initScwDebug(): void {
   const url = new URL(window.location.href);
