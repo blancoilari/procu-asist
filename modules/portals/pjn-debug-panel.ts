@@ -54,7 +54,7 @@ function ensurePanel(): { panel: HTMLElement; wasOpen: boolean } {
   const style = document.createElement('style');
   style.textContent = `
     #${PANEL_ID} {
-      position: fixed; bottom: 16px; right: 16px; z-index: 2147483647;
+      position: fixed; bottom: 16px; left: 16px; z-index: 2147483647;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       font-size: 13px; line-height: 1.4; color: #1a1a1a;
       background: #fff; border: 1px solid #2a5d9f; border-radius: 8px;
