@@ -304,7 +304,7 @@ async function runCollectorAndRender(
       Para incluirlas, cerrá este diálogo, clickeá "Ver históricas" abajo a la derecha de la página, y volvé a abrir "Descargar ZIP" desde ahí.`;
     body.insertBefore(banner, body.firstChild);
   }
-  renderFooter(footerInfo, footerButtons, state, originalBtn, close);
+  renderFooter(footerInfo, footerButtons, state, result, originalBtn, close);
   updateInfo();
 }
 
@@ -573,6 +573,7 @@ function renderFooter(
   info: HTMLElement,
   buttons: HTMLElement,
   state: ModalState,
+  result: PjnCollectorResult,
   originalBtn: HTMLButtonElement,
   close: () => void
 ): void {
@@ -592,9 +593,8 @@ function renderFooter(
   cancelBtn.addEventListener('click', close);
 
   const continueBtn = document.createElement('button');
-  continueBtn.textContent = 'Continuar (M6b.3)';
-  continueBtn.title =
-    'La descarga del ZIP todavía no está implementada. En M6b.1 solo verificamos la selección.';
+  continueBtn.textContent = 'Descargar ZIP';
+  continueBtn.title = 'Generar el ZIP con las actuaciones seleccionadas';
   Object.assign(continueBtn.style, {
     background: FAB_COLOR,
     color: 'white',
@@ -605,35 +605,82 @@ function renderFooter(
     fontWeight: '600',
     cursor: 'pointer',
   } satisfies Partial<CSSStyleDeclaration>);
-  continueBtn.addEventListener('click', () => {
+
+  continueBtn.addEventListener('click', async () => {
     const picked = getEffectiveSelection(state).map((i) => state.all[i]);
-    console.groupCollapsed(
-      `%c[ProcuAsist PJN M6b.1] selección confirmada (${picked.length} actuaciones)`,
-      `color: ${FAB_COLOR}; font-weight: bold;`
-    );
-    console.table(
-      picked.map((a) => ({
-        fecha: a.fecha,
-        tipo: a.tipo,
-        descripcion: a.descripcion.slice(0, 60),
-        foja: a.foja,
-        docs: a.documentos.length,
-      }))
-    );
-    console.log('Actuaciones seleccionadas:', picked);
-    console.groupEnd();
+    if (picked.length === 0) {
+      info.innerHTML = `<span style="color:#b91c1c; font-weight:600;">
+        Seleccioná al menos una actuación antes de descargar.
+      </span>`;
+      return;
+    }
 
-    // Feedback visible en el propio modal
+    const withDocs = picked.filter((a) => a.hasDocument).length;
+    const confirmText = `Se van a descargar ${withDocs} PDFs (de ${picked.length} actuaciones). Esto puede tardar varios minutos con ${withDocs > 50 ? 'la gran cantidad de documentos' : 'documentos con adjuntos'}. ¿Continuar?`;
+    if (withDocs > 20 && !window.confirm(confirmText)) {
+      return;
+    }
+
+    // UI: disable buttons, show progress
+    continueBtn.disabled = true;
+    continueBtn.textContent = 'Generando ZIP…';
+    continueBtn.style.opacity = '0.7';
+    cancelBtn.disabled = true;
     info.innerHTML = `<span style="color:${FAB_COLOR}; font-weight:600;">
-      Selección registrada (${picked.length}). La descarga del ZIP llega en M6b.3.
-      Ver detalles en la consola.
+      Descargando ${withDocs} PDFs y empaquetando… Esto puede tardar.
     </span>`;
+    originalBtn.innerHTML = iconLabel(ICON_PACKAGE, 'Generando…');
 
-    // Indicador también en el botón flotante
-    originalBtn.innerHTML = iconLabel(ICON_PACKAGE, `ZIP (${picked.length})`);
-    setTimeout(() => {
+    try {
+      const response = (await chrome.runtime.sendMessage({
+        type: 'PJN_GENERATE_ZIP',
+        actuaciones: picked.map((a) => ({
+          fecha: a.fecha,
+          tipo: a.tipo,
+          descripcion: a.descripcion,
+          oficina: a.oficina,
+          foja: a.foja,
+          hasDocument: a.hasDocument,
+          documentos: a.documentos,
+        })),
+        datosGenerales: result.datosGenerales,
+        portalUrl: window.location.href,
+      })) as {
+        success: boolean;
+        filename?: string;
+        error?: string;
+        stats?: {
+          totalActuaciones: number;
+          actuacionesConDoc: number;
+          docsDescargados: number;
+          docsFallidos: number;
+          allSuccessful: boolean;
+        };
+      };
+
+      if (response?.success) {
+        const s = response.stats;
+        const msg = s
+          ? `ZIP listo: ${s.docsDescargados} PDFs descargados${s.docsFallidos > 0 ? `, ${s.docsFallidos} fallaron (ver _verificacion.txt)` : ''}.`
+          : 'ZIP generado.';
+        info.innerHTML = `<span style="color:#15803d; font-weight:600;">✓ ${escapeHtml(msg)}</span>`;
+        originalBtn.innerHTML = iconLabel(ICON_PACKAGE, 'ZIP listo');
+        setTimeout(() => {
+          originalBtn.innerHTML = iconLabel(ICON_PACKAGE, 'Descargar ZIP');
+        }, 6000);
+      } else {
+        info.innerHTML = `<span style="color:#b91c1c; font-weight:600;">✗ ${escapeHtml(response?.error ?? 'Error desconocido')}</span>`;
+        originalBtn.innerHTML = iconLabel(ICON_PACKAGE, 'Descargar ZIP');
+      }
+    } catch (err) {
+      info.innerHTML = `<span style="color:#b91c1c; font-weight:600;">✗ ${escapeHtml(err instanceof Error ? err.message : String(err))}</span>`;
       originalBtn.innerHTML = iconLabel(ICON_PACKAGE, 'Descargar ZIP');
-    }, 4000);
+    } finally {
+      continueBtn.disabled = false;
+      continueBtn.textContent = 'Descargar ZIP';
+      continueBtn.style.opacity = '1';
+      cancelBtn.disabled = false;
+    }
   });
 
   buttons.appendChild(cancelBtn);

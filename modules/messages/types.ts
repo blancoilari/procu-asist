@@ -33,7 +33,8 @@ export type ProcuAsistMessage =
   | MarkAllAlertsReadMessage
   | RunScanNowMessage
   | PjnGetEventsDebugMessage
-  | PjnDownloadPdfMessage;
+  | PjnDownloadPdfMessage
+  | PjnGenerateZipMessage;
 
 export interface SetupPinMessage {
   type: 'SETUP_PIN';
@@ -232,6 +233,32 @@ export interface PjnDownloadPdfMessage {
   suggestedName?: string;
   /** If true, the background will trigger chrome.downloads with the blob. */
   saveToDisk?: boolean;
+}
+
+export interface PjnGenerateZipMessage {
+  type: 'PJN_GENERATE_ZIP';
+  /** Actuaciones seleccionadas (selección efectiva del modal). */
+  actuaciones: Array<{
+    fecha: string;
+    tipo: string;
+    descripcion: string;
+    oficina: string;
+    foja: string;
+    hasDocument: boolean;
+    documentos: Array<{ kind: 'download' | 'view'; href: string }>;
+  }>;
+  /** Datos generales del expediente (null si venimos de actuacionesHistoricas.seam). */
+  datosGenerales: {
+    cid: string;
+    expediente: string;
+    jurisdiccion: string;
+    dependencia: string;
+    situacionActual: string;
+    caratula: string;
+    isFavorito: boolean;
+  } | null;
+  /** URL de la pestaña scw desde la que se disparó la descarga. */
+  portalUrl: string;
 }
 
 /** Response types for type safety */
