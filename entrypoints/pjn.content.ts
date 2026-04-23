@@ -114,15 +114,16 @@ function installCollectorListener(): void {
 function initScwDebug(): void {
   const url = new URL(window.location.href);
   if (isScwListadoPage(url.pathname)) {
-    initListMode(url);
+    if (import.meta.env.DEV) initListMode(url);
     return;
   }
   if (isScwActuacionesPage(url.pathname)) {
-    // FAB M6b.1 — también en actuacionesHistoricas.seam, no solo en expediente.seam.
+    // FAB real para release — también en actuacionesHistoricas.seam.
     mountPjnZipButton();
   }
   if (isScwExpediente(url.pathname)) {
-    initExpedienteMode(url);
+    // Panel debug M4 solo en dev.
+    if (import.meta.env.DEV) initExpedienteMode(url);
     return;
   }
 }

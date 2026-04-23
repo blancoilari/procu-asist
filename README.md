@@ -1,6 +1,6 @@
 # ProcuAsist - Copiloto Legal
 
-Extensión Chrome para abogados argentinos que automatiza la interacción con portales judiciales de la Provincia de Buenos Aires y CABA.
+Extensión Chrome para abogados argentinos que automatiza la interacción con portales judiciales de la Provincia de Buenos Aires, CABA y Poder Judicial de la Nación.
 
 > **Hecho por un abogado de la matrícula, para colegas. Es gratuito y sin fines de lucro.**
 
@@ -11,7 +11,7 @@ Extensión Chrome para abogados argentinos que automatiza la interacción con po
 Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programación.
 
 **Qué hace:**
-- Te permite **descargar el expediente completo** de la MEV (Provincia BA) en un único ZIP, con un PDF resumen y todos los pasos procesales con sus adjuntos.
+- Te permite **descargar el expediente completo** de MEV (Provincia BA) y **PJN** (Poder Judicial de la Nación) en un único ZIP, con un PDF resumen y todas las actuaciones con sus documentos.
 - Guarda **marcadores** de tus expedientes favoritos, accesibles desde un panel lateral del navegador.
 - (Próximamente) Hace **monitoreo automático** y te avisa cuando hay movimientos nuevos.
 
@@ -30,7 +30,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 
 ## Funcionalidades
 
-- **Auto-login** en portales judiciales (MEV, JUSCABA)
+- **Auto-login** en portales judiciales (MEV, JUSCABA, PJN con SSO Keycloak compartido)
 - **Keep-alive** de sesión para evitar desconexiones por inactividad
 - **Auto-reconexión** automática cuando la sesión expira
 - **Marcadores de causas** con búsqueda rápida y organización
@@ -48,6 +48,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 |--------|-----|-----------------|
 | MEV (Mesa de Entradas Virtual - Provincia de Buenos Aires) | mev.scba.gov.ar | Auto-login, extracción de causas, monitoreo, descarga ZIP |
 | JUSCABA (Poder Judicial de CABA) | eje.jus.gov.ar | Auto-login, extracción de causas |
+| PJN (Poder Judicial de la Nación) | scw.pjn.gov.ar, portalpjn.pjn.gov.ar, api.pjn.gov.ar | Auto-login SSO, listado de causas, descarga ZIP del expediente (resumen + todos los pasos con documentos) |
 
 ## Stack Tecnológico
 

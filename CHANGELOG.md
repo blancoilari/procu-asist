@@ -2,6 +2,29 @@
 
 Todos los cambios notables del proyecto se documentan en este archivo.
 
+## [0.6.0] - 2026-04-23
+
+### Soporte para Poder Judicial de la Nación (PJN)
+
+**Auto-login compartido y catálogo**
+- Auto-login contra Keycloak SSO (`sso.pjn.gov.ar`): una sola ventana de login deja la sesión activa para todos los subsistemas PJN
+- Cliente de la API REST `api.pjn.gov.ar` con captura automática del token JWT del portal — feed de novedades disponible
+- Lectura del listado de causas en `scw.pjn.gov.ar`: Relacionados (letrado/parte) y Favoritos
+- Parser del detalle del expediente: datos generales + 4 pestañas (Actuaciones, Intervinientes, Vinculados, Recursos)
+
+**Descarga de expedientes PJN — ZIP completo**
+- Nuevo botón flotante "Descargar ZIP" en las páginas de expediente y actuaciones históricas de scw.pjn.gov.ar
+- Modal de selección: tabla completa de actuaciones con checkbox por fila, atajos "Seleccionar visibles / Ninguna / Solo con documento"
+- Filtros por categoría nativa del portal: Despachos/Escritos, Notificaciones, Información, más atajo "Ver todos"
+- Paginación automática del listado de actuaciones (soporta expedientes con cientos de pasos procesales)
+- Auto-importación de actuaciones históricas vía fetch same-origin cuando el link directo está disponible; si es un botón JSF, muestra un aviso para navegar manualmente a "Ver históricas"
+- ZIP generado incluye: `resumen.pdf` (datos generales + tabla completa de actuaciones) y un PDF por actuación seleccionada con formato `fs-{foja}_{YYYY-MM-DD}_{descripcion}.pdf` (consistente con MEV)
+- `_verificacion.txt` con detalle de errores si alguna descarga individual falló
+
+**Novedades del flujo**
+- El FAB aparece tanto en `expediente.seam` como en `actuacionesHistoricas.seam`
+- Selección "efectiva" = marca manual ∩ categorías visibles, para que filtrar una categoría excluya sus filas del ZIP sin destruir marcas manuales en otras categorías
+
 ## [0.4.0] - 2026-04-17
 
 ### Primera versión publicada en Chrome Web Store
