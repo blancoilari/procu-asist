@@ -22,7 +22,9 @@ import {
   isScwActuacionesHistoricas,
   isScwExpediente,
   parseActuacionesTab,
+  parseDatosGenerales,
   type PjnActuacion,
+  type PjnDatosGenerales,
 } from './pjn-parser';
 import { PJN_SELECTORS } from './pjn-selectors';
 
@@ -43,6 +45,8 @@ export interface PjnCollectorResult {
   error?: string;
   totalActuaciones: number;
   actuaciones: PjnActuacion[];
+  /** Datos generales del expediente (solo presente cuando corremos en expediente.seam). */
+  datosGenerales: PjnDatosGenerales | null;
   /** Página desde la que corrió el collector. */
   pageKind: PjnCollectorPage;
   /**
@@ -543,6 +547,7 @@ export async function collectAllActuaciones(
         error: `Página no soportada: ${pathname}`,
         totalActuaciones: 0,
         actuaciones: [],
+        datosGenerales: null,
         pageKind,
         verHistoricasClicked: false,
         pages,
@@ -563,6 +568,7 @@ export async function collectAllActuaciones(
           error: 'No se pudo activar la pestaña Actuaciones.',
           totalActuaciones: 0,
           actuaciones: [],
+          datosGenerales: null,
           pageKind,
           verHistoricasClicked: false,
           pages,
@@ -693,11 +699,18 @@ export async function collectAllActuaciones(
       }
     }
 
+    // Parsear datos generales (solo disponibles en expediente.seam).
+    const datosGenerales =
+      pageKind === 'expediente'
+        ? parseDatosGenerales(document, new URL(window.location.href))
+        : null;
+
     console.log(`${LOG_PREFIX} fin — total=${accumulated.length} páginas=${pages.length}`);
     return {
       ok: true,
       totalActuaciones: accumulated.length,
       actuaciones: accumulated,
+      datosGenerales,
       pageKind,
       verHistoricasClicked,
       verHistoricasHref,
@@ -712,6 +725,7 @@ export async function collectAllActuaciones(
       error: err instanceof Error ? err.message : String(err),
       totalActuaciones: accumulated.length,
       actuaciones: accumulated,
+      datosGenerales: null,
       pageKind,
       verHistoricasClicked: false,
       pages,

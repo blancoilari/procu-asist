@@ -48,8 +48,10 @@ import { getEvents } from '@/modules/portals/pjn-api-client';
 import { getToken, getTokenAgeMs } from '@/modules/portals/pjn-token-store';
 import {
   downloadPjnPdf,
+  findScwActuacionesTab,
   findScwTab,
 } from '@/modules/portals/pjn-downloader';
+import { generatePjnCaseZip } from '@/modules/pdf/pjn-zip-generator';
 
 export function setupMessageRouter() {
   chrome.runtime.onMessage.addListener(
@@ -343,6 +345,50 @@ async function handleMessage(
         }
       }
       return { status: 'ok', imported };
+    }
+
+    // --- PJN ZIP de expediente ---
+    case 'PJN_GENERATE_ZIP': {
+      const scwTabId = await findScwActuacionesTab();
+      if (!scwTabId) {
+        return {
+          success: false,
+          error:
+            'No hay pestaña scw en expediente.seam ni actuacionesHistoricas.seam.',
+        };
+      }
+      try {
+        const result = await generatePjnCaseZip({
+          datosGenerales: message.datosGenerales,
+          actuaciones: message.actuaciones,
+          portalUrl: message.portalUrl,
+          scwTabId,
+        });
+        if (!result.success || !result.blob) {
+          return { success: false, error: result.error ?? 'Error desconocido' };
+        }
+        const buf = await result.blob.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const dataUri = `data:application/zip;base64,${btoa(binary)}`;
+        await chrome.downloads.download({
+          url: dataUri,
+          filename: result.filename!,
+          saveAs: true,
+        });
+        return {
+          success: true,
+          filename: result.filename,
+          stats: result.stats,
+        };
+      } catch (err) {
+        console.error('[ProcuAsist PJN] ZIP error:', err);
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
     }
 
     // --- PJN document download ---
