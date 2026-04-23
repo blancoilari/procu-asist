@@ -83,17 +83,16 @@ function dedupeKey(a: PjnActuacion): string {
 /**
  * Fingerprint liviano de la tabla de actuaciones. Usa las primeras 3 filas
  * como muestra representativa — si cambian, es porque hubo AJAX postback.
- * Si no hay tabla, devuelve string vacío.
+ * Scoped a la tabla de actuaciones específicamente (no cualquier table).
  */
 function actuacionesTableFingerprint(): string {
-  const table = document.querySelector<HTMLTableElement>(
-    'table.rf-dt, table.datagrid, table.table, table'
-  );
-  const rows = Array.from(document.querySelectorAll('table tbody tr')).slice(0, 3);
-  if (!rows.length) return '';
+  const table = findActuacionesTableElement();
+  if (!table) return '';
+  const rows = Array.from(table.querySelectorAll('tbody tr')).slice(0, 3);
+  if (!rows.length) return `::0`;
   return rows
     .map((tr) => (tr.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120))
-    .join('##') + `::${table?.querySelectorAll('tbody tr').length ?? 0}`;
+    .join('##') + `::${table.querySelectorAll('tbody tr').length}`;
 }
 
 /**
@@ -174,27 +173,78 @@ async function ensureActuacionesActive(maxMs: number): Promise<boolean> {
 // ────────────────────────────────────────────────────────
 
 function findVerHistoricasLink(): HTMLElement | null {
+  // 1. Match directo por href (más confiable que el texto).
+  const byHref = document.querySelector<HTMLAnchorElement>(
+    'a[href*="actuacionesHistoricas.seam" i]'
+  );
+  if (byHref) return byHref;
+
+  // 2. Fallback por texto visible / value / title — "Ver históricas", "Históricas", etc.
   const candidates = document.querySelectorAll<HTMLElement>(
     'a, button, input[type="button"], input[type="submit"]'
   );
   for (const el of candidates) {
-    const txt = el.textContent ?? (el as HTMLInputElement).value ?? '';
-    if (PJN_SELECTORS.expediente.verHistoricasPattern.test(txt)) return el;
+    const signals = [
+      el.textContent ?? '',
+      (el as HTMLInputElement).value ?? '',
+      el.getAttribute('title') ?? '',
+      el.getAttribute('aria-label') ?? '',
+    ].join(' ');
+    if (PJN_SELECTORS.expediente.verHistoricasPattern.test(signals)) return el;
+    if (/hist[óo]ric/i.test(signals)) return el; // más laxo
   }
   return null;
 }
 
 /**
  * "Ver históricas" es un LINK (no un botón AJAX) que navega a
- * actuacionesHistoricas.seam?cid=XXX. Lo reportamos al caller en vez de
- * seguirlo — navegar desde el collector mataría el content script a mitad
- * de corrida y perderíamos la respuesta.
+ * actuacionesHistoricas.seam. El caller puede querer fetchearlo para mergear
+ * las filas sin navegar la pestaña.
+ *
+ * Si el botón existe pero su href es "#" (botón JSF con onclick/action), no
+ * podemos reconstruir la URL fielmente (JSF genera un `cid` nuevo del lado
+ * del server). Devolvemos undefined en ese caso y el caller le muestra al
+ * usuario un hint para que navegue manualmente.
  */
 function getVerHistoricasHref(): string | undefined {
   const el = findVerHistoricasLink();
-  if (!el) return undefined;
+  if (!el) {
+    // Diagnostic: ¿hay ALGÚN <a> con "historicas" en el href o texto?
+    const hints = Array.from(document.querySelectorAll<HTMLElement>('a, button'))
+      .filter((n) => {
+        const txt = (n.textContent ?? '').toLowerCase();
+        const href = (n as HTMLAnchorElement).href?.toLowerCase() ?? '';
+        return txt.includes('histor') || href.includes('histor');
+      })
+      .slice(0, 5);
+    if (hints.length) {
+      console.log(
+        `${LOG_PREFIX_LAZY()} Ver históricas NO matcheó, pero hay candidatos con "histor":`,
+        hints.map((h) => ({
+          tag: h.tagName,
+          text: (h.textContent ?? '').trim().slice(0, 60),
+          href: (h as HTMLAnchorElement).href ?? '',
+          class: h.className,
+        }))
+      );
+    }
+    return undefined;
+  }
   const href = (el as HTMLAnchorElement).href;
-  return href && !href.endsWith('#') ? href : undefined;
+  if (href && !href.endsWith('#')) {
+    console.log(`${LOG_PREFIX_LAZY()} "Ver históricas" encontrado con href real: ${href}`);
+    return href;
+  }
+  console.log(
+    `${LOG_PREFIX_LAZY()} "Ver históricas" encontrado pero href="#" (botón JSF). Marker presente.`
+  );
+  // Retornamos un sentinel para indicar presencia — el caller lo detecta.
+  return '#jsf-button';
+}
+
+/** `true` si hay evidencia visible de que el expediente tiene históricas aparte. */
+export function hasHistoricasHint(href: string | undefined): boolean {
+  return !!href; // incluye tanto URL real como '#jsf-button'
 }
 
 // ────────────────────────────────────────────────────────
@@ -202,37 +252,205 @@ function getVerHistoricasHref(): string | undefined {
 // ────────────────────────────────────────────────────────
 
 /**
- * Busca el paginador de la tabla de actuaciones. SCW usa RichFaces
- * (`.rf-ds`) / PrimeFaces (`.ui-paginator`) / o un agrupador genérico con
- * links numerados. Devolvemos el conjunto de links "numéricos" (texto = dígito).
+ * Busca el paginador de la tabla de actuaciones. Para evitar matchear
+ * paginadores de OTRAS secciones de la página (ej: listados de intervinientes),
+ * scopeamos siempre a un contenedor que tenga la tabla de actuaciones.
+ *
+ * IMPORTANTE: preferimos `<a>` y `<button>` sobre `<td>`/`<span>` — clickear
+ * un `<td>` en JSF no dispara postback, solo el ancla interna lo hace.
  */
-function findPagerLinks(): HTMLAnchorElement[] {
+function findPagerLinks(): HTMLElement[] {
+  const actuacionesTable = findActuacionesTableElement();
+  const scope = actuacionesTable
+    ? findPagerScope(actuacionesTable)
+    : document.body;
+
   const scopeSelectors = [
-    '.rf-ds', // RichFaces dataScroller
+    '.rf-ds',
     '.ui-paginator',
     '.pagination',
     '.paginator',
-    '.rf-ds-btn',
-    '.rf-ds-nmb-btn',
+    'table.rf-ds',
   ];
+
   for (const sel of scopeSelectors) {
-    const scopes = document.querySelectorAll<HTMLElement>(sel);
-    for (const scope of scopes) {
-      const links = Array.from(
-        scope.querySelectorAll<HTMLAnchorElement>('a, button')
+    const containers = scope.querySelectorAll<HTMLElement>(sel);
+    for (const container of containers) {
+      // 1. Preferir <a>/<button> con texto numérico — clickables de verdad.
+      const clickable = Array.from(
+        container.querySelectorAll<HTMLElement>('a, button')
       ).filter((a) => /^\d+$/.test((a.textContent ?? '').trim()));
-      if (links.length >= 2) return links;
+      if (clickable.length >= 2) {
+        console.log(
+          `${LOG_PREFIX_LAZY()} pager scope='${sel}' → ${clickable.length} <a>/<button> numéricos`
+        );
+        return clickable;
+      }
+
+      // 2. Fallback: si el número está en un <td>/<span>, subir hasta el <a>
+      //    envolvente o tomar el primer <a>/<button> descendiente.
+      const wrappers = Array.from(
+        container.querySelectorAll<HTMLElement>('td, span')
+      ).filter((a) => /^\d+$/.test((a.textContent ?? '').trim()));
+      const resolved = wrappers
+        .map((w) => {
+          const closest = w.closest<HTMLElement>('a, button');
+          if (closest) return closest;
+          return w.querySelector<HTMLElement>('a, button');
+        })
+        .filter((el): el is HTMLElement => !!el);
+      const unique = Array.from(new Set(resolved));
+      if (unique.length >= 2) {
+        console.log(
+          `${LOG_PREFIX_LAZY()} pager scope='${sel}' → ${unique.length} clickables resueltos desde td/span`
+        );
+        return unique;
+      }
     }
   }
-  // Fallback global: anchors whose text is a standalone digit and that sit
-  // near the actuaciones table (same parent chain).
-  const all = Array.from(document.querySelectorAll<HTMLAnchorElement>('a')).filter(
-    (a) => /^\d+$/.test((a.textContent ?? '').trim())
-  );
-  // Clusters of ≥3 numeric links are almost certainly a pager.
-  if (all.length >= 3) return all;
+
+  console.warn(`${LOG_PREFIX_LAZY()} pager NO encontrado en scope de actuaciones. Dumpeando…`);
+  dumpPagerDiagnostics(scope);
   return [];
 }
+
+function findActuacionesTableElement(): HTMLTableElement | null {
+  const tables = document.querySelectorAll<HTMLTableElement>('table');
+  for (const table of tables) {
+    const headers = Array.from(table.querySelectorAll('th, thead td'))
+      .map((c) => (c.textContent ?? '').toLowerCase());
+    // La tabla de actuaciones tiene a la vez "fecha" y "tipo" (y típicamente "descripcion").
+    if (headers.some((h) => h.includes('fecha')) && headers.some((h) => h.includes('tipo'))) {
+      return table;
+    }
+  }
+  return null;
+}
+
+/**
+ * El pager suele estar al pie de la tabla, dentro de un contenedor común
+ * (un div, un tfoot, o el parent del table). Subimos por el árbol buscando
+ * un contenedor "razonable" que incluya la tabla + potencialmente el pager.
+ */
+function findPagerScope(table: HTMLTableElement): HTMLElement {
+  let el: HTMLElement | null = table.parentElement;
+  for (let depth = 0; depth < 6 && el; depth++, el = el.parentElement) {
+    // Si hay algo que parezca pager en este nivel, nos quedamos aquí.
+    const hasPager =
+      el.querySelector('.rf-ds, .ui-paginator, .pagination, .paginator') !== null;
+    if (hasPager) return el;
+  }
+  return table.parentElement ?? table;
+}
+
+/**
+ * Busca el botón "siguiente" del pager de actuaciones. En SCW el icono está
+ * en un `<span title="Siguiente"><i class="fa-arrow-circle-o-right">` y el
+ * handler de click está en el `<a>` envolvente. Resolvemos siempre al
+ * ancestor clickable antes de devolver.
+ */
+function findNextArrowButton(): HTMLElement | null {
+  const actuacionesTable = findActuacionesTableElement();
+  const scope = actuacionesTable
+    ? findPagerScope(actuacionesTable)
+    : document.body;
+
+  const hints = Array.from(
+    scope.querySelectorAll<HTMLElement>(
+      '.rf-ds-btn-fastfwd, .rf-ds-btn-fwd, .rf-ds-btn-next, .rf-ds-next, ' +
+        '.ui-paginator-next, a.next, button.next, ' +
+        '[title*="siguiente" i], [aria-label*="siguiente" i], ' +
+        'i.fa-arrow-circle-o-right, i.fa-chevron-right, i.fa-angle-right'
+    )
+  );
+  for (const hint of hints) {
+    const clickable = resolveClickable(hint);
+    if (clickable && !isDisabled(clickable)) return clickable;
+  }
+
+  // Fallback por texto: flechas, ">>", "Siguiente". Solo <a>/<button>.
+  const all = scope.querySelectorAll<HTMLElement>('a, button');
+  for (const el of all) {
+    const txt = (el.textContent ?? '').trim();
+    const title = (el.getAttribute('title') ?? '').toLowerCase();
+    if (/^(?:›|»|>>?|&gt;|&raquo;)$/.test(txt) || /siguiente|next/i.test(title)) {
+      if (!isDisabled(el)) return el;
+    }
+  }
+  return null;
+}
+
+function resolveClickable(el: HTMLElement): HTMLElement | null {
+  if (el.tagName === 'A' || el.tagName === 'BUTTON') return el;
+  return el.closest<HTMLElement>('a, button');
+}
+
+/**
+ * Dispara una secuencia completa de eventos mousedown/mouseup/click para
+ * simular una interacción de usuario real. Necesario para componentes JSF
+ * que bindean handlers en fases distintas del click (o que chequean
+ * secuencias completas de mouse).
+ */
+function simulateUserClick(el: HTMLElement): void {
+  const baseInit: MouseEventInit = {
+    view: window,
+    bubbles: true,
+    cancelable: true,
+    button: 0,
+    buttons: 1,
+  };
+  el.dispatchEvent(new MouseEvent('mousedown', baseInit));
+  el.dispatchEvent(new MouseEvent('mouseup', baseInit));
+  el.dispatchEvent(new MouseEvent('click', baseInit));
+}
+
+function isDisabled(el: HTMLElement): boolean {
+  const klass = (el.className || '').toLowerCase();
+  if (/\b(disabled|rf-ds-btn-dis|ui-state-disabled)\b/.test(klass)) return true;
+  if ((el as HTMLButtonElement).disabled) return true;
+  return false;
+}
+
+/** Dump al console de lo que el collector ve como "candidatos de pager". */
+function dumpPagerDiagnostics(scope: HTMLElement): void {
+  const scopes = [
+    '.rf-ds',
+    '.ui-paginator',
+    '.pagination',
+    '.paginator',
+    'table.rf-ds',
+  ];
+  for (const sel of scopes) {
+    const nodes = scope.querySelectorAll(sel);
+    if (nodes.length > 0) {
+      nodes.forEach((n, i) =>
+        console.log(
+          `${LOG_PREFIX_LAZY()}   scope/${sel}[${i}]:`,
+          (n as HTMLElement).outerHTML.slice(0, 500)
+        )
+      );
+    }
+  }
+  const digitLinks = Array.from(scope.querySelectorAll<HTMLElement>('a, td, span')).filter(
+    (a) => /^\d+$/.test((a.textContent ?? '').trim())
+  );
+  console.log(
+    `${LOG_PREFIX_LAZY()}   elementos con texto=dígito dentro del scope: ${digitLinks.length}`,
+    digitLinks.slice(0, 20).map((el) => ({
+      tag: el.tagName,
+      text: (el.textContent ?? '').trim(),
+      class: el.className,
+      parent: el.parentElement?.className,
+    }))
+  );
+  // Dump del HTML del scope mismo — lo más útil para identificar el pager.
+  console.log(
+    `${LOG_PREFIX_LAZY()}   scope outerHTML (primeros 2000 chars):`,
+    scope.outerHTML.slice(0, 2000)
+  );
+}
+
+const LOG_PREFIX_LAZY = () => '[ProcuAsist PJN M6a]';
 
 function isActivePagerLink(el: HTMLElement): boolean {
   const klass = (el.className || '').toLowerCase();
@@ -252,21 +470,34 @@ function isActivePagerLink(el: HTMLElement): boolean {
 }
 
 function findNextPageLink(currentPage: number): HTMLElement | null {
+  // 1. Preferimos el botón flecha "siguiente" — más estable que adivinar números.
+  const arrow = findNextArrowButton();
+  if (arrow) {
+    console.log(`${LOG_PREFIX_LAZY()} next=botón flecha (texto="${(arrow.textContent ?? '').trim()}" class="${arrow.className}")`);
+    return arrow;
+  }
+
+  // 2. Fallback: link numérico = currentPage + 1.
   const links = findPagerLinks();
   if (!links.length) return null;
 
-  // Buscar link con texto = (currentPage + 1).
   const targetNum = String(currentPage + 1);
   const byNumber = links.find(
     (l) => (l.textContent ?? '').trim() === targetNum && !isActivePagerLink(l)
   );
-  if (byNumber) return byNumber;
+  if (byNumber) {
+    console.log(`${LOG_PREFIX_LAZY()} next=link numérico ${targetNum}`);
+    return byNumber;
+  }
 
-  // Fallback: detectar el link activo y tomar el siguiente sibling numérico.
+  // 3. Fallback final: elemento después del activo.
   const activeIdx = links.findIndex(isActivePagerLink);
   if (activeIdx >= 0 && activeIdx + 1 < links.length) {
     const candidate = links[activeIdx + 1];
-    if (!isActivePagerLink(candidate)) return candidate;
+    if (!isActivePagerLink(candidate)) {
+      console.log(`${LOG_PREFIX_LAZY()} next=sibling del activo (idx=${activeIdx + 1})`);
+      return candidate;
+    }
   }
   return null;
 }
@@ -341,14 +572,15 @@ export async function collectAllActuaciones(
       }
     }
 
-    // "Ver históricas" es un link de navegación, no un botón AJAX. Lo
-    // reportamos al caller así puede decidir seguirlo (en otro tab / misma tab).
+    // "Ver históricas" es un link de navegación, no un botón AJAX. Si
+    // estamos en expediente.seam y está visible, hacemos fetch same-origin
+    // (sin navegar la pestaña) y mergeamos sus filas con dedupe.
     const verHistoricasHref =
       pageKind === 'expediente' ? getVerHistoricasHref() : undefined;
     const verHistoricasClicked = false;
     console.log(`${LOG_PREFIX} verHistoricasHref=${verHistoricasHref ?? '(no disponible)'}`);
 
-    console.log(`${LOG_PREFIX} paso 3: iterar paginación…`);
+    console.log(`${LOG_PREFIX} paso 3: iterar paginación de la página actual…`);
     let currentPage = 1;
     for (let safety = 0; safety < MAX_PAGES; safety++) {
       if (unloading) {
@@ -389,14 +621,36 @@ export async function collectAllActuaciones(
       console.log(
         `${LOG_PREFIX} clickeando siguiente página: "${(nextLink.textContent ?? '').trim()}"`
       );
-      nextLink.click();
+      console.log(`${LOG_PREFIX} fingerprint antes: "${fingerprintBefore.slice(0, 80)}…"`);
+      simulateUserClick(nextLink);
       const { waitedMs, mutationDetected, fingerprintAfter } = await waitForTableChange(
         fingerprintBefore,
         maxWaitMs
       );
       console.log(
-        `${LOG_PREFIX} post-click: waitedMs=${waitedMs} mutacion=${mutationDetected}`
+        `${LOG_PREFIX} post-click: waitedMs=${waitedMs} mutacion=${mutationDetected} fingerprint después: "${fingerprintAfter.slice(0, 80)}…"`
       );
+      if (!mutationDetected) {
+        // Diagnóstico: dump del elemento clickeado + su contexto.
+        console.warn(
+          `${LOG_PREFIX} el click en "${(nextLink.textContent ?? '').trim()}" no disparó postback. Info del elemento:`,
+          {
+            tag: nextLink.tagName,
+            text: (nextLink.textContent ?? '').trim(),
+            class: nextLink.className,
+            href: (nextLink as HTMLAnchorElement).href ?? '',
+            onclick: nextLink.getAttribute('onclick'),
+            outerHTML: nextLink.outerHTML.slice(0, 400),
+          }
+        );
+        const parent = nextLink.parentElement;
+        if (parent) {
+          console.warn(
+            `${LOG_PREFIX} padre del click-target:`,
+            parent.outerHTML.slice(0, 600)
+          );
+        }
+      }
       pages.push({
         page: currentPage,
         parsedInPage: parsed.rows.length,
@@ -410,6 +664,33 @@ export async function collectAllActuaciones(
       if (!mutationDetected) break;
       await sleep(120);
       currentPage++;
+    }
+
+    // Paso 4 — si estamos en expediente.seam y hay URL real de históricas,
+    // fetch y merge. Si solo tenemos el sentinel '#jsf-button', no podemos
+    // fetchar (JSF genera cid server-side) y el modal avisa al usuario.
+    if (
+      pageKind === 'expediente' &&
+      verHistoricasHref &&
+      verHistoricasHref !== '#jsf-button'
+    ) {
+      console.log(`${LOG_PREFIX} paso 4: fetch de actuacionesHistoricas.seam…`);
+      try {
+        const extraRows = await fetchHistoricasRows(verHistoricasHref);
+        let added = 0;
+        for (const row of extraRows) {
+          const key = dedupeKey(row);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          accumulated.push(row);
+          added++;
+        }
+        console.log(
+          `${LOG_PREFIX} históricas: fetched=${extraRows.length} nuevas=${added} total=${accumulated.length}`
+        );
+      } catch (err) {
+        console.warn(`${LOG_PREFIX} fallo al fetchar históricas:`, err);
+      }
     }
 
     console.log(`${LOG_PREFIX} fin — total=${accumulated.length} páginas=${pages.length}`);
@@ -440,4 +721,46 @@ export async function collectAllActuaciones(
   } finally {
     window.removeEventListener('beforeunload', onUnload);
   }
+}
+
+// ────────────────────────────────────────────────────────
+// Fetch de actuacionesHistoricas.seam (same-origin con cookies)
+// ────────────────────────────────────────────────────────
+
+/**
+ * Trae el HTML de actuacionesHistoricas.seam, decodifica ISO-8859-1 y parsea
+ * las actuaciones. Solo devuelve la primera página — si hay más pages dentro
+ * de históricas, quedan para M6b.2+ (requiere postbacks JSF con ViewState).
+ */
+async function fetchHistoricasRows(href: string): Promise<PjnActuacion[]> {
+  const resp = await fetch(href, {
+    credentials: 'include',
+    headers: { Accept: 'text/html' },
+  });
+  if (!resp.ok) {
+    throw new Error(`HTTP ${resp.status} al pedir ${href}`);
+  }
+  const buf = await resp.arrayBuffer();
+
+  // Charset: header → meta tag → fallback iso-8859-1 (default de SCW).
+  const ct = resp.headers.get('content-type') ?? '';
+  const headerCharset = ct.match(/charset=([^;]+)/i)?.[1]?.trim().toLowerCase();
+  let charset = headerCharset;
+  if (!charset) {
+    // Intentar detectar del meta en los primeros KB.
+    const preview = new TextDecoder('ascii').decode(buf.slice(0, 2048));
+    const metaMatch = preview.match(/<meta[^>]+charset=["']?([^"'>\s]+)/i);
+    charset = metaMatch?.[1]?.toLowerCase() ?? 'iso-8859-1';
+  }
+
+  let html: string;
+  try {
+    html = new TextDecoder(charset).decode(buf);
+  } catch {
+    html = new TextDecoder('iso-8859-1').decode(buf);
+  }
+
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const parsed = parseActuacionesTab(doc);
+  return parsed.rows;
 }

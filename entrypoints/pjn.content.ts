@@ -29,6 +29,7 @@ import {
   collectAllActuaciones,
   type PjnCollectorResult,
 } from '@/modules/portals/pjn-actuaciones-collector';
+import { mountPjnZipButton } from '@/modules/portals/pjn-zip-ui';
 
 export interface PjnCollectActuacionesMessage {
   type: 'PJN_COLLECT_ACTUACIONES';
@@ -115,6 +116,10 @@ function initScwDebug(): void {
   if (isScwListadoPage(url.pathname)) {
     initListMode(url);
     return;
+  }
+  if (isScwActuacionesPage(url.pathname)) {
+    // FAB M6b.1 — también en actuacionesHistoricas.seam, no solo en expediente.seam.
+    mountPjnZipButton();
   }
   if (isScwExpediente(url.pathname)) {
     initExpedienteMode(url);
