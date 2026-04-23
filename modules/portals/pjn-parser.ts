@@ -75,6 +75,15 @@ export function isScwExpediente(pathname: string): boolean {
   return pathIncludes(pathname, 'expediente.seam');
 }
 
+export function isScwActuacionesHistoricas(pathname: string): boolean {
+  return pathIncludes(pathname, 'actuacioneshistoricas.seam');
+}
+
+/** Páginas donde corre el collector de actuaciones (M6a). */
+export function isScwActuacionesPage(pathname: string): boolean {
+  return isScwExpediente(pathname) || isScwActuacionesHistoricas(pathname);
+}
+
 export function isScwListadoPage(pathname: string): boolean {
   return (
     isScwListadoRelacionados(pathname) ||

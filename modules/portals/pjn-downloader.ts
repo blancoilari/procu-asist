@@ -31,6 +31,21 @@ export async function findScwTab(): Promise<number | null> {
 }
 
 /**
+ * Ubica una pestaña scw abierta en `expediente.seam` o `actuacionesHistoricas.seam`,
+ * priorizando la activa. Devuelve null si no hay ninguna.
+ */
+export async function findScwActuacionesTab(): Promise<number | null> {
+  const tabs = await chrome.tabs.query({ url: SCW_TAB_PATTERN });
+  const matching = tabs.filter((t) => {
+    const u = (t.url ?? '').toLowerCase();
+    return u.includes('expediente.seam') || u.includes('actuacioneshistoricas.seam');
+  });
+  if (!matching.length) return null;
+  const active = matching.find((t) => t.active);
+  return (active ?? matching[0])?.id ?? null;
+}
+
+/**
  * Descarga el PDF apuntado por `href` a través de la pestaña scw indicada.
  * `suggestedName` se usa si el servidor no devuelve Content-Disposition.
  */

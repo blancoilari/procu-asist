@@ -13,13 +13,19 @@
 
 import { getEvents } from '@/modules/portals/pjn-api-client';
 import { getToken, getTokenAgeMs, clearToken } from '@/modules/portals/pjn-token-store';
-import { downloadPjnPdf, findScwTab } from '@/modules/portals/pjn-downloader';
+import {
+  downloadPjnPdf,
+  findScwActuacionesTab,
+  findScwTab,
+} from '@/modules/portals/pjn-downloader';
+import type { PjnCollectorResult } from '@/modules/portals/pjn-actuaciones-collector';
 
 type GlobalHelpers = {
   pjnGetEvents: typeof pjnGetEvents;
   pjnTokenStatus: typeof pjnTokenStatus;
   pjnClearToken: typeof clearToken;
   pjnDownloadPdf: typeof pjnDownloadPdfDebug;
+  pjnCollectActuaciones: typeof pjnCollectActuacionesDebug;
 };
 
 export function installPjnDebugHelpers(): void {
@@ -28,10 +34,38 @@ export function installPjnDebugHelpers(): void {
   target.pjnTokenStatus = pjnTokenStatus;
   target.pjnClearToken = clearToken;
   target.pjnDownloadPdf = pjnDownloadPdfDebug;
+  target.pjnCollectActuaciones = pjnCollectActuacionesDebug;
+  (target as unknown as { pjnPing: typeof pjnPingDebug }).pjnPing = pjnPingDebug;
 
   console.debug(
-    '[ProcuAsist PJN] Debug helpers: pjnGetEvents(), pjnTokenStatus(), pjnClearToken(), pjnDownloadPdf(href)'
+    '[ProcuAsist PJN] Debug helpers: pjnGetEvents(), pjnTokenStatus(), pjnClearToken(), pjnDownloadPdf(href), pjnCollectActuaciones(), pjnPing()'
   );
+}
+
+async function pjnPingDebug() {
+  const tabs = await chrome.tabs.query({ url: 'https://scw.pjn.gov.ar/*' });
+  if (!tabs.length) {
+    console.warn('No hay pestañas scw.pjn.gov.ar abiertas.');
+    return { ok: false, error: 'no-scw-tab' };
+  }
+  console.log(`Pestañas scw encontradas: ${tabs.length}`);
+  const results = [];
+  for (const tab of tabs) {
+    if (!tab.id) continue;
+    const info = await new Promise<unknown>((resolve) => {
+      chrome.tabs.sendMessage(tab.id!, { type: 'PJN_PING' }, (response) => {
+        const err = chrome.runtime.lastError;
+        if (err) {
+          resolve({ tabId: tab.id, url: tab.url, error: err.message });
+          return;
+        }
+        resolve({ tabId: tab.id, url: tab.url, response });
+      });
+    });
+    results.push(info);
+  }
+  console.table(results);
+  return results;
 }
 
 async function pjnGetEvents(params: {
@@ -104,6 +138,65 @@ async function pjnDownloadPdfDebug(href: string) {
     `OK: ${result.filename} (${Math.round(result.sizeBytes / 1024)} KB, ${result.mimeType})`
   );
   return result;
+}
+
+async function pjnCollectActuacionesDebug(
+  opts: { maxWaitMs?: number } = {}
+): Promise<PjnCollectorResult | { ok: false; error: string }> {
+  const tabId = await findScwActuacionesTab();
+  if (!tabId) {
+    console.warn(
+      'No hay pestaña scw.pjn.gov.ar en expediente.seam ni actuacionesHistoricas.seam. Abrí un expediente y volvé a intentar.'
+    );
+    return { ok: false, error: 'no-actuaciones-tab' };
+  }
+  console.groupCollapsed(
+    `%c[ProcuAsist PJN] collectActuaciones — tabId=${tabId}`,
+    'color: #991b1b; font-weight: bold;'
+  );
+  const result = await new Promise<PjnCollectorResult | { ok: false; error: string }>(
+    (resolve) => {
+      chrome.tabs.sendMessage(
+        tabId,
+        { type: 'PJN_COLLECT_ACTUACIONES', maxWaitMs: opts.maxWaitMs },
+        (response) => {
+          const err = chrome.runtime.lastError;
+          if (err) {
+            resolve({ ok: false, error: err.message ?? 'runtime error' });
+            return;
+          }
+          if (!response) {
+            resolve({ ok: false, error: 'sin respuesta del content script' });
+            return;
+          }
+          resolve(response as PjnCollectorResult);
+        }
+      );
+    }
+  );
+
+  if (!result.ok) {
+    console.warn('Error:', result.error);
+    console.groupEnd();
+    return result;
+  }
+
+  const r = result as PjnCollectorResult;
+  console.log(
+    `total=${r.totalActuaciones} verHistóricasClick=${r.verHistoricasClicked} páginas=${r.pages.length} duración=${r.endedAt - r.startedAt}ms`
+  );
+  console.table(
+    r.pages.map((p) => ({
+      pagina: p.page,
+      parseadas: p.parsedInPage,
+      nuevas: p.addedToAccumulated,
+      esperaMs: p.waitedMs,
+      mutacion: p.mutationDetected,
+    }))
+  );
+  console.log('Actuaciones:', r.actuaciones);
+  console.groupEnd();
+  return r;
 }
 
 function pjnTokenStatus() {
