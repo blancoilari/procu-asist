@@ -76,9 +76,44 @@ export function mountPjnZipButton(): void {
 // Modal
 // ────────────────────────────────────────────────────────
 
+// ────────────────────────────────────────────────────────
+// Categorías nativas de PJN (plan §6)
+// ────────────────────────────────────────────────────────
+
+export type PjnCategoryKey = 'despachos' | 'notificaciones' | 'informacion';
+
+const CATEGORY_ORDER: readonly PjnCategoryKey[] = [
+  'despachos',
+  'notificaciones',
+  'informacion',
+] as const;
+
+const CATEGORY_LABELS: Record<PjnCategoryKey, string> = {
+  despachos: 'Despachos/Escritos',
+  notificaciones: 'Notificaciones',
+  informacion: 'Información',
+};
+
+/**
+ * Agrupa un `tipo` de actuación en una de las tres categorías nativas del
+ * portal. Cualquier tipo no reconocido cae en "información" por ser el más
+ * genérico (eventos administrativos y movimientos de estado).
+ */
+function classifyTipo(tipo: string): PjnCategoryKey {
+  if (/despach|escrito\s+(?:agregado|incorporado|presentado)/i.test(tipo)) {
+    return 'despachos';
+  }
+  if (/c[eé]dula|notificaci/i.test(tipo)) {
+    return 'notificaciones';
+  }
+  // MOVIMIENTO, EVENTO, DEO, y cualquier otro → información.
+  return 'informacion';
+}
+
 interface ModalState {
   all: PjnActuacion[];
   selected: Set<number>; // índices en `all`
+  visibleCategories: Set<PjnCategoryKey>;
 }
 
 function openZipModal(btn: HTMLButtonElement): void {
@@ -242,6 +277,7 @@ async function runCollectorAndRender(
   const state: ModalState = {
     all: result.actuaciones,
     selected: new Set<number>(result.actuaciones.map((_, i) => i)),
+    visibleCategories: new Set<PjnCategoryKey>(CATEGORY_ORDER),
   };
 
   const updateInfo = () => updateFooterCount(footerInfo, state, result);
@@ -279,7 +315,16 @@ function renderTable(
 ): void {
   body.innerHTML = '';
 
-  // Barra de selección rápida
+  const rerender = () => {
+    renderTable(body, state, updateInfo);
+    updateInfo();
+  };
+
+  // Fila 1 — Filtros por categoría nativa (plan §6, capa 1).
+  body.appendChild(renderCategoryBar(state, rerender));
+
+  // Fila 2 — Selección rápida (solo opera sobre las visibles).
+  const visibleIndices = getVisibleIndices(state);
   const toolbar = document.createElement('div');
   Object.assign(toolbar.style, {
     display: 'flex',
@@ -288,27 +333,21 @@ function renderTable(
     marginBottom: '10px',
     fontSize: '12px',
   } satisfies Partial<CSSStyleDeclaration>);
-  const selectAll = makeLinkButton('Seleccionar todas', () => {
-    for (let i = 0; i < state.all.length; i++) state.selected.add(i);
-    renderTable(body, state, updateInfo);
-    updateInfo();
+  const selectAll = makeLinkButton('Seleccionar visibles', () => {
+    for (const i of visibleIndices) state.selected.add(i);
+    rerender();
   });
-  const selectNone = makeLinkButton('Ninguna', () => {
-    state.selected.clear();
-    renderTable(body, state, updateInfo);
-    updateInfo();
+  const selectNone = makeLinkButton('Ninguna visible', () => {
+    for (const i of visibleIndices) state.selected.delete(i);
+    rerender();
   });
-  const selectDocsOnly = makeLinkButton(
-    'Solo con documento',
-    () => {
-      state.selected.clear();
-      state.all.forEach((a, i) => {
-        if (a.hasDocument) state.selected.add(i);
-      });
-      renderTable(body, state, updateInfo);
-      updateInfo();
+  const selectDocsOnly = makeLinkButton('Solo con documento', () => {
+    for (const i of visibleIndices) {
+      if (state.all[i].hasDocument) state.selected.add(i);
+      else state.selected.delete(i);
     }
-  );
+    rerender();
+  });
   toolbar.appendChild(selectAll);
   toolbar.appendChild(selectNone);
   toolbar.appendChild(selectDocsOnly);
@@ -335,7 +374,8 @@ function renderTable(
   table.appendChild(thead);
 
   const tbody = document.createElement('tbody');
-  state.all.forEach((a, i) => {
+  for (const i of visibleIndices) {
+    const a = state.all[i];
     const tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid #eee';
     tr.style.cursor = 'pointer';
@@ -366,9 +406,150 @@ function renderTable(
       updateInfo();
     });
     tbody.appendChild(tr);
-  });
+  }
   table.appendChild(tbody);
   body.appendChild(table);
+
+  if (visibleIndices.length === 0) {
+    const empty = document.createElement('div');
+    Object.assign(empty.style, {
+      padding: '20px',
+      textAlign: 'center',
+      color: '#6b7280',
+      fontSize: '13px',
+      fontStyle: 'italic',
+    } satisfies Partial<CSSStyleDeclaration>);
+    empty.textContent =
+      'Ninguna actuación coincide con los filtros seleccionados. Activá alguna categoría arriba para ver resultados.';
+    body.appendChild(empty);
+  }
+}
+
+function getVisibleIndices(state: ModalState): number[] {
+  const indices: number[] = [];
+  for (let i = 0; i < state.all.length; i++) {
+    if (state.visibleCategories.has(classifyTipo(state.all[i].tipo))) {
+      indices.push(i);
+    }
+  }
+  return indices;
+}
+
+/**
+ * La "selección efectiva" es lo que se lleva al ZIP: intersección entre lo
+ * que el usuario tildó y las categorías visibles. Filtrar una categoría
+ * excluye automáticamente sus filas del resultado final, sin tocar la marca
+ * manual del usuario (si rehabilita la categoría, esas filas vuelven).
+ */
+function getEffectiveSelection(state: ModalState): number[] {
+  const visible = new Set(getVisibleIndices(state));
+  const result: number[] = [];
+  for (const i of state.selected) {
+    if (visible.has(i)) result.push(i);
+  }
+  return result.sort((a, b) => a - b);
+}
+
+function countByCategory(
+  state: ModalState
+): Record<PjnCategoryKey, number> {
+  const counts: Record<PjnCategoryKey, number> = {
+    despachos: 0,
+    notificaciones: 0,
+    informacion: 0,
+  };
+  for (const a of state.all) counts[classifyTipo(a.tipo)]++;
+  return counts;
+}
+
+function renderCategoryBar(
+  state: ModalState,
+  rerender: () => void
+): HTMLElement {
+  const wrap = document.createElement('div');
+  Object.assign(wrap.style, {
+    display: 'flex',
+    gap: '10px',
+    alignItems: 'center',
+    marginBottom: '10px',
+    padding: '8px 10px',
+    background: '#f3f4f6',
+    border: '1px solid #e5e7eb',
+    borderRadius: '6px',
+    fontSize: '12px',
+    flexWrap: 'wrap',
+  } satisfies Partial<CSSStyleDeclaration>);
+
+  const label = document.createElement('span');
+  label.textContent = 'Categorías:';
+  label.style.fontWeight = '600';
+  label.style.color = '#374151';
+  wrap.appendChild(label);
+
+  const counts = countByCategory(state);
+
+  for (const key of CATEGORY_ORDER) {
+    const box = document.createElement('label');
+    Object.assign(box.style, {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '5px',
+      cursor: 'pointer',
+      padding: '2px 6px',
+      borderRadius: '4px',
+    } satisfies Partial<CSSStyleDeclaration>);
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = state.visibleCategories.has(key);
+    cb.addEventListener('change', () => {
+      if (cb.checked) state.visibleCategories.add(key);
+      else state.visibleCategories.delete(key);
+      rerender();
+    });
+    const text = document.createElement('span');
+    text.textContent = `${CATEGORY_LABELS[key]} (${counts[key]})`;
+    text.style.color = '#1f2937';
+    box.appendChild(cb);
+    box.appendChild(text);
+    wrap.appendChild(box);
+  }
+
+  // Separator
+  const sep = document.createElement('span');
+  sep.textContent = '·';
+  sep.style.color = '#9ca3af';
+  wrap.appendChild(sep);
+
+  // "Ver todos" — atajo. Checked cuando las 3 categorías están activas.
+  const allBox = document.createElement('label');
+  Object.assign(allBox.style, {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    cursor: 'pointer',
+    padding: '2px 6px',
+    borderRadius: '4px',
+  } satisfies Partial<CSSStyleDeclaration>);
+  const allCb = document.createElement('input');
+  allCb.type = 'checkbox';
+  allCb.checked = state.visibleCategories.size === CATEGORY_ORDER.length;
+  allCb.addEventListener('change', () => {
+    if (allCb.checked) {
+      for (const k of CATEGORY_ORDER) state.visibleCategories.add(k);
+    } else {
+      state.visibleCategories.clear();
+    }
+    rerender();
+  });
+  const allText = document.createElement('span');
+  allText.textContent = 'Ver todos';
+  allText.style.color = '#1f2937';
+  allText.style.fontWeight = '500';
+  allBox.appendChild(allCb);
+  allBox.appendChild(allText);
+  wrap.appendChild(allBox);
+
+  return wrap;
 }
 
 function makeLinkButton(text: string, onClick: () => void): HTMLButtonElement {
@@ -425,9 +606,7 @@ function renderFooter(
     cursor: 'pointer',
   } satisfies Partial<CSSStyleDeclaration>);
   continueBtn.addEventListener('click', () => {
-    const picked = Array.from(state.selected)
-      .sort((a, b) => a - b)
-      .map((i) => state.all[i]);
+    const picked = getEffectiveSelection(state).map((i) => state.all[i]);
     console.groupCollapsed(
       `%c[ProcuAsist PJN M6b.1] selección confirmada (${picked.length} actuaciones)`,
       `color: ${FAB_COLOR}; font-weight: bold;`
@@ -472,7 +651,13 @@ function updateFooterCount(
       : result.pageKind === 'expediente'
       ? 'expediente'
       : '—';
-  info.textContent = `${state.selected.size} / ${state.all.length} seleccionadas · origen: ${pageKindLabel} · ${result.pages.length} página(s)`;
+  const effective = getEffectiveSelection(state).length;
+  const visible = getVisibleIndices(state).length;
+  const filtered =
+    state.visibleCategories.size < CATEGORY_ORDER.length
+      ? ` · ${visible} visibles (filtradas)`
+      : '';
+  info.textContent = `${effective} / ${state.all.length} seleccionadas para descargar${filtered} · origen: ${pageKindLabel} · ${result.pages.length} página(s)`;
 }
 
 // ────────────────────────────────────────────────────────
