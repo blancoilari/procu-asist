@@ -94,9 +94,9 @@ export const MEV_PATTERNS = {
   /** Date format: dd/mm/yyyy */
   date: /\d{2}\/\d{2}\/\d{4}/,
   /** Extract nidCausa from URL */
-  nidCausa: /nidCausa=(\d+)/,
-  /** Extract pidJuzgado from URL */
-  pidJuzgado: /pidJuzgado=(\d+)/,
+  nidCausa: /[?&]nidCausa=([^&]+)/i,
+  /** Extract pidJuzgado from URL. MEV uses numeric and alphanumeric court ids. */
+  pidJuzgado: /[?&]pidJuzgado=([^&]+)/i,
   /** Extract nPosi from URL */
   nPosi: /nPosi=(\d+)/,
 } as const;

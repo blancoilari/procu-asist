@@ -35,10 +35,33 @@ export async function addMonitor(
 ): Promise<Monitor> {
   const monitors = await getMonitors();
 
-  const existing = monitors.find(
-    (m) => m.portal === caseData.portal && m.caseNumber === caseData.caseNumber
-  );
-  if (existing) return existing;
+  const existing = monitors.find((m) => isSameMonitorCase(m, caseData));
+  if (existing) {
+    let changed = false;
+
+    if (!existing.caseNumber && caseData.caseNumber) {
+      existing.caseNumber = caseData.caseNumber;
+      changed = true;
+    }
+    if (!existing.portalUrl && caseData.portalUrl) {
+      existing.portalUrl = caseData.portalUrl;
+      changed = true;
+    }
+    if (!existing.nidCausa && caseData.metadata?.nidCausa) {
+      existing.nidCausa = caseData.metadata.nidCausa;
+      changed = true;
+    }
+    if (!existing.pidJuzgado && caseData.metadata?.pidJuzgado) {
+      existing.pidJuzgado = caseData.metadata.pidJuzgado;
+      changed = true;
+    }
+
+    if (changed) {
+      await chrome.storage.local.set({ [MONITORS_KEY]: monitors });
+    }
+
+    return existing;
+  }
 
   const monitor: Monitor = {
     id: crypto.randomUUID(),
@@ -57,6 +80,52 @@ export async function addMonitor(
   await chrome.storage.local.set({ [MONITORS_KEY]: monitors });
 
   return monitor;
+}
+
+/** Update metadata for an already monitored case without creating a new monitor. */
+export async function backfillMonitorMetadata(
+  caseData: Pick<
+    Monitor,
+    'portal' | 'caseNumber' | 'title' | 'court' | 'portalUrl'
+  > & {
+    metadata?: { nidCausa?: string; pidJuzgado?: string };
+  }
+): Promise<boolean> {
+  const monitors = await getMonitors();
+  const existing = monitors.find((m) => isSameMonitorCase(m, caseData));
+  if (!existing) return false;
+
+  let changed = false;
+  if (!existing.caseNumber && caseData.caseNumber) {
+    existing.caseNumber = caseData.caseNumber;
+    changed = true;
+  }
+  if (!existing.portalUrl && caseData.portalUrl) {
+    existing.portalUrl = caseData.portalUrl;
+    changed = true;
+  }
+  if (!existing.nidCausa && caseData.metadata?.nidCausa) {
+    existing.nidCausa = caseData.metadata.nidCausa;
+    changed = true;
+  }
+  if (!existing.pidJuzgado && caseData.metadata?.pidJuzgado) {
+    existing.pidJuzgado = caseData.metadata.pidJuzgado;
+    changed = true;
+  }
+  if (!existing.title && caseData.title) {
+    existing.title = caseData.title;
+    changed = true;
+  }
+  if (!existing.court && caseData.court) {
+    existing.court = caseData.court;
+    changed = true;
+  }
+
+  if (changed) {
+    await chrome.storage.local.set({ [MONITORS_KEY]: monitors });
+  }
+
+  return changed;
 }
 
 /** Remove a monitor and its alerts */
@@ -107,7 +176,9 @@ export async function isMonitored(
 ): Promise<boolean> {
   const monitors = await getMonitors();
   return monitors.some(
-    (m) => m.portal === portal && m.caseNumber === caseNumber
+    (m) =>
+      m.portal === portal &&
+      normalizeCaseNumber(m.caseNumber) === normalizeCaseNumber(caseNumber)
   );
 }
 
@@ -115,6 +186,41 @@ export async function isMonitored(
 export async function getMonitorCount(): Promise<number> {
   const monitors = await getMonitors();
   return monitors.length;
+}
+
+function isSameMonitorCase(
+  monitor: Monitor,
+  caseData: Pick<
+    Monitor,
+    'portal' | 'caseNumber' | 'title' | 'court' | 'portalUrl'
+  > & {
+    metadata?: { nidCausa?: string; pidJuzgado?: string };
+  }
+): boolean {
+  if (monitor.portal !== caseData.portal) return false;
+
+  const monitorNumber = normalizeCaseNumber(monitor.caseNumber);
+  const caseNumber = normalizeCaseNumber(caseData.caseNumber);
+  if (monitorNumber && caseNumber && monitorNumber === caseNumber) return true;
+
+  const monitorNid = monitor.nidCausa || getQueryParam(monitor.portalUrl, 'nidCausa');
+  const caseNid = caseData.metadata?.nidCausa || getQueryParam(caseData.portalUrl, 'nidCausa');
+  if (monitorNid && caseNid && monitorNid === caseNid) return true;
+
+  return false;
+}
+
+function normalizeCaseNumber(value: string): string {
+  return value.replace(/\s+/g, '').toUpperCase();
+}
+
+function getQueryParam(url: string, param: string): string {
+  if (!url) return '';
+  try {
+    return new URL(url).searchParams.get(param) ?? '';
+  } catch {
+    return '';
+  }
 }
 
 // ────────────────────────────────────────────────────────
@@ -149,7 +255,8 @@ export async function createAlert(
   monitorId: string,
   movementDate: string,
   movementDescription: string,
-  movementType?: string
+  movementType?: string,
+  options: { isRead?: boolean } = {}
 ): Promise<MovementAlert> {
   const alerts = await getAlerts();
 
@@ -168,7 +275,7 @@ export async function createAlert(
     movementDate,
     movementType,
     movementDescription,
-    isRead: false,
+    isRead: options.isRead ?? false,
     createdAt: new Date().toISOString(),
   };
 

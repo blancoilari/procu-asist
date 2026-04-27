@@ -107,8 +107,8 @@ export function parseCaseData(doc: Document): MevCaseData | null {
     } else if (text.includes('Receptoría:') || text.includes('Receptor')) {
       const match = text.match(/Receptor[ií]a?:\s*(.*)/i);
       if (match) data.numeroReceptoria = match[1].trim();
-    } else if (text.startsWith('Expediente:')) {
-      data.numero = text.replace('Expediente:', '').trim();
+    } else if (text.includes('Expediente:')) {
+      data.numero = extractCaseNumber(text) || text.replace(/^.*Expediente:\s*/i, '').trim();
     } else if (text.startsWith('Estado:')) {
       data.estadoPortal = text.replace('Estado:', '').trim();
     } else if (
@@ -131,10 +131,7 @@ export function parseCaseData(doc: Document): MevCaseData | null {
 
   // Try to extract case number from other fields if not found
   if (!data.numero && data.numeroReceptoria) {
-    const numMatch = data.numeroReceptoria.match(MEV_PATTERNS.caseNumber);
-    if (numMatch) {
-      data.numero = `${numMatch[1]}-${numMatch[2]}-${numMatch[3]}`;
-    }
+    data.numero = extractCaseNumber(data.numeroReceptoria);
   }
 
   if (!data.caratula) return null;
@@ -151,6 +148,11 @@ export function parseCaseData(doc: Document): MevCaseData | null {
   };
 }
 
+function extractCaseNumber(text: string): string {
+  const numMatch = text.match(MEV_PATTERNS.caseNumber);
+  return numMatch ? `${numMatch[1]}-${numMatch[2]}-${numMatch[3]}` : '';
+}
+
 /**
  * Extract movements table from procesales.asp.
  * Mirrors parse_movimientos() from Procuración Digital.
@@ -163,9 +165,9 @@ export function parseMovements(doc: Document): Movement[] {
   let movTable: HTMLTableElement | null = null;
 
   for (const table of tables) {
-    const firstRow = table.querySelector('tr');
-    if (!firstRow) continue;
-    const headerText = firstRow.textContent ?? '';
+    const headerText = Array.from(table.querySelectorAll('tr'))
+      .map((row) => row.textContent ?? '')
+      .join(' ');
     if (headerText.includes('Fecha') && headerText.includes('Descripci')) {
       movTable = table;
       break;

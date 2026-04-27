@@ -25,6 +25,7 @@ import {
 } from '@/modules/storage/bookmark-store';
 import {
   addMonitor,
+  backfillMonitorMetadata,
   removeMonitor,
   getMonitors,
   getActiveMonitors,
@@ -190,6 +191,17 @@ async function handleMessage(
       await chrome.storage.session.set({
         lastDetectedCase: message.caseData,
       });
+      await backfillMonitorMetadata({
+        portal: message.caseData.portal,
+        caseNumber: message.caseData.caseNumber,
+        title: message.caseData.title,
+        court: message.caseData.court,
+        portalUrl: message.caseData.portalUrl,
+        metadata: {
+          nidCausa: message.caseData.metadata?.nidCausa,
+          pidJuzgado: message.caseData.metadata?.pidJuzgado,
+        },
+      });
       return { status: 'ok' };
     }
 
@@ -321,30 +333,73 @@ async function handleMessage(
       return { success: true, status: 'scan_started' };
     }
 
+    case 'RUN_SCAN_SINCE': {
+      // Run scan in background and let the side panel poll session storage.
+      scanMonitoredCases({ fromDate: message.fromDate }).catch((err) =>
+        console.error('[ProcuAsist] Date-range scan error:', err)
+      );
+      return { success: true, status: 'scan_started' };
+    }
+
     // --- Bulk Import ---
     case 'BULK_IMPORT': {
       console.debug(
         `[ProcuAsist] Bulk import: ${message.cases.length} cases from ${message.source}`
       );
       let imported = 0;
+      let existing = 0;
+      let monitored = 0;
       for (const c of message.cases) {
         try {
-          const caseObj = c as { caseNumber: string; title: string; court?: string };
-          await addBookmark({
-            id: caseObj.caseNumber,
-            portal: 'mev' as const, // SCBA-Notif cases are from provincia (MEV)
-            caseNumber: caseObj.caseNumber,
-            title: caseObj.title || 'Sin carátula',
-            court: caseObj.court ?? '',
-            fuero: '',
-            portalUrl: '',
-          });
-          imported++;
+          const richCaseObj = c;
+          const portal = richCaseObj.portal ?? ('mev' as const);
+          const wasBookmarked = await isBookmarked(portal, richCaseObj.caseNumber);
+          const caseData = {
+            id:
+              richCaseObj.id ||
+              richCaseObj.metadata?.nidCausa ||
+              richCaseObj.caseNumber,
+            portal,
+            caseNumber: richCaseObj.caseNumber,
+            title: richCaseObj.title || 'Sin caratula',
+            court: richCaseObj.court ?? '',
+            fuero: richCaseObj.fuero ?? '',
+            portalUrl: richCaseObj.portalUrl ?? '',
+            metadata: richCaseObj.metadata,
+          };
+
+          await addBookmark(caseData);
+          if (wasBookmarked) {
+            existing++;
+          } else {
+            imported++;
+          }
+
+          if (
+            message.monitor &&
+            portal === 'mev' &&
+            caseData.metadata?.nidCausa &&
+            caseData.metadata?.pidJuzgado
+          ) {
+            const wasMonitored = await isMonitored(portal, richCaseObj.caseNumber);
+            await addMonitor({
+              portal,
+              caseNumber: richCaseObj.caseNumber,
+              title: caseData.title,
+              court: caseData.court,
+              portalUrl: caseData.portalUrl,
+              metadata: {
+                nidCausa: caseData.metadata.nidCausa,
+                pidJuzgado: caseData.metadata.pidJuzgado,
+              },
+            });
+            if (!wasMonitored) monitored++;
+          }
         } catch {
           // Skip duplicates or errors, continue importing
         }
       }
-      return { status: 'ok', imported };
+      return { status: 'ok', imported, existing, monitored };
     }
 
     // --- PJN ZIP de expediente ---

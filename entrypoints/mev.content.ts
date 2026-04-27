@@ -8,7 +8,7 @@
 
 import { MEV_SELECTORS } from '@/modules/portals/mev-selectors';
 import type { Movement } from '@/modules/portals/types';
-import type { MevCaseData } from '@/modules/portals/mev-parser';
+import type { MevCaseData, MevSearchResult } from '@/modules/portals/mev-parser';
 import {
   isLoginPage,
   isPosLoginPage,
@@ -29,12 +29,28 @@ import {
   ICON_X,
   ICON_LOADER,
   ICON_PACKAGE,
-  iconLabel,
+  ICON_DOWNLOAD,
 } from '@/modules/ui/icon-strings';
+import {
+  createConfigActionButton,
+  createPortalActionBar,
+  createPortalActionButton,
+  createPortalModalButton,
+  setPortalActionButtonState,
+} from '@/modules/ui/portal-action-bar';
 
 const MEV_COLORS = PORTAL_COLORS.mev;
-const SUCCESS_COLOR = '#16a34a';
+const MEV_ACTION_BAR_ID = 'procu-asist-action-bar';
+const MEV_CONFIG_ID = 'procu-asist-config';
+const MEV_SET_IMPORT_SESSION_KEY = 'procu_asist_mev_set_import';
 const DANGER_COLOR = '#dc2626';
+
+interface MevSetImportSession {
+  collected: MevSearchResult[];
+  remainingValues: string[];
+  startedAt: number;
+  totalOrganisms: number;
+}
 
 export default defineContentScript({
   matches: ['https://mev.scba.gov.ar/*'],
@@ -218,6 +234,271 @@ function handleResultsPage(doc: Document) {
       type: 'SEARCH_RESULTS',
       results,
     });
+    injectResultsImportButton(results);
+    void continueSetImportIfActive(results);
+  }
+}
+
+function injectResultsImportButton(results: MevSearchResult[]) {
+  if (document.getElementById('procu-asist-import-results')) return;
+
+  const bar = ensureMevActionBar();
+  const setSelect = findSetOrganismSelect();
+  const isSetPage = !!setSelect && getSetOptionValues(setSelect).length > 1;
+  const btn = createPortalActionButton({
+    id: 'procu-asist-import-results',
+    icon: ICON_DOWNLOAD,
+    label: isSetPage ? 'Importar set' : 'Importar',
+    title: isSetPage
+      ? 'Importar y monitorear todas las causas del set'
+      : `Importar y monitorear ${results.length} causas visibles`,
+    variant: 'secondary',
+  });
+
+  btn.addEventListener('click', async () => {
+    if (await startSetImportIfPossible(results, btn)) return;
+
+    setPortalActionButtonState(btn, ICON_LOADER, 'Importando', 'muted');
+    btn.disabled = true;
+
+    try {
+      const response = await bulkImportMevResults(results);
+
+      setPortalActionButtonState(
+        btn,
+        ICON_CHECK,
+        `Importadas ${response.imported}`,
+        'success'
+      );
+      btn.title = `${response.imported} nuevas, ${response.existing} existentes, ${response.monitored} monitoreadas`;
+    } catch (err) {
+      console.error('[ProcuAsist] MEV results import error:', err);
+      setPortalActionButtonState(btn, ICON_X, 'Error', 'danger');
+    }
+
+    setTimeout(() => {
+      setPortalActionButtonState(btn, ICON_DOWNLOAD, 'Importar', 'secondary');
+      btn.disabled = false;
+    }, 5000);
+  });
+
+  const configBtn = document.getElementById(MEV_CONFIG_ID);
+  if (configBtn?.nextSibling) {
+    bar.insertBefore(btn, configBtn.nextSibling);
+  } else {
+    bar.appendChild(btn);
+  }
+}
+
+async function startSetImportIfPossible(
+  results: MevSearchResult[],
+  btn: HTMLButtonElement
+): Promise<boolean> {
+  const select = findSetOrganismSelect();
+  if (!select) return false;
+
+  const options = getSetOptionValues(select);
+  if (options.length <= 1) return false;
+
+  const currentValue = select.value;
+  const remainingValues = options
+    .map((option) => option.value)
+    .filter((value) => value !== currentValue);
+
+  const session: MevSetImportSession = {
+    collected: results,
+    remainingValues,
+    startedAt: Date.now(),
+    totalOrganisms: options.length,
+  };
+
+  sessionStorage.setItem(MEV_SET_IMPORT_SESSION_KEY, JSON.stringify(session));
+
+  setPortalActionButtonState(btn, ICON_LOADER, 'Set 1/' + options.length, 'muted');
+  btn.disabled = true;
+
+  if (!goToNextSetOrganism(session)) {
+    sessionStorage.removeItem(MEV_SET_IMPORT_SESSION_KEY);
+    const response = await bulkImportMevResults(results);
+    setPortalActionButtonState(btn, ICON_CHECK, `Importadas ${response.imported}`, 'success');
+    btn.title = `${response.imported} nuevas, ${response.existing} existentes, ${response.monitored} monitoreadas`;
+  }
+
+  return true;
+}
+
+async function continueSetImportIfActive(results: MevSearchResult[]) {
+  const session = readSetImportSession();
+  if (!session) return;
+
+  session.collected = mergeMevSearchResults(session.collected, results);
+
+  const currentStep = session.totalOrganisms - session.remainingValues.length;
+  showSetImportStatus(
+    `Importando set completo (${currentStep}/${session.totalOrganisms})...`
+  );
+
+  if (session.remainingValues.length > 0) {
+    sessionStorage.setItem(MEV_SET_IMPORT_SESSION_KEY, JSON.stringify(session));
+    setTimeout(() => {
+      const latestSession = readSetImportSession();
+      if (latestSession) goToNextSetOrganism(latestSession);
+    }, 450);
+    return;
+  }
+
+  sessionStorage.removeItem(MEV_SET_IMPORT_SESSION_KEY);
+  const response = await bulkImportMevResults(session.collected);
+  showSetImportStatus(
+    `Set importado: ${response.imported} nuevas, ${response.existing} existentes, ${response.monitored} monitoreadas.`,
+    'success'
+  );
+}
+
+function readSetImportSession(): MevSetImportSession | null {
+  const raw = sessionStorage.getItem(MEV_SET_IMPORT_SESSION_KEY);
+  if (!raw) return null;
+
+  try {
+    const session = JSON.parse(raw) as MevSetImportSession;
+    if (!Array.isArray(session.collected) || !Array.isArray(session.remainingValues)) {
+      return null;
+    }
+    if (Date.now() - session.startedAt > 10 * 60 * 1000) {
+      sessionStorage.removeItem(MEV_SET_IMPORT_SESSION_KEY);
+      return null;
+    }
+    return session;
+  } catch {
+    sessionStorage.removeItem(MEV_SET_IMPORT_SESSION_KEY);
+    return null;
+  }
+}
+
+function goToNextSetOrganism(session: MevSetImportSession): boolean {
+  const nextValue = session.remainingValues.shift();
+  if (!nextValue) return false;
+
+  const select = findSetOrganismSelect();
+  if (!select) return false;
+
+  select.value = nextValue;
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+  sessionStorage.setItem(MEV_SET_IMPORT_SESSION_KEY, JSON.stringify(session));
+
+  const consultar = Array.from(
+    document.querySelectorAll('input, button')
+  ).find((el) => {
+    const input = el as HTMLInputElement | HTMLButtonElement;
+    return /consultar/i.test(input.value || input.textContent || '');
+  }) as HTMLInputElement | HTMLButtonElement | undefined;
+
+  if (consultar) {
+    consultar.click();
+    return true;
+  }
+
+  const form = select.form || select.closest('form');
+  if (form) {
+    form.requestSubmit?.();
+    if (!form.requestSubmit) form.submit();
+    return true;
+  }
+
+  return false;
+}
+
+function findSetOrganismSelect(): HTMLSelectElement | null {
+  const selects = Array.from(document.querySelectorAll('select')) as HTMLSelectElement[];
+  if (!selects.length) return null;
+
+  const setText = document.body.textContent ?? '';
+  if (!/Set de B[uú]squeda|Organismos del Set/i.test(setText)) return null;
+
+  return (
+    selects.find((select) => {
+      const parentText = select.parentElement?.textContent ?? '';
+      return /Organismos del Set/i.test(parentText);
+    }) ?? selects[0] ?? null
+  );
+}
+
+function getSetOptionValues(select: HTMLSelectElement): Array<{ value: string; label: string }> {
+  return Array.from(select.options)
+    .map((option) => ({
+      value: option.value,
+      label: option.textContent?.trim() ?? option.value,
+    }))
+    .filter((option) => option.value);
+}
+
+function mergeMevSearchResults(
+  previous: MevSearchResult[],
+  next: MevSearchResult[]
+): MevSearchResult[] {
+  const map = new Map<string, MevSearchResult>();
+  for (const result of [...previous, ...next]) {
+    const key = result.nidCausa || result.numero || result.url;
+    if (!key) continue;
+    map.set(key, result);
+  }
+  return Array.from(map.values());
+}
+
+async function bulkImportMevResults(results: MevSearchResult[]) {
+  return (await chrome.runtime.sendMessage({
+    type: 'BULK_IMPORT',
+    source: 'mev-results',
+    monitor: true,
+    cases: results.map((result) => ({
+      id: result.nidCausa || result.numero,
+      portal: 'mev' as const,
+      caseNumber: result.numero || result.nidCausa,
+      title: result.caratula || 'Sin caratula',
+      court: '',
+      fuero: '',
+      portalUrl: result.url,
+      lastMovementDate: result.ultimoMovimiento,
+      metadata: {
+        nidCausa: result.nidCausa,
+        pidJuzgado: result.pidJuzgado,
+      },
+    })),
+  })) as {
+    status: string;
+    imported: number;
+    existing: number;
+    monitored: number;
+  };
+}
+
+function showSetImportStatus(message: string, variant: 'muted' | 'success' = 'muted') {
+  const bar = ensureMevActionBar();
+  let status = document.getElementById('procu-asist-set-import-status');
+  if (!status) {
+    status = document.createElement('div');
+    status.id = 'procu-asist-set-import-status';
+    Object.assign(status.style, {
+      borderRadius: '10px',
+      padding: '10px 14px',
+      fontSize: '12px',
+      fontWeight: '700',
+      boxShadow: '0 10px 24px rgba(15, 23, 42, 0.16)',
+      textAlign: 'center',
+      maxWidth: '220px',
+    });
+    bar.prepend(status);
+  }
+
+  status.textContent = message;
+  Object.assign(status.style, {
+    backgroundColor: variant === 'success' ? '#16a34a' : '#eff6ff',
+    color: variant === 'success' ? '#ffffff' : MEV_COLORS.primary,
+    border: variant === 'success' ? '1px solid #16a34a' : '1px solid #bfdbfe',
+  });
+
+  if (variant === 'success') {
+    setTimeout(() => status?.remove(), 8000);
   }
 }
 
@@ -326,6 +607,16 @@ function handleSessionExpired() {
 
 // --- UI Injections ---
 
+function ensureMevActionBar(): HTMLDivElement {
+  const bar = createPortalActionBar(MEV_ACTION_BAR_ID);
+  if (!document.getElementById(MEV_CONFIG_ID)) {
+    const configBtn = createConfigActionButton();
+    configBtn.id = MEV_CONFIG_ID;
+    bar.prepend(configBtn);
+  }
+  return bar;
+}
+
 function injectBookmarkButton(caseData: {
   numero: string;
   caratula: string;
@@ -336,34 +627,15 @@ function injectBookmarkButton(caseData: {
   estadoPortal: string;
   numeroReceptoria: string;
 }) {
+  const bar = ensureMevActionBar();
   if (document.getElementById('procu-asist-bookmark')) return;
 
-  const container = document.createElement('div');
-  container.id = 'procu-asist-bookmark';
-  Object.assign(container.style, {
-    position: 'fixed',
-    bottom: '76px',
-    right: '20px',
-    zIndex: '999999',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-    gap: '6px',
-  });
-
-  const btn = document.createElement('button');
-  btn.title = `Guardar ${caseData.numero} en marcadores`;
-  Object.assign(btn.style, {
-    padding: '8px 16px',
-    borderRadius: '24px',
-    border: 'none',
-    backgroundColor: MEV_COLORS.primary,
-    color: 'white',
-    fontSize: '13px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-    transition: 'transform 0.2s, background-color 0.2s',
+  const btn = createPortalActionButton({
+    id: 'procu-asist-bookmark',
+    icon: ICON_STAR,
+    label: 'Guardar',
+    title: `Guardar ${caseData.numero} en marcadores`,
+    variant: 'secondary',
   });
 
   // Check if already bookmarked
@@ -376,18 +648,15 @@ function injectBookmarkButton(caseData: {
     .then((r) => {
       const resp = r as { success: boolean; isBookmarked: boolean };
       if (resp?.success && resp.isBookmarked) {
-        btn.innerHTML = iconLabel(ICON_CHECK, 'Guardado');
-        btn.style.backgroundColor = SUCCESS_COLOR;
+        setPortalActionButtonState(btn, ICON_CHECK, 'Guardado', 'success');
         btn.dataset.saved = 'true';
-      } else {
-        btn.innerHTML = iconLabel(ICON_STAR, 'Guardar');
       }
     });
 
   btn.addEventListener('click', async () => {
     if (btn.dataset.saved === 'true') return;
 
-    btn.innerHTML = iconLabel(ICON_LOADER, '');
+    setPortalActionButtonState(btn, ICON_LOADER, 'Guardando', 'muted');
     btn.disabled = true;
 
     try {
@@ -412,46 +681,33 @@ function injectBookmarkButton(caseData: {
       })) as { success: boolean };
 
       if (response?.success) {
-        btn.innerHTML = iconLabel(ICON_CHECK, 'Guardado');
-        btn.style.backgroundColor = SUCCESS_COLOR;
+        setPortalActionButtonState(btn, ICON_CHECK, 'Guardado', 'success');
         btn.dataset.saved = 'true';
       } else {
-        btn.innerHTML = iconLabel(ICON_X, 'Error');
-        btn.style.backgroundColor = DANGER_COLOR;
+        setPortalActionButtonState(btn, ICON_X, 'Error', 'danger');
         setTimeout(() => {
-          btn.innerHTML = iconLabel(ICON_STAR, 'Guardar');
-          btn.style.backgroundColor = MEV_COLORS.primary;
+          setPortalActionButtonState(btn, ICON_STAR, 'Guardar', 'secondary');
           btn.disabled = false;
         }, 2000);
       }
     } catch {
-      btn.innerHTML = iconLabel(ICON_X, 'Error');
-      btn.style.backgroundColor = DANGER_COLOR;
+      setPortalActionButtonState(btn, ICON_X, 'Error', 'danger');
       setTimeout(() => {
-        btn.innerHTML = iconLabel(ICON_STAR, 'Guardar');
-        btn.style.backgroundColor = MEV_COLORS.primary;
+        setPortalActionButtonState(btn, ICON_STAR, 'Guardar', 'secondary');
         btn.disabled = false;
       }, 2000);
     }
   });
 
-  container.appendChild(btn);
+  bar.appendChild(btn);
 
   // Monitor button
-  const monBtn = document.createElement('button');
-  monBtn.title = `Monitorear ${caseData.numero}`;
-  Object.assign(monBtn.style, {
-    padding: '8px 16px',
-    borderRadius: '24px',
-    border: `1px solid ${MEV_COLORS.primary}`,
-    backgroundColor: 'white',
-    color: MEV_COLORS.primary,
-    fontSize: '13px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-    transition: 'transform 0.2s, background-color 0.2s',
-    marginTop: '8px',
+  const monBtn = createPortalActionButton({
+    id: 'procu-asist-monitor',
+    icon: ICON_EYE,
+    label: 'Monitorear',
+    title: `Monitorear ${caseData.numero}`,
+    variant: 'secondary',
   });
 
   // Check if already monitored
@@ -464,20 +720,15 @@ function injectBookmarkButton(caseData: {
     .then((r) => {
       const resp = r as { success: boolean; isMonitored: boolean };
       if (resp?.success && resp.isMonitored) {
-        monBtn.innerHTML = iconLabel(ICON_EYE, 'Monitoreando');
-        monBtn.style.backgroundColor = SUCCESS_COLOR;
-        monBtn.style.color = 'white';
-        monBtn.style.border = 'none';
+        setPortalActionButtonState(monBtn, ICON_EYE, 'Monitoreando', 'success');
         monBtn.dataset.monitored = 'true';
-      } else {
-        monBtn.innerHTML = iconLabel(ICON_EYE, 'Monitorear');
       }
     });
 
   monBtn.addEventListener('click', async () => {
     if (monBtn.dataset.monitored === 'true') return;
 
-    monBtn.innerHTML = iconLabel(ICON_LOADER, '');
+    setPortalActionButtonState(monBtn, ICON_LOADER, 'Activando', 'muted');
     monBtn.disabled = true;
 
     try {
@@ -502,41 +753,25 @@ function injectBookmarkButton(caseData: {
       })) as { success: boolean };
 
       if (response?.success) {
-        monBtn.innerHTML = iconLabel(ICON_EYE, 'Monitoreando');
-        monBtn.style.backgroundColor = SUCCESS_COLOR;
-        monBtn.style.color = 'white';
-        monBtn.style.border = 'none';
+        setPortalActionButtonState(monBtn, ICON_EYE, 'Monitoreando', 'success');
         monBtn.dataset.monitored = 'true';
       } else {
-        monBtn.innerHTML = iconLabel(ICON_X, 'Error');
-        monBtn.style.backgroundColor = DANGER_COLOR;
-        monBtn.style.color = 'white';
-        monBtn.style.border = 'none';
+        setPortalActionButtonState(monBtn, ICON_X, 'Error', 'danger');
         setTimeout(() => {
-          monBtn.innerHTML = iconLabel(ICON_EYE, 'Monitorear');
-          monBtn.style.backgroundColor = 'white';
-          monBtn.style.color = MEV_COLORS.primary;
-          monBtn.style.border = `1px solid ${MEV_COLORS.primary}`;
+          setPortalActionButtonState(monBtn, ICON_EYE, 'Monitorear', 'secondary');
           monBtn.disabled = false;
         }, 2000);
       }
     } catch {
-      monBtn.innerHTML = iconLabel(ICON_X, 'Error');
-      monBtn.style.backgroundColor = DANGER_COLOR;
-      monBtn.style.color = 'white';
-      monBtn.style.border = 'none';
+      setPortalActionButtonState(monBtn, ICON_X, 'Error', 'danger');
       setTimeout(() => {
-        monBtn.innerHTML = iconLabel(ICON_EYE, 'Monitorear');
-        monBtn.style.backgroundColor = 'white';
-        monBtn.style.color = MEV_COLORS.primary;
-        monBtn.style.border = `1px solid ${MEV_COLORS.primary}`;
+        setPortalActionButtonState(monBtn, ICON_EYE, 'Monitorear', 'secondary');
         monBtn.disabled = false;
       }, 2000);
     }
   });
 
-  container.appendChild(monBtn);
-  document.body.appendChild(container);
+  bar.appendChild(monBtn);
 }
 
 // --- Movement Selection Modal ---
@@ -569,18 +804,14 @@ function showMovementSelectionModal(movements: Movement[]): Promise<Movement[] |
       display: 'flex', gap: '8px', marginBottom: '12px',
     });
 
-    const selectAllBtn = document.createElement('button');
-    selectAllBtn.textContent = 'Seleccionar todos';
-    Object.assign(selectAllBtn.style, {
-      padding: '4px 12px', borderRadius: '6px', border: '1px solid #d1d5db',
-      backgroundColor: 'white', fontSize: '12px', cursor: 'pointer', color: '#374151',
+    const selectAllBtn = createPortalModalButton({
+      label: 'Seleccionar todos',
+      variant: 'secondary',
     });
 
-    const deselectAllBtn = document.createElement('button');
-    deselectAllBtn.textContent = 'Deseleccionar todos';
-    Object.assign(deselectAllBtn.style, {
-      padding: '4px 12px', borderRadius: '6px', border: '1px solid #d1d5db',
-      backgroundColor: 'white', fontSize: '12px', cursor: 'pointer', color: '#374151',
+    const deselectAllBtn = createPortalModalButton({
+      label: 'Deseleccionar todos',
+      variant: 'secondary',
     });
 
     topBar.appendChild(selectAllBtn);
@@ -675,19 +906,14 @@ function showMovementSelectionModal(movements: Movement[]): Promise<Movement[] |
       display: 'flex', justifyContent: 'flex-end', gap: '8px',
     });
 
-    const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = 'Cancelar';
-    Object.assign(cancelBtn.style, {
-      padding: '8px 20px', borderRadius: '8px', border: '1px solid #d1d5db',
-      backgroundColor: 'white', color: '#374151', fontSize: '13px', cursor: 'pointer',
+    const cancelBtn = createPortalModalButton({
+      label: 'Cancelar',
+      variant: 'secondary',
     });
 
-    const downloadBtn = document.createElement('button');
-    downloadBtn.textContent = `Descargar seleccionados (${movements.length})`;
-    Object.assign(downloadBtn.style, {
-      padding: '8px 20px', borderRadius: '8px', border: 'none',
-      backgroundColor: '#7c3aed', color: 'white', fontSize: '13px',
-      fontWeight: '600', cursor: 'pointer',
+    const downloadBtn = createPortalModalButton({
+      label: `Descargar seleccionados (${movements.length})`,
+      variant: 'primary',
     });
 
     cancelBtn.addEventListener('click', () => {
@@ -725,33 +951,21 @@ function showMovementSelectionModal(movements: Movement[]): Promise<Movement[] |
 function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
   if (document.getElementById('procu-asist-zip')) return;
 
-  const btn = document.createElement('button');
-  btn.id = 'procu-asist-zip';
-  btn.innerHTML = iconLabel(ICON_PACKAGE, 'ZIP');
-  btn.title = `Descargar expediente ${caseData.numero} como ZIP (resumen + adjuntos)`;
-  Object.assign(btn.style, {
-    position: 'fixed',
-    bottom: '20px',
-    right: '76px',
-    padding: '8px 16px',
-    borderRadius: '24px',
-    border: 'none',
-    backgroundColor: MEV_COLORS.primary,
-    color: 'white',
-    fontSize: '13px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-    zIndex: '999999',
-    transition: 'transform 0.2s, background-color 0.2s',
+  const bar = ensureMevActionBar();
+  const btn = createPortalActionButton({
+    id: 'procu-asist-zip',
+    icon: ICON_PACKAGE,
+    label: 'ZIP',
+    title: `Descargar expediente ${caseData.numero} como ZIP (resumen + adjuntos)`,
+    variant: 'primary',
   });
 
   // Progress bar element (hidden by default)
   const progressBar = document.createElement('div');
   Object.assign(progressBar.style, {
     position: 'fixed',
-    bottom: '56px',
-    right: '20px',
+    bottom: '20px',
+    right: '188px',
     width: '280px',
     backgroundColor: 'white',
     borderRadius: '8px',
@@ -790,16 +1004,12 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
   progressBar.appendChild(progressTrack);
   document.body.appendChild(progressBar);
 
-  btn.addEventListener('mouseenter', () => { btn.style.transform = 'scale(1.05)'; });
-  btn.addEventListener('mouseleave', () => { btn.style.transform = 'scale(1)'; });
-
   btn.addEventListener('click', async () => {
     // Show selection modal first
     const selectedMovements = await showMovementSelectionModal(movements);
     if (!selectedMovements || selectedMovements.length === 0) return;
 
-    btn.innerHTML = iconLabel(ICON_LOADER, 'Preparando...');
-    btn.style.backgroundColor = '#9ca3af';
+    setPortalActionButtonState(btn, ICON_LOADER, 'Preparando', 'muted');
     btn.disabled = true;
     progressBar.style.display = 'flex';
     progressLabel.textContent = 'Iniciando...';
@@ -855,8 +1065,12 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
         const summary = s
           ? `${totalOk} descargados${totalFailed > 0 ? `, ${totalFailed} fallaron` : ''}`
           : 'listo';
-        btn.innerHTML = iconLabel(ICON_CHECK, `ZIP (${summary})`);
-        btn.style.backgroundColor = s?.allSuccessful ? SUCCESS_COLOR : '#f59e0b';
+        setPortalActionButtonState(
+          btn,
+          ICON_CHECK,
+          'ZIP listo',
+          s?.allSuccessful ? 'success' : 'warning'
+        );
         progressLabel.textContent = `Listo: ${summary}`;
         progressFill.style.width = '100%';
 
@@ -865,27 +1079,29 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
           showVerificationOverlay(s.failedItems);
         }
       } else {
-        btn.innerHTML = iconLabel(ICON_X, response?.error ?? 'Error');
-        btn.style.backgroundColor = DANGER_COLOR;
+        setPortalActionButtonState(btn, ICON_X, 'Error', 'danger');
         progressLabel.textContent = response?.error ?? 'Error';
         progressFill.style.backgroundColor = DANGER_COLOR;
         progressFill.style.width = '100%';
       }
     } catch (err) {
-      btn.innerHTML = iconLabel(ICON_X, 'Error');
-      btn.style.backgroundColor = DANGER_COLOR;
+      setPortalActionButtonState(btn, ICON_X, 'Error', 'danger');
       progressLabel.textContent = String(err);
     }
 
     setTimeout(() => {
-      btn.innerHTML = iconLabel(ICON_PACKAGE, 'ZIP');
-      btn.style.backgroundColor = MEV_COLORS.primary;
+      setPortalActionButtonState(btn, ICON_PACKAGE, 'ZIP', 'primary');
       btn.disabled = false;
       progressBar.style.display = 'none';
     }, 5000);
   });
 
-  document.body.appendChild(btn);
+  const configBtn = document.getElementById(MEV_CONFIG_ID);
+  if (configBtn?.nextSibling) {
+    bar.insertBefore(btn, configBtn.nextSibling);
+  } else {
+    bar.prepend(btn);
+  }
 }
 
 // --- Verification Error Overlay ---

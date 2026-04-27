@@ -24,6 +24,27 @@ import {
 const SUCCESS_COLOR = '#16a34a';
 const DANGER_COLOR = '#dc2626';
 const WARN_COLOR = '#f59e0b';
+const MIS_CAUSAS_IMPORT_SESSION_KEY = 'procu_asist_scba_mis_causas_import';
+
+interface ScbaNotifCase {
+  id?: string;
+  portal?: 'mev';
+  caseNumber: string;
+  title: string;
+  court?: string;
+  fuero?: string;
+  portalUrl?: string;
+  metadata?: {
+    set?: string;
+    numeroReceptoria?: string;
+  };
+}
+
+interface MisCausasImportSession {
+  collected: ScbaNotifCase[];
+  visitedPages: string[];
+  startedAt: number;
+}
 
 export default defineContentScript({
   matches: ['https://notificaciones.scba.gov.ar/*'],
@@ -37,6 +58,8 @@ export default defineContentScript({
 
     if (isLoginPage()) {
       handleLoginPage(doc);
+    } else if (isMisCausasPage()) {
+      handleMisCausasPage(doc);
     } else if (isNovedadesPage()) {
       handleNovedadesPage(doc);
     }
@@ -58,6 +81,13 @@ function isNovedadesPage(): boolean {
   return (
     window.location.pathname.toLowerCase().includes('novedades') ||
     !!document.querySelector(SCBA_NOTIF_SELECTORS.novedades.table)
+  );
+}
+
+function isMisCausasPage(): boolean {
+  return (
+    window.location.pathname.toLowerCase().includes('vercausas') ||
+    /MIS CAUSAS/i.test(document.body.textContent ?? '')
   );
 }
 
@@ -95,6 +125,18 @@ function handleNovedadesPage(doc: Document) {
   // Wait for DataTable to render
   waitForElement(SCBA_NOTIF_SELECTORS.novedades.rows, () => {
     injectImportButton(doc);
+  });
+}
+
+function handleMisCausasPage(doc: Document) {
+  console.debug('[ProcuAsist] SCBA-Notificaciones Mis Causas page detected');
+
+  waitForMisCausasCards(() => {
+    const cases = extractMisCausasFromPage(doc);
+    if (cases.length > 0) {
+      injectMisCausasImportButton(cases);
+      void continueMisCausasImportIfActive(cases);
+    }
   });
 }
 
@@ -167,9 +209,12 @@ function injectImportButton(doc: Document) {
         type: 'BULK_IMPORT',
         cases,
         source: 'scba-notificaciones',
-      })) as { status: string; imported: number };
+      })) as { status: string; imported: number; existing: number };
 
-      importAllBtn.innerHTML = iconLabel(ICON_CHECK, `${response?.imported ?? cases.length} causas importadas`);
+      importAllBtn.innerHTML = iconLabel(
+        ICON_CHECK,
+        `${response?.imported ?? cases.length} nuevas, ${response?.existing ?? 0} existentes`
+      );
       importAllBtn.style.backgroundColor = SUCCESS_COLOR;
 
       // Show count badge
@@ -351,6 +396,335 @@ function showImportResult(container: HTMLElement, count: number) {
 // Helpers
 // ────────────────────────────────────────────────────────
 
+// Mis Causas Import
+
+function injectMisCausasImportButton(cases: ScbaNotifCase[]) {
+  if (document.getElementById('procu-asist-import-mis-causas')) return;
+
+  const container = document.createElement('div');
+  container.id = 'procu-asist-import-mis-causas';
+  Object.assign(container.style, {
+    position: 'fixed',
+    right: '18px',
+    bottom: '96px',
+    zIndex: '999999',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    alignItems: 'flex-end',
+  });
+
+  const btn = document.createElement('button');
+  btn.innerHTML = iconLabel(ICON_DOWNLOAD, 'Importar Mis Causas');
+  btn.title = `Importar ${cases.length} causas visibles y recorrer la paginacion`;
+  Object.assign(btn.style, {
+    padding: '10px 16px',
+    borderRadius: '12px',
+    border: 'none',
+    backgroundColor: SCBA_NOTIF_COLOR.primary,
+    color: 'white',
+    fontSize: '13px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    boxShadow: '0 8px 22px rgba(15, 23, 42, 0.22)',
+  });
+
+  btn.addEventListener('click', async () => {
+    await startMisCausasImport(cases, btn);
+  });
+
+  container.appendChild(btn);
+  document.body.appendChild(container);
+}
+
+async function startMisCausasImport(cases: ScbaNotifCase[], btn: HTMLButtonElement) {
+  const session: MisCausasImportSession = {
+    collected: cases,
+    visitedPages: [getMisCausasPageKey()],
+    startedAt: Date.now(),
+  };
+  sessionStorage.setItem(MIS_CAUSAS_IMPORT_SESSION_KEY, JSON.stringify(session));
+
+  btn.innerHTML = iconLabel(ICON_LOADER, `Importando ${cases.length}...`);
+  btn.style.backgroundColor = '#64748b';
+  btn.disabled = true;
+
+  if (goToNextMisCausasPage(session, getMisCausasPageKey())) {
+    showMisCausasStatus(`Leyendo pagina ${session.visitedPages.length + 1}...`);
+    return;
+  }
+
+  const response = await finishMisCausasImport(cases);
+  btn.innerHTML = iconLabel(
+    ICON_CHECK,
+    `${response.imported} nuevas, ${response.existing} existentes`
+  );
+  btn.style.backgroundColor = SUCCESS_COLOR;
+}
+
+async function continueMisCausasImportIfActive(cases: ScbaNotifCase[]) {
+  const session = readMisCausasImportSession();
+  if (!session) return;
+
+  const pageKey = getMisCausasPageKey();
+  if (!session.visitedPages.includes(pageKey)) {
+    session.collected = mergeScbaNotifCases(session.collected, cases);
+    session.visitedPages.push(pageKey);
+  }
+
+  showMisCausasStatus(
+    `Importando Mis Causas: ${session.collected.length} causas en ${session.visitedPages.length} pagina(s)...`
+  );
+
+  if (goToNextMisCausasPage(session, pageKey)) return;
+
+  const response = await finishMisCausasImport(session.collected);
+  showMisCausasStatus(
+    `Mis Causas importadas: ${response.imported} nuevas, ${response.existing} existentes.`,
+    'success'
+  );
+}
+
+async function finishMisCausasImport(cases: ScbaNotifCase[]) {
+  sessionStorage.removeItem(MIS_CAUSAS_IMPORT_SESSION_KEY);
+  return bulkImportScbaNotifCases(cases, 'scba-mis-causas');
+}
+
+function readMisCausasImportSession(): MisCausasImportSession | null {
+  const raw = sessionStorage.getItem(MIS_CAUSAS_IMPORT_SESSION_KEY);
+  if (!raw) return null;
+
+  try {
+    const session = JSON.parse(raw) as MisCausasImportSession;
+    if (!Array.isArray(session.collected) || !Array.isArray(session.visitedPages)) {
+      return null;
+    }
+    if (Date.now() - session.startedAt > 10 * 60 * 1000) {
+      sessionStorage.removeItem(MIS_CAUSAS_IMPORT_SESSION_KEY);
+      return null;
+    }
+    return session;
+  } catch {
+    sessionStorage.removeItem(MIS_CAUSAS_IMPORT_SESSION_KEY);
+    return null;
+  }
+}
+
+function goToNextMisCausasPage(
+  session: MisCausasImportSession,
+  currentPageKey: string
+): boolean {
+  const next = findMisCausasNextPageControl();
+  if (!next) return false;
+
+  sessionStorage.setItem(MIS_CAUSAS_IMPORT_SESSION_KEY, JSON.stringify(session));
+  next.click();
+
+  setTimeout(() => {
+    const latestSession = readMisCausasImportSession();
+    if (!latestSession) return;
+    if (getMisCausasPageKey() === currentPageKey) {
+      void finishMisCausasImport(latestSession.collected).then((response) => {
+        showMisCausasStatus(
+          `Mis Causas importadas: ${response.imported} nuevas, ${response.existing} existentes.`,
+          'success'
+        );
+      });
+      return;
+    }
+    const freshCases = extractMisCausasFromPage(document);
+    if (freshCases.length > 0) void continueMisCausasImportIfActive(freshCases);
+  }, 1200);
+
+  return true;
+}
+
+function findMisCausasNextPageControl(): HTMLElement | null {
+  const controls = Array.from(
+    document.querySelectorAll('a, button, input[type="button"], input[type="submit"]')
+  ) as HTMLElement[];
+
+  return (
+    controls.find((control) => {
+      const label =
+        (control as HTMLInputElement).value || control.textContent?.trim() || '';
+      const parentClass = control.parentElement?.className?.toString() ?? '';
+      const ownClass = control.className?.toString() ?? '';
+      const inlineHandler = control.getAttribute('onclick') ?? '';
+      const callsMissingProximo =
+        /proximo\s*\(/i.test(inlineHandler) &&
+        typeof (window as unknown as { proximo?: unknown }).proximo !== 'function';
+      const disabled =
+        control.hasAttribute('disabled') ||
+        /disabled/i.test(parentClass) ||
+        /disabled/i.test(ownClass);
+      if (callsMissingProximo) return false;
+      return !disabled && /^(proximo|pr[oó]ximo|siguiente)$/i.test(label.trim());
+    }) ?? null
+  );
+}
+
+function extractMisCausasFromPage(doc: Document): ScbaNotifCase[] {
+  const cards = findMisCausasCards(doc);
+  const cases: ScbaNotifCase[] = [];
+
+  for (const card of cards) {
+    const text = normalizeText(card.textContent ?? '');
+    const number = firstMatch(text, /N[uú]mero:\s*([^\s]+)/i);
+    const title = firstMatch(text, /Car[aá]tula:\s*(.+?)\s+Juzgado:/i);
+    const court = firstMatch(
+      text,
+      /Juzgado:\s*(.+?)(?:\s+Ver Tr[aá]mites|\s+Crear Presentaci[oó]n|\s+Ver Cuentas|\s+Autorizada|\s*$)/i
+    );
+
+    if (!number || !title) continue;
+
+    const normalizedCourt = court || '';
+    const id = `scba-notif:${normalizeKey(number)}:${normalizeKey(normalizedCourt)}`;
+    if (cases.some((c) => c.id === id)) continue;
+
+    cases.push({
+      id,
+      portal: 'mev',
+      caseNumber: number,
+      title,
+      court: normalizedCourt,
+      fuero: '',
+      portalUrl: window.location.href,
+      metadata: {
+        set: 'scba-mis-causas',
+        numeroReceptoria: number,
+      },
+    });
+  }
+
+  console.debug(`[ProcuAsist] Mis Causas parsed: ${cases.length}`);
+  return cases;
+}
+
+function findMisCausasCards(doc: Document): HTMLElement[] {
+  const actionButtons = Array.from(
+    doc.querySelectorAll('a, button, input[type="button"], input[type="submit"]')
+  ) as HTMLElement[];
+  const cards: HTMLElement[] = [];
+
+  for (const button of actionButtons) {
+    const label =
+      (button as HTMLInputElement).value || button.textContent?.trim() || '';
+    if (!/Ver Tr[aá]mites|Crear Presentaci[oó]n/i.test(label)) continue;
+
+    let current = button.parentElement;
+    for (let depth = 0; current && depth < 8; depth++) {
+      const text = current.textContent ?? '';
+      if (
+        /N[uú]mero:/i.test(text) &&
+        /Car[aá]tula:/i.test(text) &&
+        /Juzgado:/i.test(text) &&
+        text.length < 2500
+      ) {
+        if (!cards.includes(current)) cards.push(current);
+        break;
+      }
+      current = current.parentElement;
+    }
+  }
+
+  return cards;
+}
+
+function waitForMisCausasCards(callback: () => void, timeoutMs = 10000) {
+  if (extractMisCausasFromPage(document).length > 0) {
+    callback();
+    return;
+  }
+
+  const observer = new MutationObserver(() => {
+    if (extractMisCausasFromPage(document).length > 0) {
+      observer.disconnect();
+      callback();
+    }
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+  setTimeout(() => observer.disconnect(), timeoutMs);
+}
+
+async function bulkImportScbaNotifCases(cases: ScbaNotifCase[], source: string) {
+  return (await chrome.runtime.sendMessage({
+    type: 'BULK_IMPORT',
+    cases,
+    source,
+  })) as { status: string; imported: number; existing: number };
+}
+
+function mergeScbaNotifCases(
+  previous: ScbaNotifCase[],
+  next: ScbaNotifCase[]
+): ScbaNotifCase[] {
+  const map = new Map<string, ScbaNotifCase>();
+  for (const item of [...previous, ...next]) {
+    const key = item.id || `${item.caseNumber}:${item.court ?? ''}`;
+    map.set(key, item);
+  }
+  return Array.from(map.values());
+}
+
+function getMisCausasPageKey(): string {
+  const activePage =
+    document.querySelector('.pagination .active')?.textContent?.trim() ||
+    document.querySelector('li.active')?.textContent?.trim() ||
+    '';
+  const firstCase =
+    firstMatch(normalizeText(document.body.textContent ?? ''), /N[uú]mero:\s*([^\s]+)/i) ||
+    '';
+  return `${activePage || window.location.href}|${firstCase}`;
+}
+
+function showMisCausasStatus(message: string, variant: 'muted' | 'success' = 'muted') {
+  let status = document.getElementById('procu-asist-mis-causas-status');
+  if (!status) {
+    status = document.createElement('div');
+    status.id = 'procu-asist-mis-causas-status';
+    Object.assign(status.style, {
+      position: 'fixed',
+      right: '18px',
+      bottom: '150px',
+      zIndex: '999999',
+      maxWidth: '230px',
+      padding: '10px 14px',
+      borderRadius: '12px',
+      boxShadow: '0 8px 22px rgba(15, 23, 42, 0.22)',
+      fontSize: '12px',
+      fontWeight: '700',
+      textAlign: 'center',
+    });
+    document.body.appendChild(status);
+  }
+
+  status.textContent = message;
+  Object.assign(status.style, {
+    backgroundColor: variant === 'success' ? SUCCESS_COLOR : '#eff6ff',
+    color: variant === 'success' ? 'white' : SCBA_NOTIF_COLOR.primary,
+    border: variant === 'success' ? `1px solid ${SUCCESS_COLOR}` : '1px solid #bfdbfe',
+  });
+
+  if (variant === 'success') {
+    setTimeout(() => status?.remove(), 8000);
+  }
+}
+
+function normalizeText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function firstMatch(value: string, pattern: RegExp): string {
+  return value.match(pattern)?.[1]?.trim() ?? '';
+}
+
+function normalizeKey(value: string): string {
+  return value.replace(/\s+/g, '').toUpperCase();
+}
+
 function waitForElement(selector: string, callback: () => void, timeoutMs = 10000) {
   if (document.querySelector(selector)) {
     callback();
@@ -367,4 +741,3 @@ function waitForElement(selector: string, callback: () => void, timeoutMs = 1000
   observer.observe(document.body, { childList: true, subtree: true });
   setTimeout(() => observer.disconnect(), timeoutMs);
 }
-

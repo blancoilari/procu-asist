@@ -1,49 +1,98 @@
 # Roadmap de ProcuAsist
 
-ProcuAsist es una herramienta hecha por un abogado de la matrícula, para colegas. Es gratuita y sin fines de lucro. Acá te cuento qué viene y en qué orden.
+ProcuAsist es una herramienta hecha por un abogado de la matricula, para colegas. Es gratuita y sin fines de lucro.
 
-> **Nota**: este roadmap son intenciones, no compromisos. Los tiempos dependen de la disponibilidad y del feedback que reciba. Si algo te resulta urgente, escribime y vemos cómo priorizarlo.
+Este roadmap marca prioridades, no promesas cerradas. El orden puede cambiar segun estabilidad de los portales judiciales, feedback de usuarios y disponibilidad de prueba con casos reales.
 
----
+## Version actual: v0.6.0
 
-## Versión actual: v0.4.0
+Lo que ya existe:
 
-**Lo que ya funciona bien:**
-- **MEV (Provincia de Buenos Aires)**: descarga completa de expedientes en un ZIP enriquecido. Incluye un PDF resumen con todos los pasos procesales y los adjuntos descargados con reintentos. Selección de qué pasos procesales bajar.
-- **JUSCABA (Poder Judicial de CABA)**: auto-login, búsqueda de causas, marcadores básicos. (Descarga ZIP completa: en desarrollo).
-- **Marcadores**: guardá tus expedientes favoritos con un click y accedelos desde el panel lateral.
-- **Sincronización local**: todos tus datos se guardan en tu navegador. Nada se envía a servidores externos.
-- **Modo oscuro** opcional.
+- **MEV / SCBA**: auto-login, marcadores, monitoreo basico, descarga ZIP del expediente, seleccion de pasos procesales, PDF resumen y descarga de adjuntos.
+- **SCBA Notificaciones**: importacion masiva de causas desde novedades del portal.
+- **PJN**: auto-login SSO, lectura de listados y favoritos, descarga ZIP de expedientes desde SCW.
+- **JUSCABA / EJE**: auto-login y extraccion basica de causas.
+- **Credenciales locales**: cifrado AES-GCM protegido por PIN.
+- **Modelo local-first**: los datos se guardan en el navegador; no hay backend obligatorio.
 
----
+## Prioridad inmediata: ProcuAsist gratis estable
 
-## Próximos hitos
+### v0.6.x - Saneamiento publico y Store
 
-### v0.5.0 — Descarga completa en JUSCABA
-Llevar JUSCABA al mismo nivel que MEV: descarga del expediente completo en un ZIP con PDF resumen y adjuntos. Mismo selector de pasos procesales.
+- Actualizar README, manual, assets de publicacion y descripciones.
+- Corregir claims viejos sobre Chrome Web Store, PJN y monitoreo.
+- Mejorar capturas y textos de la ficha publica.
+- Dejar claro que ProcuAsist gratis no requiere cuentas ni servidores.
 
-### v0.6.0 — Portal del Poder Judicial de la Nación (PJN)
-Sumar `sso.pjn.gov.ar` con auto-login, búsqueda y descarga completa. Replicar las opciones nativas del portal: "despachos/escritos", "notificaciones", "información", "ver todos".
+### v0.7.0 - UI unificada en portales
 
-### v0.7.0 — Login más simple
-Repensar el flujo de PIN maestro para que sea más intuitivo. Posibilidad de agregar un email opcional para futuras funciones (resumen diario, etc.).
+- Unificar la botonera de acciones en MEV, PJN y EJE.
+- Usar un mismo lenguaje visual para Configuracion, ZIP, Guardar y Monitorear.
+- Alinear estados de carga, exito, error y progreso.
+- Tomar como base el estilo mas sobrio de PJN.
 
-### v0.8.0 — Monitoreo automático de causas
-Marcar causas como "monitoreadas" y recibir notificaciones cuando hay movimientos nuevos. Frecuencia de chequeo configurable. Funciona en MEV primero.
+### v0.8.0 - SCBA / MEV mas solido
 
-### v1.0.0 — Monitoreo en JUSCABA y PJN
-Llevar el monitoreo automático a los tres portales. Versión 1.0 con paridad de funciones.
+- Mejorar importaciones desde resultados y sets de busqueda.
+- Consolidar importacion desde `notificaciones.scba.gov.ar`.
+- Revisar monitoreo, frecuencia, mensajes y casos de sesion vencida.
+- Mejorar errores y diagnostico para soporte.
 
----
+### v0.9.0 - PJN mas solido
 
-## Cómo colaborar
+- Mejorar mensajes cuando falta token o sesion.
+- Consolidar importacion desde favoritos/listados.
+- Reforzar collector y ZIP en expedientes grandes.
+- Mejorar estados de progreso y verificacion.
 
-- **Reportar errores o pedir features**: escribime a [blancoilariasistente@gmail.com](mailto:blancoilariasistente@gmail.com?subject=ProcuAsist%20-%20feedback) o abrí un issue en [GitHub](https://github.com/blancoilari/procu-asist/issues). Cuanto más detalle (qué portal, qué pasos hiciste, qué esperabas), mejor puedo arreglarlo.
-- **Invitarme un cafecito**: si te resulta útil y querés colaborar con la causa, podés hacerlo desde [cafecito.app/procuasist](https://cafecito.app/procuasist). No es necesario, pero ayuda a mantener el proyecto.
-- **Compartirla con colegas**: pasale el link a otros abogados que puedan aprovecharla.
+### v1.0.0 - Vista diaria de procuracion
 
----
+- Vista "movimientos desde fecha".
+- Filtros por portal, causa y estado.
+- Links directos para revisar movimientos cuando el portal lo permita.
+- Mejor soporte para trabajo diario sobre causas guardadas o monitoreadas.
+
+## Despues de la v1 gratis
+
+### Capa premium futura
+
+La etapa paga se pensara despues de consolidar el producto gratis.
+
+Lineas candidatas:
+
+- sync entre dispositivos
+- equipos por estudio
+- tablero web
+- digest diario/semanal
+- plazos y responsables
+- copiloto IA sobre expediente
+- borradores de presentaciones
+
+### SCBA PyNE
+
+Objetivo futuro razonable:
+
+- preparar borradores de presentaciones electronicas
+- completar campos y texto base
+- ayudar con adjuntos
+- dejar listo para revision y firma
+
+No se apunta inicialmente a firma o envio automatico sin control humano.
+
+### PJN escritos
+
+Objetivo futuro razonable:
+
+- asistir en la preparacion de escritos
+- generar PDF o borrador listo para subir
+- guiar al usuario en el flujo del portal
+
+## Como colaborar
+
+- Reportar errores o pedir features: [blancoilariasistente@gmail.com](mailto:blancoilariasistente@gmail.com?subject=ProcuAsist%20-%20feedback)
+- Issues en GitHub: <https://github.com/blancoilari/procu-asist/issues>
+- Donaciones voluntarias: <https://cafecito.app/procuasist>
 
 ## Historial de versiones
 
-Ver [CHANGELOG.md](CHANGELOG.md) para el detalle de cambios por versión.
+Ver [CHANGELOG.md](CHANGELOG.md) para el detalle de cambios por version.

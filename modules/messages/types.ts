@@ -32,6 +32,7 @@ export type ProcuAsistMessage =
   | MarkAlertReadMessage
   | MarkAllAlertsReadMessage
   | RunScanNowMessage
+  | RunScanSinceMessage
   | PjnGetEventsDebugMessage
   | PjnDownloadPdfMessage
   | PjnGenerateZipMessage;
@@ -116,8 +117,9 @@ export interface GetCredentialsMessage {
 
 export interface BulkImportMessage {
   type: 'BULK_IMPORT';
-  cases: Array<{ caseNumber: string; title: string }>;
+  cases: Array<Partial<Case> & { caseNumber: string; title: string }>;
   source: string;
+  monitor?: boolean;
 }
 
 export interface ParseCaseHtmlMessage {
@@ -218,6 +220,11 @@ export interface MarkAllAlertsReadMessage {
 
 export interface RunScanNowMessage {
   type: 'RUN_SCAN_NOW';
+}
+
+export interface RunScanSinceMessage {
+  type: 'RUN_SCAN_SINCE';
+  fromDate: string;
 }
 
 export interface PjnGetEventsDebugMessage {
