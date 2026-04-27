@@ -81,6 +81,10 @@ export async function updateBookmark(
   bookmarks[idx] = {
     ...bookmarks[idx],
     ...partial,
+    metadata: {
+      ...bookmarks[idx].metadata,
+      ...partial.metadata,
+    },
     updatedAt: new Date().toISOString(),
   };
   await chrome.storage.local.set({ [STORAGE_KEY]: bookmarks });

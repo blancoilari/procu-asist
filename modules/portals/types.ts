@@ -21,10 +21,13 @@ export interface CaseMetadata {
   nidCausa?: string; // Internal MEV case ID
   pidJuzgado?: string; // Internal MEV court ID
   set?: string; // Search set name
+  source?: string;
   sesion?: string; // Session/fuero name
   fechaInicio?: string;
   estadoPortal?: string;
   numeroReceptoria?: string;
+  mevEnrichedAt?: string;
+  mevMatchScore?: string;
 }
 
 /** A single movement within a case */
