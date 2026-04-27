@@ -27,7 +27,6 @@ export default defineConfig({
       'https://portalpjn.pjn.gov.ar/*',
       'https://api.pjn.gov.ar/*',
       'https://scw.pjn.gov.ar/*',
-      'https://notificaciones.scba.gov.ar/*',
     ],
     action: {},
     side_panel: {
@@ -39,7 +38,6 @@ export default defineConfig({
         matches: [
           'https://mev.scba.gov.ar/*',
           'https://eje.jus.gov.ar/*',
-          'https://notificaciones.scba.gov.ar/*',
         ],
       },
     ],

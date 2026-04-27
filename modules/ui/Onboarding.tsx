@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react';
+import { Scale } from 'lucide-react';
 
 const ONBOARDING_KEY = 'tl_onboarding_done';
 
@@ -13,7 +14,7 @@ interface OnboardingProps {
 
 const STEPS = [
   {
-    icon: '🚀',
+    icon: '',
     title: 'Bienvenido a ProcuAsist',
     description:
       'Tu copiloto legal para los portales judiciales. Hecho por un abogado de la matrícula, para colegas. Gratis y sin fines de lucro.',
@@ -115,7 +116,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       >
         {/* Icon */}
         <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary-light text-4xl animate-scale-in">
-          {current.icon}
+          {step === 0 ? (
+            <Scale size={42} strokeWidth={2.25} className="text-primary" />
+          ) : (
+            current.icon
+          )}
         </div>
 
         {/* Title */}

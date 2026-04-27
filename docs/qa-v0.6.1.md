@@ -13,7 +13,6 @@ Fecha objetivo: 2026-04-27.
 - [ ] Confirmar que el panel muestra `v0.6.1`.
 - [ ] Abrir una pestana MEV logueada.
 - [ ] Abrir una pestana PJN/SCW logueada si se va a probar PJN.
-- [ ] Abrir `notificaciones.scba.gov.ar` logueado si se va a probar SCBA Notificaciones.
 
 ## 2. Side panel
 
@@ -35,16 +34,11 @@ Fecha objetivo: 2026-04-27.
 - [ ] Desde resultados MEV, el boton Importar importa causas visibles y las monitorea.
 - [ ] Desde sets de busqueda MEV, `Importar set` recorre los organismos del set y muestra resumen final.
 
-## 4. SCBA Notificaciones
+## 4. Fuera de alcance: SCBA Notificaciones
 
-- [ ] En Novedades aparece la importacion masiva cuando hay tabla compatible.
-- [ ] En Mis Causas aparece `Importar Mis Causas`.
-- [ ] `Importar Mis Causas` recorre las paginas disponibles o termina sin colgarse si el portal no pagina correctamente.
-- [ ] Las causas importadas aparecen en Marcadores.
-- [ ] `Completar datos MEV` cruza primero contra causas MEV ya conocidas.
-- [ ] Con una pestana MEV abierta y logueada, `Completar datos MEV` busca pendientes en tandas.
-- [ ] El mensaje informa enriquecidas, monitoreadas, pendientes y si se puede repetir otra tanda.
-- [ ] Las causas enriquecidas quedan monitoreadas y se pueden abrir desde el panel.
+- [ ] Confirmar que ProcuAsist no inyecta botones en `notificaciones.scba.gov.ar`.
+- [ ] Confirmar que el manifest no solicita permisos para `notificaciones.scba.gov.ar`.
+- [ ] Confirmar que el panel no muestra `Completar datos MEV` para causas importadas desde Notificaciones.
 
 ## 5. Monitoreo y movimientos desde fecha
 
@@ -86,7 +80,7 @@ Fecha objetivo: 2026-04-27.
 
 ## 10. Riesgos conocidos aceptables
 
-- MEV y SCBA Notificaciones dependen de sesion abierta del usuario.
-- La busqueda asistida de pendientes MEV se ejecuta en tandas para evitar sobrecargar el portal.
+- MEV depende de sesion abierta del usuario.
+- `notificaciones.scba.gov.ar` queda reservado para una etapa futura de gestion avanzada porque usa otro login y puede no estar sincronizado con MEV.
 - Algunos expedientes PJN pueden no entregar PDF descargable segun estado, permisos o tipo de actuacion.
 - EJE queda con soporte basico hasta una fase posterior.

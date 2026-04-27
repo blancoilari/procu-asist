@@ -3,7 +3,7 @@ import { Scale } from 'lucide-react';
 import type { PortalId } from '@/modules/portals/types';
 import { MEV_DEPARTAMENTOS } from '@/modules/portals/mev-selectors';
 
-type Page = 'credentials' | 'monitoring' | 'appearance' | 'account';
+type Page = 'credentials' | 'monitoring' | 'appearance';
 
 export default function App() {
   const [activePage, setActivePage] = useState<Page>('credentials');
@@ -30,7 +30,6 @@ export default function App() {
               ['credentials', 'Credenciales'],
               ['monitoring', 'Monitoreo'],
               ['appearance', 'Apariencia'],
-              ['account', 'Cuenta'],
             ] as [Page, string][]
           ).map(([page, label]) => (
             <li key={page}>
@@ -69,7 +68,6 @@ export default function App() {
         )}
         {activePage === 'monitoring' && <MonitoringPage />}
         {activePage === 'appearance' && <AppearancePage />}
-        {activePage === 'account' && <AccountPage />}
       </main>
     </div>
   );
@@ -439,45 +437,6 @@ function AppearancePage() {
           />
         </button>
       </label>
-    </div>
-  );
-}
-
-function AccountPage() {
-  return (
-    <div>
-      <h2 className="mb-6 text-2xl font-bold">Cuenta</h2>
-
-      {/* Plan Info */}
-      <section className="mb-6 rounded-lg border border-border p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">Plan actual</p>
-            <p className="text-xs text-text-secondary">
-              Gratuito — todas las funciones habilitadas, sin límites
-            </p>
-          </div>
-          <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
-            Gratis
-          </span>
-        </div>
-      </section>
-
-      {/* Auth */}
-      <section className="rounded-lg border border-border p-4">
-        <p className="mb-4 text-sm text-text-secondary">
-          Iniciá sesión para sincronizar tus marcadores y monitoreos entre
-          dispositivos.
-        </p>
-        <div className="flex flex-col gap-2">
-          <button className="flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-bg-secondary">
-            Iniciar sesión con Google
-          </button>
-          <button className="flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-bg-secondary">
-            Iniciar sesión con Outlook
-          </button>
-        </div>
-      </section>
     </div>
   );
 }

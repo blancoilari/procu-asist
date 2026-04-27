@@ -25,7 +25,6 @@
 ProcuAsist es una extension para Google Chrome que funciona como copiloto legal. Automatiza tareas repetitivas en portales judiciales usados por abogados que litigan en Provincia de Buenos Aires, Justicia Nacional/Federal y CABA:
 
 - **MEV / SCBA** (Mesa de Entradas Virtual - Provincia de Buenos Aires) — mev.scba.gov.ar
-- **SCBA Notificaciones** — notificaciones.scba.gov.ar
 - **PJN** (Poder Judicial de la Nacion) — scw.pjn.gov.ar / portalpjn.pjn.gov.ar
 - **JUSCABA / EJE** (Poder Judicial de CABA) — eje.jus.gov.ar
 
@@ -34,7 +33,7 @@ Con ProcuAsist podes:
 - Guardar causas como marcadores para acceder rapido
 - Recibir notificaciones cuando hay movimientos nuevos en tus causas
 - **Descargar el expediente completo en un ZIP** con pasos procesales, documentos y adjuntos cuando el portal lo permite
-- Importar causas desde resultados de busqueda y desde SCBA Notificaciones
+- Importar causas desde resultados y sets de busqueda MEV
 - Y mucho mas
 
 ---
