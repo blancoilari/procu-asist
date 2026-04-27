@@ -28,6 +28,8 @@ export interface CaseMetadata {
   numeroReceptoria?: string;
   mevEnrichedAt?: string;
   mevMatchScore?: string;
+  mevLookupAttemptedAt?: string;
+  mevLookupStatus?: string;
 }
 
 /** A single movement within a case */

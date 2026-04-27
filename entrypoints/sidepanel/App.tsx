@@ -296,6 +296,11 @@ function BookmarksTab({ search }: { search: string }) {
         enriched?: number;
         monitored?: number;
         unmatched?: number;
+        searched?: number;
+        searchMatches?: number;
+        searchErrors?: number;
+        needsMevTab?: boolean;
+        searchLimitReached?: boolean;
       };
 
       if (!resp?.success) {
@@ -303,11 +308,18 @@ function BookmarksTab({ search }: { search: string }) {
         return;
       }
 
-      setEnrichMessage(
-        `Cruce listo: ${resp.enriched ?? 0} enriquecidas, ` +
-          `${resp.monitored ?? 0} monitoreadas, ` +
-          `${resp.unmatched ?? 0} pendientes.`
-      );
+      const details = [
+        `Cruce listo: ${resp.enriched ?? 0} enriquecidas`,
+        `${resp.monitored ?? 0} monitoreadas`,
+        `${resp.unmatched ?? 0} pendientes`,
+      ];
+      if (resp.searched) {
+        details.push(`${resp.searchMatches ?? 0}/${resp.searched} encontradas en MEV`);
+      }
+      if (resp.searchErrors) details.push(`${resp.searchErrors} con error`);
+      if (resp.needsMevTab) details.push('abrí MEV para buscar pendientes');
+      if (resp.searchLimitReached) details.push('podés repetir para otra tanda');
+      setEnrichMessage(`${details.join(', ')}.`);
       await loadBookmarks();
     } catch {
       setEnrichMessage('Error al cruzar causas con MEV.');

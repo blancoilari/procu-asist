@@ -44,6 +44,8 @@ import {
   downloadMevAttachment,
   findMevTab,
 } from '@/modules/pdf/attachment-downloader';
+import { MEV_BASE_URL, MEV_URLS } from '@/modules/portals/mev-selectors';
+import type { MevSearchResult } from '@/modules/portals/mev-parser';
 import { handleSessionExpired } from './auto-reconnect';
 import { scanMonitoredCases } from './case-monitor';
 import { getEvents } from '@/modules/portals/pjn-api-client';
@@ -530,6 +532,8 @@ interface EnrichCandidate {
   pidJuzgado: string;
 }
 
+const SCBA_MEV_LOOKUP_BATCH_SIZE = 12;
+
 async function enrichScbaMisCausas() {
   const bookmarks = await getBookmarks();
   const monitors = await getMonitors();
@@ -566,10 +570,17 @@ async function enrichScbaMisCausas() {
   let enriched = 0;
   let monitored = 0;
   let unmatched = 0;
+  let searched = 0;
+  let searchMatches = 0;
+  let searchErrors = 0;
+  let needsMevTab = false;
+  let searchLimitReached = false;
+  const stillPendingForSearch = [];
 
   for (const bookmark of pending) {
     const match = findBestMevMatch(bookmark, candidates);
     if (!match || match.score < 82) {
+      stillPendingForSearch.push(bookmark);
       unmatched++;
       continue;
     }
@@ -601,6 +612,72 @@ async function enrichScbaMisCausas() {
     if (!wasMonitored) monitored++;
   }
 
+  if (stillPendingForSearch.length > 0) {
+    const mevTabId = await findMevTab();
+    if (!mevTabId) {
+      needsMevTab = true;
+    } else {
+      const batch = stillPendingForSearch.slice(0, SCBA_MEV_LOOKUP_BATCH_SIZE);
+      searchLimitReached = stillPendingForSearch.length > batch.length;
+
+      for (const bookmark of batch) {
+        searched++;
+        try {
+          const match = await searchBestMevMatchForBookmark(mevTabId, bookmark);
+          if (!match || match.score < 88) {
+            await updateBookmark(bookmark.portal, bookmark.caseNumber, {
+              metadata: {
+                ...bookmark.metadata,
+                mevLookupAttemptedAt: new Date().toISOString(),
+                mevLookupStatus: match
+                  ? `low_score:${match.score}`
+                  : 'not_found',
+              },
+            });
+            continue;
+          }
+
+          await updateBookmark(bookmark.portal, bookmark.caseNumber, {
+            portalUrl: match.candidate.portalUrl || bookmark.portalUrl,
+            metadata: {
+              ...bookmark.metadata,
+              nidCausa: match.candidate.nidCausa,
+              pidJuzgado: match.candidate.pidJuzgado,
+              mevEnrichedAt: new Date().toISOString(),
+              mevMatchScore: String(match.score),
+              mevLookupAttemptedAt: new Date().toISOString(),
+              mevLookupStatus: 'matched_by_mev_search',
+            },
+          });
+          enriched++;
+          searchMatches++;
+
+          const wasMonitored = await isMonitored(bookmark.portal, bookmark.caseNumber);
+          await addMonitor({
+            portal: bookmark.portal,
+            caseNumber: bookmark.caseNumber,
+            title: bookmark.title,
+            court: bookmark.court,
+            portalUrl: match.candidate.portalUrl || bookmark.portalUrl,
+            metadata: {
+              nidCausa: match.candidate.nidCausa,
+              pidJuzgado: match.candidate.pidJuzgado,
+            },
+          });
+          if (!wasMonitored) monitored++;
+        } catch (err) {
+          searchErrors++;
+          console.warn(
+            `[ProcuAsist] MEV lookup failed for ${bookmark.caseNumber}:`,
+            err
+          );
+        }
+
+        await delay(800);
+      }
+    }
+  }
+
   return {
     success: true,
     totalPending: pending.length,
@@ -608,7 +685,192 @@ async function enrichScbaMisCausas() {
     enriched,
     monitored,
     unmatched,
+    searched,
+    searchMatches,
+    searchErrors,
+    needsMevTab,
+    searchLimitReached,
   };
+}
+
+async function searchBestMevMatchForBookmark(
+  mevTabId: number,
+  bookmark: { caseNumber: string; title: string; court: string }
+): Promise<{ candidate: EnrichCandidate; score: number } | null> {
+  const queries = buildMevSearchQueries(bookmark);
+  let best: { candidate: EnrichCandidate; score: number } | null = null;
+
+  for (const query of queries) {
+    const results = await fetchMevSearchResults(mevTabId, query);
+    const candidates = results.map((result) => ({
+      caseNumber: result.numero,
+      title: result.caratula,
+      court: '',
+      portalUrl: result.url,
+      nidCausa: result.nidCausa,
+      pidJuzgado: result.pidJuzgado,
+    }));
+    const match = findBestMevMatch(bookmark, candidates);
+    if (match && (!best || match.score > best.score)) best = match;
+    if (best && best.score >= 94) break;
+  }
+
+  return best;
+}
+
+function buildMevSearchQueries(bookmark: { title: string; caseNumber: string }): string[] {
+  const normalizedTitle = normalizeWhitespace(bookmark.title);
+  const actor = normalizeWhitespace(
+    normalizedTitle
+      .split(/\s+C\/|\s+S\/|\s+C\s+/i)[0]
+      ?.replace(/\s+Y\s+OTROS?.*$/i, '') ?? ''
+  );
+  const compactNumber = bookmark.caseNumber.replace(/\D+/g, '');
+
+  return Array.from(
+    new Set(
+      [actor, normalizedTitle.slice(0, 95), compactNumber]
+        .map((query) => query.trim())
+        .filter((query) => query.length >= 4)
+    )
+  ).slice(0, 3);
+}
+
+async function fetchMevSearchResults(
+  mevTabId: number,
+  query: string
+): Promise<MevSearchResult[]> {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: mevTabId },
+    world: 'MAIN',
+    func: async (baseUrl: string, busquedaPath: string, queryText: string) => {
+      try {
+        const busquedaUrl = new URL(busquedaPath, baseUrl).href;
+        const busquedaResp = await fetch(busquedaUrl, {
+          credentials: 'include',
+          headers: { Accept: 'text/html' },
+        });
+        if (!busquedaResp.ok) return { error: `HTTP ${busquedaResp.status}` };
+
+        const busquedaBuffer = await busquedaResp.arrayBuffer();
+        const busquedaHtml = new TextDecoder('windows-1252').decode(busquedaBuffer);
+        if (
+          busquedaHtml.toLowerCase().includes('ingrese los datos del usuario') ||
+          (busquedaHtml.toLowerCase().includes('name="usuario"') &&
+            busquedaHtml.toLowerCase().includes('name="clave"'))
+        ) {
+          return { error: 'session_expired' };
+        }
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(busquedaHtml, 'text/html');
+        const caratulaInput = doc.querySelector("input[name='caratula']");
+        const form = caratulaInput?.closest('form') ?? doc.querySelector('form');
+        if (!form) return { error: 'search_form_not_found' };
+
+        const formData = new FormData(form as HTMLFormElement);
+        formData.set('radio', 'xCa');
+        formData.set('caratula', queryText);
+        if (formData.has('NCausa')) formData.set('NCausa', '');
+        if (!formData.has('Buscar')) formData.set('Buscar', 'Buscar');
+
+        const params = new URLSearchParams();
+        for (const [key, value] of formData.entries()) {
+          if (typeof value === 'string') params.set(key, value);
+        }
+
+        const formEl = form as HTMLFormElement;
+        const action = new URL(
+          formEl.getAttribute('action') || 'resultados.asp',
+          busquedaUrl
+        );
+        const method = (formEl.method || 'GET').toUpperCase();
+        let resultResp: Response;
+        if (method === 'POST') {
+          resultResp = await fetch(action.href, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              Accept: 'text/html',
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: params,
+          });
+        } else {
+          params.forEach((value, key) => action.searchParams.set(key, value));
+          resultResp = await fetch(action.href, {
+            credentials: 'include',
+            headers: { Accept: 'text/html' },
+          });
+        }
+
+        if (!resultResp.ok) return { error: `HTTP ${resultResp.status}` };
+        const resultBuffer = await resultResp.arrayBuffer();
+        const html = new TextDecoder('windows-1252').decode(resultBuffer);
+        const resultDoc = parser.parseFromString(html, 'text/html');
+        const links = Array.from(
+          resultDoc.querySelectorAll("a[href*='procesales.asp?nidCausa=']")
+        ) as HTMLAnchorElement[];
+        const seen = new Map<
+          string,
+          {
+            nidCausa: string;
+            pidJuzgado: string;
+            caratula: string;
+            numero: string;
+            ultimoMovimiento: string;
+            estado: string;
+            url: string;
+          }
+        >();
+
+        for (const link of links) {
+          const href = new URL(link.getAttribute('href') || '', baseUrl).href;
+          const url = new URL(href);
+          const nidCausa = url.searchParams.get('nidCausa') || '';
+          const pidJuzgado = url.searchParams.get('pidJuzgado') || '';
+          if (!nidCausa) continue;
+
+          const text = link.textContent?.trim() ?? '';
+          if (!seen.has(nidCausa)) {
+            const row = link.closest('tr');
+            const rowText = row?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+            const formattedNumber = rowText.match(/([A-Z]{1,3})\s*-\s*(\d+)\s*-\s*(\d{4})/);
+            const plainNumber = rowText.match(/(?:N[úu]mero|Expediente|Receptor[ií]a)?\s*:?\s*(\d{4,8})/i);
+            seen.set(nidCausa, {
+              nidCausa,
+              pidJuzgado,
+              caratula: text,
+              numero: formattedNumber
+                ? `${formattedNumber[1]}-${formattedNumber[2]}-${formattedNumber[3]}`
+                : plainNumber?.[1] ?? '',
+              ultimoMovimiento: '',
+              estado: '',
+              url: href,
+            });
+          } else {
+            seen.get(nidCausa)!.ultimoMovimiento = text;
+          }
+        }
+
+        return { results: Array.from(seen.values()) };
+      } catch (e) {
+        return { error: String(e) };
+      }
+    },
+    args: [MEV_BASE_URL, MEV_URLS.busqueda, query],
+  });
+
+  const response = results[0]?.result as
+    | { results: MevSearchResult[] }
+    | { error: string }
+    | null;
+
+  if (!response || 'error' in response) {
+    throw new Error(response?.error ?? 'No MEV search response');
+  }
+
+  return response.results;
 }
 
 function findBestMevMatch(
@@ -681,6 +943,14 @@ function normalizeMatchText(value: string): string {
     .replace(/[^A-Z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 const MATCH_STOPWORDS = new Set([
