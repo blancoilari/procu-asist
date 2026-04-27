@@ -14,7 +14,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 - Te permite **descargar el expediente completo** de MEV/SCBA (Provincia de Buenos Aires) y **PJN** (Poder Judicial de la Nación) en un único ZIP, con un PDF resumen y las actuaciones con sus documentos.
 - Guarda **marcadores** de tus expedientes favoritos, accesibles desde un panel lateral del navegador.
 - Permite **monitorear causas** y recibir alertas de movimientos nuevos, especialmente en MEV/SCBA.
-- Ayuda a **importar causas** desde resultados, sets de búsqueda MEV y el portal de notificaciones SCBA.
+- Ayuda a **importar causas** desde resultados y sets de búsqueda MEV.
 - Permite buscar **movimientos desde una fecha** en causas MEV monitoreadas.
 
 **Cómo instalarla:**
@@ -40,7 +40,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 - **Descarga ZIP del expediente completo** con un click — incluye resumen PDF + un PDF por cada paso procesal (con todos sus metadatos) + adjuntos
 - **Selección de pasos procesales** a descargar antes de generar el ZIP
 - **Verificación automática** de la descarga con informe de errores
-- **Importación masiva** de causas desde resultados, sets de búsqueda MEV y SCBA Notificaciones
+- **Importación masiva** de causas desde resultados y sets de búsqueda MEV
 - **Onboarding wizard** para nuevos usuarios
 - **Encriptación local** de credenciales con AES-GCM y PIN
 
@@ -49,7 +49,6 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 | Portal | URL | Funcionalidades |
 |--------|-----|-----------------|
 | MEV / SCBA (Mesa de Entradas Virtual - Provincia de Buenos Aires) | mev.scba.gov.ar | Auto-login, extracción de causas, marcadores, monitoreo, descarga ZIP |
-| SCBA Notificaciones | notificaciones.scba.gov.ar | Importación masiva desde novedades y Mis Causas, con cruce asistido contra MEV |
 | PJN (Poder Judicial de la Nación) | scw.pjn.gov.ar, portalpjn.pjn.gov.ar, api.pjn.gov.ar | Auto-login SSO, listado de causas, descarga ZIP del expediente |
 | JUSCABA / EJE (Poder Judicial de CABA) | eje.jus.gov.ar | Auto-login y extracción básica de causas |
 

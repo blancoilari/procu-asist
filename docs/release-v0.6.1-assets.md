@@ -4,7 +4,7 @@ Materiales para actualizar Chrome Web Store con la version gratuita estabilizada
 
 ## 1. Resumen de version
 
-ProcuAsist v0.6.1 consolida la version gratuita: mejora importaciones SCBA/MEV, agrega busqueda de movimientos desde fecha, completa datos internos MEV de causas importadas desde Notificaciones y deja mas claro el flujo de monitoreo.
+ProcuAsist v0.6.1 consolida la version gratuita: mejora importaciones MEV, agrega busqueda de movimientos desde fecha y deja mas claro el flujo de monitoreo sin requerir cuentas externas ni backend.
 
 ## 2. Descripcion corta
 
@@ -26,13 +26,10 @@ QUE HACE
 - Monitorea causas MEV y muestra alertas de movimientos.
 - Busca movimientos desde una fecha indicada en causas monitoreadas.
 - Importa causas desde resultados y sets de busqueda MEV.
-- Importa causas desde SCBA Notificaciones y Mis Causas.
-- Completa datos internos MEV de causas importadas desde Notificaciones cuando encuentra coincidencias.
 - Cifra credenciales localmente con PIN maestro.
 
 PORTALES SOPORTADOS
 - MEV / SCBA: mev.scba.gov.ar
-- SCBA Notificaciones: notificaciones.scba.gov.ar
 - PJN: scw.pjn.gov.ar, portalpjn.pjn.gov.ar, api.pjn.gov.ar
 - JUSCABA / EJE: eje.jus.gov.ar, con funciones basicas
 
@@ -50,8 +47,6 @@ ProcuAsist se ofrece "tal cual", sin garantias. No reemplaza el control manual d
 - [ ] Modal de ZIP MEV con seleccion de pasos.
 - [ ] Panel Marcadores con causas importadas.
 - [ ] Panel Monitoreo con busqueda desde fecha.
-- [ ] SCBA Notificaciones > Mis Causas con `Importar Mis Causas`.
-- [ ] Resultado de `Completar datos MEV`.
 - [ ] PJN con boton ZIP.
 
 ## 5. Checklist tecnico
@@ -69,7 +64,7 @@ ProcuAsist se ofrece "tal cual", sin garantias. No reemplaza el control manual d
 ```text
 Actualice ProcuAsist, la extension gratis de Chrome para abogados.
 
-Ahora importa Mis Causas de SCBA Notificaciones, completa datos MEV cuando encuentra coincidencias, permite buscar movimientos desde una fecha y mantiene la descarga ZIP de MEV/SCBA y PJN.
+Ahora importa sets de busqueda MEV, permite buscar movimientos desde una fecha y mantiene la descarga ZIP de MEV/SCBA y PJN.
 
 Chrome Web Store:
 https://chromewebstore.google.com/detail/procuasist-copiloto-legal/dbkfeofoijnkclfpigimiodcccpjakem

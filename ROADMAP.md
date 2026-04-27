@@ -9,8 +9,7 @@ Este roadmap marca prioridades, no promesas cerradas. El orden puede cambiar seg
 Lo que ya existe:
 
 - **MEV / SCBA**: auto-login, marcadores, monitoreo basico, descarga ZIP del expediente, seleccion de pasos procesales, PDF resumen y descarga de adjuntos.
-- **SCBA Notificaciones**: importacion masiva de causas desde novedades del portal.
-- **SCBA Mis Causas**: importacion desde Notificaciones, cruce con MEV y busqueda asistida para completar datos internos.
+- **MEV sets de busqueda**: importacion masiva desde resultados y sets del portal MEV.
 - **PJN**: auto-login SSO, lectura de listados y favoritos, descarga ZIP de expedientes desde SCW.
 - **JUSCABA / EJE**: auto-login y extraccion basica de causas.
 - **Credenciales locales**: cifrado AES-GCM protegido por PIN.
@@ -34,8 +33,8 @@ Lo que ya existe:
 
 ### v0.8.0 - SCBA / MEV mas solido
 
-- Mejorar importaciones desde resultados, sets de busqueda y Mis Causas.
-- Consolidar importacion desde `notificaciones.scba.gov.ar`.
+- Mejorar importaciones desde resultados y sets de busqueda MEV.
+- Mantener `notificaciones.scba.gov.ar` fuera del flujo gratuito hasta resolver diferencias de login y sincronizacion con MEV.
 - Revisar monitoreo, frecuencia, mensajes y casos de sesion vencida.
 - Mejorar errores y diagnostico para soporte.
 
@@ -73,6 +72,7 @@ Lineas candidatas:
 
 Objetivo futuro razonable:
 
+- integrar `notificaciones.scba.gov.ar` cuando haga falta para gestion avanzada
 - preparar borradores de presentaciones electronicas
 - completar campos y texto base
 - ayudar con adjuntos

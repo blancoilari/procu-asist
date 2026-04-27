@@ -194,8 +194,6 @@ function BookmarksTab({ search }: { search: string }) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastDetected, setLastDetected] = useState<Case | null>(null);
-  const [enrichingScba, setEnrichingScba] = useState(false);
-  const [enrichMessage, setEnrichMessage] = useState('');
 
   const loadBookmarks = useCallback(async () => {
     try {
@@ -276,58 +274,6 @@ function BookmarksTab({ search }: { search: string }) {
     }
   };
 
-  const scbaPending = bookmarks.filter(
-    (b) =>
-      b.metadata?.set === 'scba-mis-causas' &&
-      (!b.metadata.nidCausa || !b.metadata.pidJuzgado)
-  ).length;
-
-  const handleEnrichScba = async () => {
-    if (enrichingScba) return;
-    setEnrichingScba(true);
-    setEnrichMessage('Cruzando con causas MEV ya conocidas...');
-    try {
-      const resp = (await chrome.runtime.sendMessage({
-        type: 'ENRICH_SCBA_MIS_CAUSAS',
-      })) as {
-        success?: boolean;
-        totalPending?: number;
-        candidates?: number;
-        enriched?: number;
-        monitored?: number;
-        unmatched?: number;
-        searched?: number;
-        searchMatches?: number;
-        searchErrors?: number;
-        needsMevTab?: boolean;
-        searchLimitReached?: boolean;
-      };
-
-      if (!resp?.success) {
-        setEnrichMessage('No se pudo completar el cruce.');
-        return;
-      }
-
-      const details = [
-        `Cruce listo: ${resp.enriched ?? 0} enriquecidas`,
-        `${resp.monitored ?? 0} monitoreadas`,
-        `${resp.unmatched ?? 0} pendientes`,
-      ];
-      if (resp.searched) {
-        details.push(`${resp.searchMatches ?? 0}/${resp.searched} encontradas en MEV`);
-      }
-      if (resp.searchErrors) details.push(`${resp.searchErrors} con error`);
-      if (resp.needsMevTab) details.push('abrí MEV para buscar pendientes');
-      if (resp.searchLimitReached) details.push('podés repetir para otra tanda');
-      setEnrichMessage(`${details.join(', ')}.`);
-      await loadBookmarks();
-    } catch {
-      setEnrichMessage('Error al cruzar causas con MEV.');
-    } finally {
-      setEnrichingScba(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -341,31 +287,6 @@ function BookmarksTab({ search }: { search: string }) {
       {/* Quick-add banner when on a case page */}
       {lastDetected && (
         <QuickAddBanner caseData={lastDetected} onAdd={handleAddCurrent} />
-      )}
-
-      {scbaPending > 0 && (
-        <div className="border-b border-blue-100 bg-blue-50 px-4 py-3 dark:border-blue-900 dark:bg-blue-950/40">
-          <div className="mb-2 flex items-start gap-2 text-xs text-blue-900 dark:text-blue-100">
-            <LinkIcon size={14} className="mt-0.5 shrink-0" />
-            <span>
-              Hay {scbaPending} causa{scbaPending !== 1 ? 's' : ''} importada
-              {scbaPending !== 1 ? 's' : ''} desde Notificaciones sin datos internos MEV.
-            </span>
-          </div>
-          <button
-            onClick={handleEnrichScba}
-            disabled={enrichingScba}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-slate-400"
-          >
-            <RefreshCw size={14} className={enrichingScba ? 'animate-spin' : ''} />
-            {enrichingScba ? 'Cruzando datos...' : 'Completar datos MEV'}
-          </button>
-          {enrichMessage && (
-            <p className="mt-2 text-[11px] leading-snug text-blue-800 dark:text-blue-200">
-              {enrichMessage}
-            </p>
-          )}
-        </div>
       )}
 
       {/* Bookmarks list */}
