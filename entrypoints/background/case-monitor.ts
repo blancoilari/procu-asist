@@ -7,7 +7,7 @@
  * 1. Get active monitors from storage
  * 2. For each MEV monitor: fetch procesales.asp using the session cookies
  *    of an open MEV tab (via chrome.scripting.executeScript in MAIN world)
- * 3. Send the HTML to the offscreen document for DOM parsing
+ * 3. Parse movements inside the MEV tab context
  * 4. Compare movement count with stored lastKnownMovementCount
  * 5. If new movements found: create alert + Chrome notification
  * 6. Update monitor with new scan data
@@ -23,6 +23,7 @@ import {
   updateMonitorScan,
   createAlert,
 } from '@/modules/storage/monitor-store';
+import { isDateOnOrAfter } from '@/modules/utils/date';
 
 /** How many cases to scan per batch (to avoid overloading) */
 const BATCH_SIZE = 5;
@@ -33,13 +34,15 @@ const FETCH_DELAY = 2000;
  * Main scan entry point. Called by alarm-manager every 6 hours
  * or manually via RUN_SCAN_NOW message.
  */
-export async function scanMonitoredCases(): Promise<ScanResult> {
+export async function scanMonitoredCases(options: ScanOptions = {}): Promise<ScanResult> {
   console.debug('[ProcuAsist] Starting monitored cases scan...');
 
   const monitors = await getActiveMonitors();
   if (monitors.length === 0) {
     console.debug('[ProcuAsist] No active monitors, skipping scan');
-    return { scanned: 0, newMovements: 0, errors: 0 };
+    const result = { scanned: 0, newMovements: 0, errors: 0, matchedMovements: 0 };
+    await storeScanResult(result, options.fromDate, []);
+    return result;
   }
 
   // Find an open MEV tab to use for fetching
@@ -47,14 +50,22 @@ export async function scanMonitoredCases(): Promise<ScanResult> {
   if (!mevTabId) {
     console.warn('[ProcuAsist] No MEV tab found, cannot scan');
     await notifyNoSession();
-    return { scanned: 0, newMovements: 0, errors: 0, skippedReason: 'no_tab' };
+    const result = {
+      scanned: 0,
+      newMovements: 0,
+      errors: 0,
+      matchedMovements: 0,
+      skippedReason: 'no_tab',
+    };
+    await storeScanResult(result, options.fromDate, []);
+    return result;
   }
-
-  // Ensure offscreen document is alive for parsing
-  await ensureOffscreen();
 
   let totalNew = 0;
   let totalErrors = 0;
+  let totalParsedMovements = 0;
+  let missingIds = 0;
+  const matchedMovements: ScanMovement[] = [];
 
   // Process in batches
   for (let i = 0; i < monitors.length; i += BATCH_SIZE) {
@@ -62,8 +73,11 @@ export async function scanMonitoredCases(): Promise<ScanResult> {
 
     for (const monitor of batch) {
       try {
-        const newCount = await scanSingleCase(monitor, mevTabId);
-        totalNew += newCount;
+        const scan = await scanSingleCase(monitor, mevTabId, options.fromDate);
+        totalNew += scan.newMovements;
+        totalParsedMovements += scan.totalMovements;
+        if (scan.skippedReason === 'missing_ids') missingIds++;
+        matchedMovements.push(...scan.matchedMovements);
       } catch (err) {
         totalErrors++;
         console.error(
@@ -83,25 +97,44 @@ export async function scanMonitoredCases(): Promise<ScanResult> {
     scanned: monitors.length,
     newMovements: totalNew,
     errors: totalErrors,
+    matchedMovements: matchedMovements.length,
+    parsedMovements: totalParsedMovements,
+    missingIds,
   };
 
   console.debug(
     `[ProcuAsist] Scan complete: ${result.scanned} cases, ${result.newMovements} new movements, ${result.errors} errors`
   );
 
-  // Store last scan summary in session for the UI
-  await chrome.storage.session.set({
-    lastScanResult: { ...result, timestamp: new Date().toISOString() },
-  });
+  await storeScanResult(result, options.fromDate, matchedMovements);
 
   return result;
+}
+
+export interface ScanOptions {
+  /** When present, creates alerts for all matching movements on/after this date. */
+  fromDate?: string;
 }
 
 export interface ScanResult {
   scanned: number;
   newMovements: number;
   errors: number;
+  matchedMovements?: number;
+  parsedMovements?: number;
+  missingIds?: number;
   skippedReason?: string;
+}
+
+export interface ScanMovement {
+  monitorId: string;
+  caseNumber: string;
+  title: string;
+  court: string;
+  portalUrl: string;
+  movementDate: string;
+  movementType?: string;
+  movementDescription: string;
 }
 
 // ────────────────────────────────────────────────────────
@@ -110,25 +143,37 @@ export interface ScanResult {
 
 async function scanSingleCase(
   monitor: Monitor,
-  tabId: number
-): Promise<number> {
+  tabId: number,
+  fromDate?: string
+): Promise<SingleScanResult> {
   if (monitor.portal !== 'mev') {
     // EJE scan not yet implemented
-    return 0;
+    return { newMovements: 0, matchedMovements: [], totalMovements: 0 };
   }
 
-  if (!monitor.nidCausa || !monitor.pidJuzgado) {
+  const caseIds = getMevCaseIds(monitor);
+
+  if (!caseIds) {
     console.warn(
       `[ProcuAsist] Monitor ${monitor.caseNumber} missing nidCausa/pidJuzgado, skipping`
     );
-    return 0;
+    return {
+      newMovements: 0,
+      matchedMovements: [],
+      totalMovements: 0,
+      skippedReason: 'missing_ids',
+    };
   }
 
   // Build the procesales.asp URL
-  const caseUrl = `${MEV_BASE_URL}${MEV_URLS.procesales}?nidCausa=${monitor.nidCausa}&pidJuzgado=${monitor.pidJuzgado}`;
+  const caseUrl =
+    `${MEV_BASE_URL}${MEV_URLS.procesales}` +
+    `?nidCausa=${encodeURIComponent(caseIds.nidCausa)}` +
+    `&pidJuzgado=${encodeURIComponent(caseIds.pidJuzgado)}`;
 
-  // Fetch HTML from the MEV tab context (using session cookies)
-  const htmlResults = await chrome.scripting.executeScript({
+  // Fetch and parse HTML from the MEV tab context (using session cookies).
+  // Parsing in the tab avoids relying on an offscreen listener that MV3 may suspend.
+  const scanResults = await chrome.scripting.executeScript({
     target: { tabId },
     world: 'MAIN',
     func: async (url: string) => {
@@ -141,7 +186,42 @@ async function scanSingleCase(
         });
         if (!resp.ok) return { error: `HTTP ${resp.status}` };
         const text = await resp.text();
-        return { html: text };
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/html');
+        const movements: Array<{ date: string; type: string; description: string }> = [];
+        const tables = doc.querySelectorAll('table');
+        let movTable: HTMLTableElement | null = null;
+
+        for (const table of tables) {
+          const headerText = Array.from(table.querySelectorAll('tr'))
+            .map((row) => row.textContent ?? '')
+            .join(' ');
+          if (headerText.includes('Fecha') && headerText.includes('Descripci')) {
+            movTable = table;
+            break;
+          }
+        }
+
+        if (movTable) {
+          const rows = movTable.querySelectorAll('tr');
+          const datePattern = /^\d{2}\/\d{2}\/\d{4}$/;
+
+          for (let i = 1; i < rows.length; i++) {
+            const cells = rows[i].querySelectorAll('td');
+            if (cells.length < 4) continue;
+
+            const date = (cells[0].textContent?.trim() ?? '').substring(0, 10);
+            if (!datePattern.test(date)) continue;
+
+            movements.push({
+              date,
+              type: cells[2]?.querySelector("img[src*='firma']") ? 'firmado' : '',
+              description: cells[3].textContent?.trim() ?? '',
+            });
+          }
+        }
+
+        return { html: text, movements };
       } catch (e) {
         return { error: String(e) };
       }
@@ -149,12 +229,16 @@ async function scanSingleCase(
     args: [caseUrl],
   });
 
-  const result = htmlResults[0]?.result as
-    | { html: string; error?: never }
-    | { error: string; html?: never }
+  const result = scanResults[0]?.result as
+    | {
+        html: string;
+        movements: Array<{ date: string; type: string; description: string }>;
+        error?: never;
+      }
+    | { error: string; html?: never; movements?: never }
     | null;
 
-  if (!result || result.error || !result.html) {
+  if (!result || result.error || !result.html || !result.movements) {
     throw new Error(result?.error ?? 'No result from executeScript');
   }
 
@@ -171,28 +255,38 @@ async function scanSingleCase(
     throw new Error('session_expired');
   }
 
-  // Send HTML to offscreen document for DOM parsing
-  const parseResult = (await chrome.runtime.sendMessage({
-    type: 'PARSE_CASE_HTML',
-    html,
-    portal: 'mev',
-  })) as {
-    status: string;
-    data?: { movements: Array<{ date: string; type: string; description: string }> };
-    error?: string;
-  };
-
-  if (parseResult.status !== 'ok' || !parseResult.data) {
-    throw new Error(parseResult.error ?? 'Parse failed');
-  }
-
-  const movements = parseResult.data.movements;
+  const movements = result.movements;
   const currentCount = movements.length;
   const previousCount = monitor.lastKnownMovementCount;
   const newMovementCount = Math.max(0, currentCount - previousCount);
+  let matchedMovements: ScanMovement[] = [];
+
+  if (fromDate) {
+    const matching = movements.filter((mov) => isDateOnOrAfter(mov.date, fromDate));
+    matchedMovements = matching.map((mov) => ({
+      monitorId: monitor.id,
+      caseNumber: monitor.caseNumber,
+      title: monitor.title,
+      court: monitor.court,
+      portalUrl: monitor.portalUrl,
+      movementDate: mov.date,
+      movementType: mov.type || undefined,
+      movementDescription: mov.description,
+    }));
+
+    for (const mov of matching) {
+      await createAlert(
+        monitor.id,
+        mov.date,
+        mov.description,
+        mov.type || undefined,
+        { isRead: true }
+      );
+    }
+  }
 
   // Detect new movements
-  if (newMovementCount > 0 && previousCount > 0) {
+  if (!fromDate && newMovementCount > 0 && previousCount > 0) {
     // Get the new movements (they appear at the top/beginning of the list in MEV)
     const newMovements = movements.slice(0, newMovementCount);
 
@@ -213,7 +307,18 @@ async function scanSingleCase(
   const latestDate = movements[0]?.date ?? monitor.lastKnownMovementDate ?? '';
   await updateMonitorScan(monitor.id, latestDate, currentCount);
 
-  return newMovementCount;
+  return {
+    newMovements: fromDate ? matchedMovements.length : newMovementCount,
+    matchedMovements,
+    totalMovements: currentCount,
+  };
+}
+
+interface SingleScanResult {
+  newMovements: number;
+  matchedMovements: ScanMovement[];
+  totalMovements: number;
+  skippedReason?: 'missing_ids';
 }
 
 // ────────────────────────────────────────────────────────
@@ -287,6 +392,47 @@ async function ensureOffscreen(): Promise<void> {
     });
   } catch {
     // May already exist (race condition), ignore
+  }
+}
+
+async function storeScanResult(
+  result: ScanResult,
+  fromDate: string | undefined,
+  movements: ScanMovement[]
+): Promise<void> {
+  const timestamp = new Date().toISOString();
+  const sessionData: Record<string, unknown> = {
+    lastScanResult: { ...result, timestamp },
+  };
+
+  if (fromDate) {
+    sessionData.lastSinceScanReport = {
+      ...result,
+      fromDate,
+      timestamp,
+      movements,
+    };
+  }
+
+  await chrome.storage.session.set(sessionData);
+}
+
+function getMevCaseIds(
+  monitor: Monitor
+): { nidCausa: string; pidJuzgado: string } | null {
+  const nidCausa = monitor.nidCausa || getQueryParam(monitor.portalUrl, 'nidCausa');
+  const pidJuzgado = monitor.pidJuzgado || getQueryParam(monitor.portalUrl, 'pidJuzgado');
+
+  if (!nidCausa || !pidJuzgado) return null;
+  return { nidCausa, pidJuzgado };
+}
+
+function getQueryParam(url: string, param: string): string {
+  if (!url) return '';
+  try {
+    return new URL(url).searchParams.get(param) ?? '';
+  } catch {
+    return '';
   }
 }
 

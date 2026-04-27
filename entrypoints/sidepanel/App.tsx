@@ -23,6 +23,7 @@ import type { ProcuAsistSettings } from '@/modules/storage/settings-store';
 import { DONATE_URL } from '@/modules/tier/limits';
 import { useDarkMode } from '@/modules/ui/use-dark-mode';
 import Onboarding, { isOnboardingDone } from '@/modules/ui/Onboarding';
+import { isDateOnOrAfter, parseDateOnly } from '@/modules/utils/date';
 
 type Tab = 'bookmarks' | 'monitors' | 'settings';
 
@@ -599,7 +600,10 @@ function MonitorsTab({ search }: { search: string }) {
   const [alerts, setAlerts] = useState<MovementAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
+  const [scanningSince, setScanningSince] = useState(false);
+  const [sinceScanMessage, setSinceScanMessage] = useState('');
   const [view, setView] = useState<'monitors' | 'alerts'>('monitors');
+  const [alertsFromDate, setAlertsFromDate] = useState('');
 
   const loadData = useCallback(async () => {
     try {
@@ -682,6 +686,46 @@ function MonitorsTab({ search }: { search: string }) {
     }, 5000);
   };
 
+  const handleScanSince = async () => {
+    if (!alertsFromDate || scanningSince) return;
+
+    setScanningSince(true);
+    setSinceScanMessage('Buscando movimientos en causas monitoreadas...');
+    const startedAt = Date.now();
+
+    const resp = (await chrome.runtime.sendMessage({
+      type: 'RUN_SCAN_SINCE',
+      fromDate: alertsFromDate,
+    })) as { success?: boolean };
+
+    if (!resp?.success) {
+      setSinceScanMessage('No se pudo iniciar el barrido.');
+      setScanningSince(false);
+      return;
+    }
+
+    const timeoutMs = Math.min(120_000, Math.max(15_000, monitors.length * 3500 + 5000));
+    const report = await waitForSinceScanReport(alertsFromDate, startedAt, timeoutMs);
+    await loadData();
+    setScanningSince(false);
+
+    if (!report) {
+      setSinceScanMessage('El barrido sigue en curso. Volvé a abrir Alertas en unos segundos.');
+      return;
+    }
+
+    if (report.skippedReason === 'no_tab') {
+      setSinceScanMessage('Abrí MEV con sesión activa y probá nuevamente.');
+      return;
+    }
+
+    setSinceScanMessage(
+      `Barrido listo: ${report.matchedMovements} movimiento(s). ` +
+        `Leídos: ${report.parsedMovements ?? 0}. ` +
+        `Sin datos internos: ${report.missingIds ?? 0}.`
+    );
+  };
+
   const handleMarkAllRead = async () => {
     await chrome.runtime.sendMessage({ type: 'MARK_ALL_ALERTS_READ' });
     loadData();
@@ -694,6 +738,11 @@ function MonitorsTab({ search }: { search: string }) {
   };
 
   const unreadAlerts = alerts.filter((a) => !a.isRead);
+  const filteredAlerts = alertsFromDate
+    ? alerts
+        .filter((a) => isDateOnOrAfter(a.movementDate, alertsFromDate))
+        .sort(compareAlertsByMovementDateDesc)
+    : alerts;
 
   if (loading) {
     return (
@@ -779,6 +828,52 @@ function MonitorsTab({ search }: { search: string }) {
       ) : (
         <>
           {/* Alerts view */}
+          <div className="space-y-2 border-b border-border px-4 py-2">
+            <label className="flex items-center gap-2 text-xs text-text-secondary">
+              <span className="shrink-0 font-medium text-text">Desde</span>
+              <input
+                type="date"
+                value={alertsFromDate}
+                onChange={(e) => setAlertsFromDate(e.target.value)}
+                className="min-w-0 flex-1 rounded-md border border-border bg-bg-secondary px-2 py-1 text-xs text-text outline-none focus:border-primary"
+              />
+              {alertsFromDate && (
+                <button
+                  type="button"
+                  onClick={() => setAlertsFromDate('')}
+                  className="text-[11px] font-medium text-primary hover:underline"
+                >
+                  Limpiar
+                </button>
+              )}
+            </label>
+            <button
+              type="button"
+              onClick={handleScanSince}
+              disabled={!alertsFromDate || scanningSince}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {scanningSince ? (
+                <>
+                  <Hourglass size={12} /> Buscando movimientos...
+                </>
+              ) : (
+                <>
+                  <RefreshCw size={12} /> Buscar movimientos desde esa fecha
+                </>
+              )}
+            </button>
+            <p className="text-[10px] leading-snug text-text-secondary">
+              Filtra alertas existentes o actualiza el listado recorriendo tus
+              causas MEV monitoreadas.
+            </p>
+            {sinceScanMessage && (
+              <p className="rounded-md bg-bg-secondary px-2 py-1 text-[10px] leading-snug text-text-secondary">
+                {sinceScanMessage}
+              </p>
+            )}
+          </div>
+
           {unreadAlerts.length > 0 && (
             <div className="flex justify-end border-b border-border px-4 py-2">
               <button
@@ -801,9 +896,20 @@ function MonitorsTab({ search }: { search: string }) {
                 tus causas monitoreadas.
               </p>
             </div>
+          ) : filteredAlerts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-text-secondary">
+              <div className="text-text-secondary/50">
+                <Search size={40} />
+              </div>
+              <p className="text-sm font-medium">Sin movimientos desde esa fecha</p>
+              <p className="text-xs">
+                Probá con una fecha anterior o ejecutá un escaneo para actualizar
+                las causas monitoreadas.
+              </p>
+            </div>
           ) : (
             <ul className="divide-y divide-border">
-              {alerts.map((alert) => (
+              {filteredAlerts.map((alert) => (
                 <AlertCard
                   key={alert.id}
                   alert={alert}
@@ -1312,4 +1418,51 @@ function getRelativeTime(isoDate: string): string {
     day: '2-digit',
     month: '2-digit',
   });
+}
+
+function compareAlertsByMovementDateDesc(
+  a: MovementAlert,
+  b: MovementAlert
+): number {
+  const dateA = parseDateOnly(a.movementDate) ?? 0;
+  const dateB = parseDateOnly(b.movementDate) ?? 0;
+  if (dateA !== dateB) return dateB - dateA;
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+}
+
+interface SinceScanReport {
+  fromDate: string;
+  timestamp: string;
+  scanned: number;
+  matchedMovements: number;
+  parsedMovements?: number;
+  missingIds?: number;
+  errors: number;
+  skippedReason?: string;
+}
+
+async function waitForSinceScanReport(
+  fromDate: string,
+  startedAt: number,
+  timeoutMs: number
+): Promise<SinceScanReport | null> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const stored = await chrome.storage.session.get('lastSinceScanReport');
+    const report = stored.lastSinceScanReport as SinceScanReport | undefined;
+    const reportTime = report ? new Date(report.timestamp).getTime() : 0;
+
+    if (report?.fromDate === fromDate && reportTime >= startedAt) {
+      return report;
+    }
+
+    await delay(1000);
+  }
+
+  return null;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

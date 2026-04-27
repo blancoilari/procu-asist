@@ -11,12 +11,13 @@ Extensión Chrome para abogados argentinos que automatiza la interacción con po
 Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programación.
 
 **Qué hace:**
-- Te permite **descargar el expediente completo** de MEV (Provincia BA) y **PJN** (Poder Judicial de la Nación) en un único ZIP, con un PDF resumen y todas las actuaciones con sus documentos.
+- Te permite **descargar el expediente completo** de MEV/SCBA (Provincia de Buenos Aires) y **PJN** (Poder Judicial de la Nación) en un único ZIP, con un PDF resumen y las actuaciones con sus documentos.
 - Guarda **marcadores** de tus expedientes favoritos, accesibles desde un panel lateral del navegador.
-- (Próximamente) Hace **monitoreo automático** y te avisa cuando hay movimientos nuevos.
+- Permite **monitorear causas** y recibir alertas de movimientos nuevos, especialmente en MEV/SCBA.
+- Ayuda a **importar causas** desde resultados de búsqueda y desde el portal de notificaciones SCBA.
 
 **Cómo instalarla:**
-- Próximamente en Chrome Web Store. Cuando esté publicada, vas a poder instalarla con un click. (Si todavía no está, escribime y te paso una versión para cargar manualmente.)
+- Instalación desde Chrome Web Store: [ProcuAsist - Copiloto Legal](https://chromewebstore.google.com/detail/procuasist-copiloto-legal/dbkfeofoijnkclfpigimiodcccpjakem)
 
 **Cómo reportar errores o pedir features:**
 - Mail: [blancoilariasistente@gmail.com](mailto:blancoilariasistente@gmail.com?subject=ProcuAsist%20-%20feedback)
@@ -30,7 +31,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 
 ## Funcionalidades
 
-- **Auto-login** en portales judiciales (MEV, JUSCABA, PJN con SSO Keycloak compartido)
+- **Auto-login** en portales judiciales (MEV/SCBA, JUSCABA/EJE, PJN con SSO Keycloak compartido)
 - **Keep-alive** de sesión para evitar desconexiones por inactividad
 - **Auto-reconexión** automática cuando la sesión expira
 - **Marcadores de causas** con búsqueda rápida y organización
@@ -38,7 +39,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 - **Descarga ZIP del expediente completo** con un click — incluye resumen PDF + un PDF por cada paso procesal (con todos sus metadatos) + adjuntos
 - **Selección de pasos procesales** a descargar antes de generar el ZIP
 - **Verificación automática** de la descarga con informe de errores
-- **Importación masiva** de causas desde resultados de búsqueda
+- **Importación masiva** de causas desde resultados de búsqueda y desde SCBA Notificaciones
 - **Onboarding wizard** para nuevos usuarios
 - **Encriptación local** de credenciales con AES-GCM y PIN
 
@@ -46,9 +47,10 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 
 | Portal | URL | Funcionalidades |
 |--------|-----|-----------------|
-| MEV (Mesa de Entradas Virtual - Provincia de Buenos Aires) | mev.scba.gov.ar | Auto-login, extracción de causas, monitoreo, descarga ZIP |
-| JUSCABA (Poder Judicial de CABA) | eje.jus.gov.ar | Auto-login, extracción de causas |
-| PJN (Poder Judicial de la Nación) | scw.pjn.gov.ar, portalpjn.pjn.gov.ar, api.pjn.gov.ar | Auto-login SSO, listado de causas, descarga ZIP del expediente (resumen + todos los pasos con documentos) |
+| MEV / SCBA (Mesa de Entradas Virtual - Provincia de Buenos Aires) | mev.scba.gov.ar | Auto-login, extracción de causas, marcadores, monitoreo, descarga ZIP |
+| SCBA Notificaciones | notificaciones.scba.gov.ar | Importación masiva de causas desde novedades |
+| PJN (Poder Judicial de la Nación) | scw.pjn.gov.ar, portalpjn.pjn.gov.ar, api.pjn.gov.ar | Auto-login SSO, listado de causas, descarga ZIP del expediente |
+| JUSCABA / EJE (Poder Judicial de CABA) | eje.jus.gov.ar | Auto-login y extracción básica de causas |
 
 ## Stack Tecnológico
 

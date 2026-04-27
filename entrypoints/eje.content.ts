@@ -23,17 +23,17 @@ import {
 } from '@/modules/portals/eje-parser';
 import type { EjeCaseData, EjeActuacion, EjeActuacionesResponse, EjeEncabezadoResponse } from '@/modules/portals/eje-parser';
 import type { PortalId } from '@/modules/portals/types';
-import { PORTAL_COLORS } from '@/modules/ui/portal-colors';
 import {
   ICON_STAR,
   ICON_EYE,
   ICON_CHECK,
   ICON_X,
   ICON_LOADER,
-  iconLabel,
 } from '@/modules/ui/icon-strings';
-
-const EJE_COLOR = PORTAL_COLORS.eje;
+import {
+  createPortalActionButton,
+  setPortalActionButtonState,
+} from '@/modules/ui/portal-action-bar';
 
 export default defineContentScript({
   matches: ['https://eje.jus.gov.ar/*', 'https://sso.pjn.gov.ar/*'],
@@ -212,17 +212,17 @@ function injectCardButtons(doc: Document, cases: EjeCaseData[]) {
     container.className = 'procu-asist-card-actions';
     Object.assign(container.style, {
       display: 'flex',
-      gap: '4px',
-      padding: '4px 8px',
+      gap: '8px',
+      padding: '8px',
       borderTop: '1px solid #e5e7eb',
     });
 
     // Bookmark button
-    const bookmarkBtn = createActionButton(ICON_STAR, 'Guardar');
+    const bookmarkBtn = createCardActionButton(ICON_STAR, 'Guardar');
     bookmarkBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       e.preventDefault();
-      bookmarkBtn.innerHTML = iconLabel(ICON_LOADER, '');
+      setPortalActionButtonState(bookmarkBtn, ICON_LOADER, 'Guardando', 'muted');
 
       const resp = (await chrome.runtime.sendMessage({
         type: 'ADD_BOOKMARK',
@@ -240,15 +240,20 @@ function injectCardButtons(doc: Document, cases: EjeCaseData[]) {
         },
       })) as { success: boolean };
 
-      bookmarkBtn.innerHTML = iconLabel(resp?.success ? ICON_CHECK : ICON_X, '');
+      setPortalActionButtonState(
+        bookmarkBtn,
+        resp?.success ? ICON_CHECK : ICON_X,
+        resp?.success ? 'Guardado' : 'Error',
+        resp?.success ? 'success' : 'danger'
+      );
     });
 
     // Monitor button
-    const monitorBtn = createActionButton(ICON_EYE, 'Monitorear');
+    const monitorBtn = createCardActionButton(ICON_EYE, 'Monitorear');
     monitorBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       e.preventDefault();
-      monitorBtn.innerHTML = iconLabel(ICON_LOADER, '');
+      setPortalActionButtonState(monitorBtn, ICON_LOADER, 'Activando', 'muted');
 
       const resp = (await chrome.runtime.sendMessage({
         type: 'ADD_MONITOR',
@@ -266,7 +271,12 @@ function injectCardButtons(doc: Document, cases: EjeCaseData[]) {
         },
       })) as { success: boolean };
 
-      monitorBtn.innerHTML = iconLabel(resp?.success ? ICON_CHECK : ICON_X, '');
+      setPortalActionButtonState(
+        monitorBtn,
+        resp?.success ? ICON_CHECK : ICON_X,
+        resp?.success ? 'Monitoreando' : 'Error',
+        resp?.success ? 'success' : 'danger'
+      );
     });
 
     container.appendChild(bookmarkBtn);
@@ -278,27 +288,19 @@ function injectCardButtons(doc: Document, cases: EjeCaseData[]) {
   });
 }
 
-function createActionButton(iconSvg: string, label: string): HTMLButtonElement {
-  const btn = document.createElement('button');
-  btn.innerHTML = iconLabel(iconSvg, label);
+function createCardActionButton(iconSvg: string, label: string): HTMLButtonElement {
+  const btn = createPortalActionButton({
+    icon: iconSvg,
+    label,
+    title: label,
+    variant: 'secondary',
+  });
   Object.assign(btn.style, {
-    padding: '3px 10px',
-    borderRadius: '12px',
-    border: `1px solid ${EJE_COLOR.primary}`,
-    backgroundColor: 'white',
-    color: EJE_COLOR.primary,
+    width: 'auto',
+    minHeight: '30px',
+    padding: '6px 10px',
     fontSize: '11px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    transition: 'background-color 0.2s, color 0.2s',
-  });
-  btn.addEventListener('mouseenter', () => {
-    btn.style.backgroundColor = EJE_COLOR.primary;
-    btn.style.color = 'white';
-  });
-  btn.addEventListener('mouseleave', () => {
-    btn.style.backgroundColor = 'white';
-    btn.style.color = EJE_COLOR.primary;
+    boxShadow: 'none',
   });
   return btn;
 }

@@ -22,43 +22,48 @@
 
 ## 1. Que es ProcuAsist
 
-ProcuAsist es una extension para Google Chrome que funciona como copiloto legal. Automatiza tareas repetitivas en los portales judiciales de la Provincia de Buenos Aires y CABA:
+ProcuAsist es una extension para Google Chrome que funciona como copiloto legal. Automatiza tareas repetitivas en portales judiciales usados por abogados que litigan en Provincia de Buenos Aires, Justicia Nacional/Federal y CABA:
 
-- **MEV** (Mesa de Entradas Virtual - Provincia de Buenos Aires) — mev.scba.gov.ar
-- **JUSCABA** (Poder Judicial de CABA) — eje.juscaba.gob.ar
+- **MEV / SCBA** (Mesa de Entradas Virtual - Provincia de Buenos Aires) — mev.scba.gov.ar
+- **SCBA Notificaciones** — notificaciones.scba.gov.ar
+- **PJN** (Poder Judicial de la Nacion) — scw.pjn.gov.ar / portalpjn.pjn.gov.ar
+- **JUSCABA / EJE** (Poder Judicial de CABA) — eje.jus.gov.ar
 
 Con ProcuAsist podes:
 - Entrar automaticamente a los portales sin escribir usuario y clave cada vez
 - Guardar causas como marcadores para acceder rapido
 - Recibir notificaciones cuando hay movimientos nuevos en tus causas
-- **Descargar el expediente completo en un ZIP** con todos los pasos procesales, sus documentos y adjuntos
+- **Descargar el expediente completo en un ZIP** con pasos procesales, documentos y adjuntos cuando el portal lo permite
+- Importar causas desde resultados de busqueda y desde SCBA Notificaciones
 - Y mucho mas
 
 ---
 
 ## 2. Instalacion
 
-### Paso 1: Obtener el archivo de la extension
+### Instalacion normal
 
-Vas a recibir un archivo `.zip` con la extension. Guardalo en tu computadora (por ejemplo, en el Escritorio).
+La forma recomendada es instalarla desde Chrome Web Store:
 
-### Paso 2: Abrir la pagina de extensiones de Chrome
+https://chromewebstore.google.com/detail/procuasist-copiloto-legal/dbkfeofoijnkclfpigimiodcccpjakem
 
-1. Abri Google Chrome
-2. En la barra de direcciones, escribi: `chrome://extensions` y presioná Enter
-3. En la esquina superior derecha, activá el switch **"Modo desarrollador"**
+1. Abri el link de Chrome Web Store.
+2. Hacé click en **"Agregar a Chrome"**.
+3. Confirmá la instalacion.
+4. Fijá el icono de ProcuAsist desde el menu de extensiones de Chrome si querés tenerlo siempre visible.
 
-### Paso 3: Instalar la extension
+### Instalacion de desarrollo
 
-**Opcion A** — Arrastrar el .zip:
-- Arrastráel archivo .zip directamente a la pagina de extensiones
+Si estas probando una version no publicada, tambien podes cargarla manualmente como extension descomprimida:
 
-**Opcion B** — Cargar descomprimida:
-1. Descomprimí el .zip en una carpeta
-2. Hacé click en **"Cargar descomprimida"**
-3. Seleccioná la carpeta donde descomprimiste la extension
+1. Abrí Google Chrome.
+2. En la barra de direcciones, escribí `chrome://extensions` y presioná Enter.
+3. Activá **"Modo desarrollador"**.
+4. Descomprimí el .zip en una carpeta.
+5. Hacé click en **"Cargar descomprimida"**.
+6. Seleccioná la carpeta donde descomprimiste la extension.
 
-### Paso 4: Verificar la instalacion
+### Verificar la instalacion
 
 - Vas a ver el icono de ProcuAsist en la barra de extensiones de Chrome (arriba a la derecha)
 - Si no lo ves, hacé click en el icono de puzzle (extensiones) y fijá ProcuAsist con el pin
@@ -79,7 +84,7 @@ La primera vez que abras ProcuAsist, se va a mostrar un **asistente de configura
 ### Paso 2: Guardar credenciales de portales
 
 1. El asistente te pide las credenciales de los portales que uses
-2. Ingresá tu usuario y clave de MEV, JUSCABA, o ambos
+2. Ingresá tu usuario y clave de los portales que uses
 3. Las credenciales se guardan **encriptadas** en tu computadora — nunca se envian a ningun servidor
 
 ---
@@ -92,8 +97,9 @@ Si no configuraste tus credenciales en el asistente inicial, o querés cambiarla
 2. O navegá a la seccion **Credenciales** en la pagina de opciones
 3. Ingresá tu PIN para desbloquear
 4. Completá usuario y clave para cada portal que uses:
-   - **MEV**: Tu usuario y clave de mev.scba.gov.ar
-   - **JUSCABA**: Tu usuario y clave de eje.juscaba.gob.ar
+   - **MEV / SCBA**: Tu usuario y clave de mev.scba.gov.ar
+   - **PJN**: Tu usuario y clave del SSO del Poder Judicial de la Nacion
+   - **JUSCABA / EJE**: Tu usuario y clave de eje.jus.gov.ar
 5. Hacé click en **"Guardar"**
 
 ### Seguridad de tus credenciales
@@ -353,7 +359,7 @@ No. ProcuAsist necesita que Chrome este abierto para funcionar. El keep-alive y 
 
 ### Cuantas veces escanea los monitores?
 
-El escaneo automatico se ejecuta aproximadamente cada 15 minutos mientras Chrome este abierto.
+El escaneo automatico se ejecuta periodicamente mientras Chrome este abierto. La frecuencia puede cambiar entre versiones para equilibrar utilidad, estabilidad y carga sobre los portales judiciales. Tambien podes forzar un escaneo manual desde la pestaña Monitores.
 
 ### Que portal es el MEV?
 
@@ -429,4 +435,4 @@ Si tenes dudas o problemas que no se resuelven con este manual, contactanos:
 
 ---
 
-*ProcuAsist v0.3.0 — Copiloto Legal para Abogados Argentinos*
+*ProcuAsist v0.6.0 — Copiloto Legal para Abogados Argentinos*

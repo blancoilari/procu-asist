@@ -156,9 +156,9 @@ function parseMevHtml(doc: Document, rawHtml: string): ParseResult {
   let movTable: HTMLTableElement | null = null;
 
   for (const table of tables) {
-    const firstRow = table.querySelector('tr');
-    if (!firstRow) continue;
-    const headerText = firstRow.textContent ?? '';
+    const headerText = Array.from(table.querySelectorAll('tr'))
+      .map((row) => row.textContent ?? '')
+      .join(' ');
     if (headerText.includes('Fecha') && headerText.includes('Descripci')) {
       movTable = table;
       break;

@@ -20,7 +20,23 @@ export async function addBookmark(caseData: Case): Promise<Bookmark> {
   const existing = bookmarks.find(
     (b) => b.portal === caseData.portal && b.caseNumber === caseData.caseNumber
   );
-  if (existing) return existing;
+  if (existing) {
+    const updated: Bookmark = {
+      ...existing,
+      ...caseData,
+      metadata: {
+        ...existing.metadata,
+        ...caseData.metadata,
+      },
+      position: existing.position,
+      createdAt: existing.createdAt,
+      updatedAt: new Date().toISOString(),
+    };
+    const idx = bookmarks.indexOf(existing);
+    bookmarks[idx] = updated;
+    await chrome.storage.local.set({ [STORAGE_KEY]: bookmarks });
+    return updated;
+  }
 
   const bookmark: Bookmark = {
     ...caseData,

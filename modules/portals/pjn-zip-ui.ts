@@ -22,54 +22,47 @@ import {
   ICON_X,
   iconLabel,
 } from '@/modules/ui/icon-strings';
+import {
+  createConfigActionButton,
+  createPortalActionBar,
+  createPortalActionButton,
+  createPortalModalButton,
+} from '@/modules/ui/portal-action-bar';
 
 // Azul de ProcuAsist (mismo tono que el panel de debug) — preferencia del
 // usuario sobre el granate PJN del plan original.
 const FAB_COLOR = '#2a5d9f';
-const FAB_HOVER = '#1e4577';
+const ACTION_BAR_ID = 'procu-asist-action-bar';
+const CONFIG_BUTTON_ID = 'procu-asist-config';
 const BUTTON_ID = 'procu-asist-pjn-zip';
 const MODAL_ID = 'procu-asist-pjn-zip-modal';
 
 export function mountPjnZipButton(): void {
   if (document.getElementById(BUTTON_ID)) return;
 
-  const btn = document.createElement('button');
-  btn.id = BUTTON_ID;
-  btn.innerHTML = iconLabel(ICON_PACKAGE, 'Descargar ZIP');
-  btn.title = 'Descargar actuaciones del expediente como ZIP';
-  Object.assign(btn.style, {
-    position: 'fixed',
-    bottom: '20px',
-    right: '20px',
-    padding: '10px 18px',
-    borderRadius: '24px',
-    border: 'none',
-    backgroundColor: FAB_COLOR,
-    color: 'white',
-    fontSize: '13px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-    zIndex: '999999',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    transition: 'transform 0.2s, background-color 0.2s',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  } satisfies Partial<CSSStyleDeclaration>);
+  const bar = createPortalActionBar(ACTION_BAR_ID);
+  if (!document.getElementById(CONFIG_BUTTON_ID)) {
+    const configBtn = createConfigActionButton();
+    configBtn.id = CONFIG_BUTTON_ID;
+    bar.prepend(configBtn);
+  }
 
-  btn.addEventListener('mouseenter', () => {
-    btn.style.transform = 'scale(1.04)';
-    btn.style.backgroundColor = FAB_HOVER;
-  });
-  btn.addEventListener('mouseleave', () => {
-    btn.style.transform = 'scale(1)';
-    btn.style.backgroundColor = FAB_COLOR;
+  const btn = createPortalActionButton({
+    id: BUTTON_ID,
+    icon: ICON_PACKAGE,
+    label: 'ZIP',
+    title: 'Descargar actuaciones del expediente como ZIP',
+    variant: 'primary',
   });
 
   btn.addEventListener('click', () => openZipModal(btn));
 
-  document.body.appendChild(btn);
+  const configBtn = document.getElementById(CONFIG_BUTTON_ID);
+  if (configBtn?.nextSibling) {
+    bar.insertBefore(btn, configBtn.nextSibling);
+  } else {
+    bar.appendChild(btn);
+  }
 }
 
 // ────────────────────────────────────────────────────────
@@ -579,32 +572,17 @@ function renderFooter(
 ): void {
   buttons.innerHTML = '';
 
-  const cancelBtn = document.createElement('button');
-  cancelBtn.textContent = 'Cancelar';
-  Object.assign(cancelBtn.style, {
-    background: 'transparent',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    padding: '8px 14px',
-    fontSize: '13px',
-    cursor: 'pointer',
-    color: '#374151',
-  } satisfies Partial<CSSStyleDeclaration>);
+  const cancelBtn = createPortalModalButton({
+    label: 'Cancelar',
+    variant: 'secondary',
+  });
   cancelBtn.addEventListener('click', close);
 
-  const continueBtn = document.createElement('button');
-  continueBtn.textContent = 'Descargar ZIP';
-  continueBtn.title = 'Generar el ZIP con las actuaciones seleccionadas';
-  Object.assign(continueBtn.style, {
-    background: FAB_COLOR,
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    padding: '8px 16px',
-    fontSize: '13px',
-    fontWeight: '600',
-    cursor: 'pointer',
-  } satisfies Partial<CSSStyleDeclaration>);
+  const continueBtn = createPortalModalButton({
+    label: 'Descargar ZIP',
+    title: 'Generar el ZIP con las actuaciones seleccionadas',
+    variant: 'primary',
+  });
 
   continueBtn.addEventListener('click', async () => {
     const picked = getEffectiveSelection(state).map((i) => state.all[i]);
