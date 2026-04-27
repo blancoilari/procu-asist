@@ -20,6 +20,7 @@ import {
   addBookmark,
   removeBookmark,
   getBookmarks,
+  updateBookmark,
   searchBookmarks,
   isBookmarked,
 } from '@/modules/storage/bookmark-store';
@@ -324,6 +325,10 @@ async function handleMessage(
       return { success: true };
     }
 
+    case 'ENRICH_SCBA_MIS_CAUSAS': {
+      return enrichScbaMisCausas();
+    }
+
     // --- Scan ---
     case 'RUN_SCAN_NOW': {
       // Run scan in background, don't block the message response
@@ -515,3 +520,183 @@ async function handleMessage(
       return { status: 'unknown_message' };
   }
 }
+
+interface EnrichCandidate {
+  caseNumber: string;
+  title: string;
+  court: string;
+  portalUrl: string;
+  nidCausa: string;
+  pidJuzgado: string;
+}
+
+async function enrichScbaMisCausas() {
+  const bookmarks = await getBookmarks();
+  const monitors = await getMonitors();
+  const candidates: EnrichCandidate[] = [
+    ...bookmarks
+      .filter((b) => b.metadata?.nidCausa && b.metadata?.pidJuzgado)
+      .map((b) => ({
+        caseNumber: b.caseNumber,
+        title: b.title,
+        court: b.court,
+        portalUrl: b.portalUrl,
+        nidCausa: b.metadata!.nidCausa!,
+        pidJuzgado: b.metadata!.pidJuzgado!,
+      })),
+    ...monitors
+      .filter((m) => m.nidCausa && m.pidJuzgado)
+      .map((m) => ({
+        caseNumber: m.caseNumber,
+        title: m.title,
+        court: m.court,
+        portalUrl: m.portalUrl,
+        nidCausa: m.nidCausa!,
+        pidJuzgado: m.pidJuzgado!,
+      })),
+  ];
+
+  const pending = bookmarks.filter(
+    (b) =>
+      b.portal === 'mev' &&
+      b.metadata?.set === 'scba-mis-causas' &&
+      (!b.metadata.nidCausa || !b.metadata.pidJuzgado)
+  );
+
+  let enriched = 0;
+  let monitored = 0;
+  let unmatched = 0;
+
+  for (const bookmark of pending) {
+    const match = findBestMevMatch(bookmark, candidates);
+    if (!match || match.score < 82) {
+      unmatched++;
+      continue;
+    }
+
+    await updateBookmark(bookmark.portal, bookmark.caseNumber, {
+      portalUrl: match.candidate.portalUrl || bookmark.portalUrl,
+      metadata: {
+        ...bookmark.metadata,
+        nidCausa: match.candidate.nidCausa,
+        pidJuzgado: match.candidate.pidJuzgado,
+        mevEnrichedAt: new Date().toISOString(),
+        mevMatchScore: String(match.score),
+      },
+    });
+    enriched++;
+
+    const wasMonitored = await isMonitored(bookmark.portal, bookmark.caseNumber);
+    await addMonitor({
+      portal: bookmark.portal,
+      caseNumber: bookmark.caseNumber,
+      title: bookmark.title,
+      court: bookmark.court,
+      portalUrl: match.candidate.portalUrl || bookmark.portalUrl,
+      metadata: {
+        nidCausa: match.candidate.nidCausa,
+        pidJuzgado: match.candidate.pidJuzgado,
+      },
+    });
+    if (!wasMonitored) monitored++;
+  }
+
+  return {
+    success: true,
+    totalPending: pending.length,
+    candidates: candidates.length,
+    enriched,
+    monitored,
+    unmatched,
+  };
+}
+
+function findBestMevMatch(
+  bookmark: { caseNumber: string; title: string; court: string },
+  candidates: EnrichCandidate[]
+): { candidate: EnrichCandidate; score: number } | null {
+  let best: { candidate: EnrichCandidate; score: number } | null = null;
+
+  for (const candidate of candidates) {
+    const score = scoreMevMatch(bookmark, candidate);
+    if (!best || score > best.score) best = { candidate, score };
+  }
+
+  return best;
+}
+
+function scoreMevMatch(
+  source: { caseNumber: string; title: string; court: string },
+  candidate: EnrichCandidate
+): number {
+  const sourceTitle = normalizeMatchText(source.title);
+  const candidateTitle = normalizeMatchText(candidate.title);
+  const sourceCourt = normalizeMatchText(source.court);
+  const candidateCourt = normalizeMatchText(candidate.court);
+  const sourceNumber = normalizeMatchText(source.caseNumber);
+  const candidateNumber = normalizeMatchText(candidate.caseNumber);
+
+  let score = Math.round(tokenSimilarity(sourceTitle, candidateTitle) * 100);
+
+  if (
+    sourceTitle.length > 24 &&
+    candidateTitle.length > 24 &&
+    (sourceTitle.includes(candidateTitle) || candidateTitle.includes(sourceTitle))
+  ) {
+    score = Math.max(score, 88);
+  }
+
+  if (sourceNumber && candidateNumber.includes(sourceNumber)) score += 8;
+  if (sourceCourt && candidateCourt && tokenSimilarity(sourceCourt, candidateCourt) >= 0.55) {
+    score += 10;
+  }
+
+  return Math.min(score, 100);
+}
+
+function tokenSimilarity(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+
+  const aTokens = significantTokens(a);
+  const bTokens = significantTokens(b);
+  if (aTokens.length === 0 || bTokens.length === 0) return 0;
+
+  const bSet = new Set(bTokens);
+  const shared = aTokens.filter((token) => bSet.has(token)).length;
+  return shared / Math.max(aTokens.length, bTokens.length);
+}
+
+function significantTokens(value: string): string[] {
+  return normalizeMatchText(value)
+    .split(' ')
+    .filter((token) => token.length > 2 && !MATCH_STOPWORDS.has(token));
+}
+
+function normalizeMatchText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const MATCH_STOPWORDS = new Set([
+  'C',
+  'S',
+  'Y',
+  'DE',
+  'DEL',
+  'LA',
+  'LAS',
+  'LOS',
+  'EL',
+  'EN',
+  'POR',
+  'CON',
+  'OTRO',
+  'OTROS',
+  'SOBRE',
+]);

@@ -31,6 +31,7 @@ export type ProcuAsistMessage =
   | GetAlertsMessage
   | MarkAlertReadMessage
   | MarkAllAlertsReadMessage
+  | EnrichScbaMisCausasMessage
   | RunScanNowMessage
   | RunScanSinceMessage
   | PjnGetEventsDebugMessage
@@ -216,6 +217,10 @@ export interface MarkAlertReadMessage {
 
 export interface MarkAllAlertsReadMessage {
   type: 'MARK_ALL_ALERTS_READ';
+}
+
+export interface EnrichScbaMisCausasMessage {
+  type: 'ENRICH_SCBA_MIS_CAUSAS';
 }
 
 export interface RunScanNowMessage {
