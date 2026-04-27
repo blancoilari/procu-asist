@@ -435,4 +435,4 @@ Si tenes dudas o problemas que no se resuelven con este manual, contactanos:
 
 ---
 
-*ProcuAsist v0.6.0 — Copiloto Legal para Abogados Argentinos*
+*ProcuAsist v0.6.1 — Copiloto Legal para Abogados Argentinos*

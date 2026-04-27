@@ -4,12 +4,13 @@ ProcuAsist es una herramienta hecha por un abogado de la matricula, para colegas
 
 Este roadmap marca prioridades, no promesas cerradas. El orden puede cambiar segun estabilidad de los portales judiciales, feedback de usuarios y disponibilidad de prueba con casos reales.
 
-## Version actual: v0.6.0
+## Version actual: v0.6.1
 
 Lo que ya existe:
 
 - **MEV / SCBA**: auto-login, marcadores, monitoreo basico, descarga ZIP del expediente, seleccion de pasos procesales, PDF resumen y descarga de adjuntos.
 - **SCBA Notificaciones**: importacion masiva de causas desde novedades del portal.
+- **SCBA Mis Causas**: importacion desde Notificaciones, cruce con MEV y busqueda asistida para completar datos internos.
 - **PJN**: auto-login SSO, lectura de listados y favoritos, descarga ZIP de expedientes desde SCW.
 - **JUSCABA / EJE**: auto-login y extraccion basica de causas.
 - **Credenciales locales**: cifrado AES-GCM protegido por PIN.
@@ -19,9 +20,9 @@ Lo que ya existe:
 
 ### v0.6.x - Saneamiento publico y Store
 
-- Actualizar README, manual, assets de publicacion y descripciones.
-- Corregir claims viejos sobre Chrome Web Store, PJN y monitoreo.
+- Mantener checklist QA antes de cada envio a Chrome Web Store.
 - Mejorar capturas y textos de la ficha publica.
+- Pulir mensajes de sesion, errores y estados de carga.
 - Dejar claro que ProcuAsist gratis no requiere cuentas ni servidores.
 
 ### v0.7.0 - UI unificada en portales
@@ -33,7 +34,7 @@ Lo que ya existe:
 
 ### v0.8.0 - SCBA / MEV mas solido
 
-- Mejorar importaciones desde resultados y sets de busqueda.
+- Mejorar importaciones desde resultados, sets de busqueda y Mis Causas.
 - Consolidar importacion desde `notificaciones.scba.gov.ar`.
 - Revisar monitoreo, frecuencia, mensajes y casos de sesion vencida.
 - Mejorar errores y diagnostico para soporte.
