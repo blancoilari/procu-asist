@@ -2,6 +2,20 @@
 
 Todos los cambios notables del proyecto se documentan en este archivo.
 
+## [0.6.1] - 2026-04-27
+
+### Estabilizacion publica gratuita
+
+- Unificacion visual de botones flotantes en MEV, PJN y EJE.
+- Importacion completa de sets de busqueda MEV, recorriendo organismos del set.
+- Importacion desde `notificaciones.scba.gov.ar` > Mis Causas.
+- Cruce de causas importadas desde Notificaciones con datos internos MEV ya conocidos.
+- Busqueda asistida en MEV para completar causas pendientes importadas desde Notificaciones.
+- Monitoreo automatico de causas MEV enriquecidas con `nidCausa` y `pidJuzgado`.
+- Busqueda de movimientos desde una fecha indicada sobre causas monitoreadas.
+- Mejoras de mensajes en el panel lateral para informar pendientes, busquedas por tanda y necesidad de tener MEV abierto.
+- Checklist QA y materiales de publicacion para preparar la actualizacion en Chrome Web Store.
+
 ## [0.6.0] - 2026-04-23
 
 ### Soporte para Poder Judicial de la Nación (PJN)
