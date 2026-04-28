@@ -18,7 +18,13 @@ import {
   Mail,
   Bug,
 } from 'lucide-react';
-import type { Bookmark, Case, Monitor, MovementAlert } from '@/modules/portals/types';
+import type {
+  Bookmark,
+  Case,
+  Monitor,
+  MovementAlert,
+  PortalId,
+} from '@/modules/portals/types';
 import type { ProcuAsistSettings } from '@/modules/storage/settings-store';
 import { DONATE_URL } from '@/modules/tier/limits';
 import { useDarkMode } from '@/modules/ui/use-dark-mode';
@@ -26,10 +32,12 @@ import Onboarding, { isOnboardingDone } from '@/modules/ui/Onboarding';
 import { isDateOnOrAfter, parseDateOnly } from '@/modules/utils/date';
 
 type Tab = 'bookmarks' | 'monitors' | 'settings';
+type PortalFilter = 'all' | PortalId;
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('bookmarks');
   const [search, setSearch] = useState('');
+  const [portalFilter, setPortalFilter] = useState<PortalFilter>('all');
   const [unreadCount, setUnreadCount] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
 
@@ -136,10 +144,18 @@ export default function App() {
         ))}
       </nav>
 
+      {activeTab !== 'settings' && (
+        <PortalFilterBar value={portalFilter} onChange={setPortalFilter} />
+      )}
+
       {/* Content */}
       <main className="flex-1 overflow-y-auto">
-        {activeTab === 'bookmarks' && <BookmarksTab search={search} />}
-        {activeTab === 'monitors' && <MonitorsTab search={search} />}
+        {activeTab === 'bookmarks' && (
+          <BookmarksTab search={search} portalFilter={portalFilter} />
+        )}
+        {activeTab === 'monitors' && (
+          <MonitorsTab search={search} portalFilter={portalFilter} />
+        )}
         {activeTab === 'settings' && <SettingsTab />}
       </main>
     </div>
@@ -162,12 +178,17 @@ function ConnectionBadge() {
 // Portal Badge
 // ──────────────────────────────────────────────────────────
 
-type PortalId = import('@/modules/portals/types').PortalId;
-
 const PORTAL_LABELS: Record<PortalId, string> = {
   mev: 'MEV',
   eje: 'JUSCABA',
   pjn: 'PJN',
+};
+
+const PORTAL_FILTER_LABELS: Record<PortalFilter, string> = {
+  all: 'Todos',
+  mev: 'MEV',
+  pjn: 'PJN',
+  eje: 'EJE',
 };
 
 const PORTAL_BADGE_CLASS: Record<PortalId, string> = {
@@ -186,11 +207,46 @@ function PortalBadge({ portal }: { portal: PortalId }) {
   );
 }
 
+function PortalFilterBar({
+  value,
+  onChange,
+}: {
+  value: PortalFilter;
+  onChange: (value: PortalFilter) => void;
+}) {
+  return (
+    <div className="border-b border-border px-4 pb-2">
+      <div className="grid grid-cols-4 gap-1 rounded-xl bg-bg-secondary p-1">
+        {(['all', 'mev', 'pjn', 'eje'] as PortalFilter[]).map((portal) => (
+          <button
+            key={portal}
+            type="button"
+            onClick={() => onChange(portal)}
+            className={`rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+              value === portal
+                ? 'bg-primary text-white shadow-sm'
+                : 'text-text-secondary hover:bg-bg hover:text-text'
+            }`}
+          >
+            {PORTAL_FILTER_LABELS[portal]}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ──────────────────────────────────────────────────────────
 // Bookmarks Tab
 // ──────────────────────────────────────────────────────────
 
-function BookmarksTab({ search }: { search: string }) {
+function BookmarksTab({
+  search,
+  portalFilter,
+}: {
+  search: string;
+  portalFilter: PortalFilter;
+}) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastDetected, setLastDetected] = useState<Case | null>(null);
@@ -199,7 +255,6 @@ function BookmarksTab({ search }: { search: string }) {
     try {
       const response = (await chrome.runtime.sendMessage({
         type: 'GET_BOOKMARKS',
-        query: search || undefined,
       })) as { success: boolean; bookmarks: Bookmark[] };
 
       if (response?.success) {
@@ -210,9 +265,15 @@ function BookmarksTab({ search }: { search: string }) {
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, []);
 
-  // Load bookmarks on mount and when search changes
+  const filteredBookmarks = bookmarks.filter(
+    (bookmark) =>
+      matchesPortalFilter(bookmark.portal, portalFilter) &&
+      matchesCaseSearch(bookmark, search)
+  );
+
+  // Load bookmarks on mount; search and portal filters are applied locally.
   useEffect(() => {
     loadBookmarks();
   }, [loadBookmarks]);
@@ -290,11 +351,11 @@ function BookmarksTab({ search }: { search: string }) {
       )}
 
       {/* Bookmarks list */}
-      {bookmarks.length === 0 ? (
-        <EmptyBookmarks hasSearch={!!search} />
+      {filteredBookmarks.length === 0 ? (
+        <EmptyBookmarks hasSearch={!!search || portalFilter !== 'all'} />
       ) : (
         <ul className="divide-y divide-border">
-          {bookmarks.map((b) => (
+          {filteredBookmarks.map((b) => (
             <BookmarkCard
               key={`${b.portal}-${b.caseNumber}`}
               bookmark={b}
@@ -306,10 +367,11 @@ function BookmarksTab({ search }: { search: string }) {
       )}
 
       {/* Count footer */}
-      {bookmarks.length > 0 && (
+      {filteredBookmarks.length > 0 && (
         <div className="border-t border-border px-4 py-2 text-center text-xs text-text-secondary">
-          {bookmarks.length} marcador{bookmarks.length !== 1 ? 'es' : ''}
-          {search ? ' encontrados' : ''}
+          {filteredBookmarks.length} marcador
+          {filteredBookmarks.length !== 1 ? 'es' : ''}
+          {search || portalFilter !== 'all' ? ' encontrados' : ''}
         </div>
       )}
     </div>
@@ -584,7 +646,7 @@ function EmptyBookmarks({ hasSearch }: { hasSearch: boolean }) {
       </p>
       <p className="text-xs leading-relaxed">
         {hasSearch
-          ? 'Intentá con otro término de búsqueda.'
+          ? 'Intentá con otro término de búsqueda o filtro.'
           : 'Navegá a una causa en MEV o JUSCABA y hacé clic en "Guardar" para agregarla acá.'}
       </p>
     </div>
@@ -595,7 +657,13 @@ function EmptyBookmarks({ hasSearch }: { hasSearch: boolean }) {
 // Monitors Tab
 // ──────────────────────────────────────────────────────────
 
-function MonitorsTab({ search }: { search: string }) {
+function MonitorsTab({
+  search,
+  portalFilter,
+}: {
+  search: string;
+  portalFilter: PortalFilter;
+}) {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [alerts, setAlerts] = useState<MovementAlert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -619,17 +687,7 @@ function MonitorsTab({ search }: { search: string }) {
       ]);
 
       if (monResp?.success) {
-        let filtered = monResp.monitors;
-        if (search) {
-          const lower = search.toLowerCase();
-          filtered = filtered.filter(
-            (m) =>
-              m.caseNumber.toLowerCase().includes(lower) ||
-              m.title.toLowerCase().includes(lower) ||
-              m.court.toLowerCase().includes(lower)
-          );
-        }
-        setMonitors(filtered);
+        setMonitors(monResp.monitors);
       }
       if (alertResp?.success) setAlerts(alertResp.alerts);
     } catch (err) {
@@ -637,7 +695,7 @@ function MonitorsTab({ search }: { search: string }) {
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -737,12 +795,19 @@ function MonitorsTab({ search }: { search: string }) {
     }
   };
 
-  const unreadAlerts = alerts.filter((a) => !a.isRead);
+  const filteredMonitors = monitors.filter(
+    (monitor) =>
+      matchesPortalFilter(monitor.portal, portalFilter) &&
+      matchesMonitorSearch(monitor, search)
+  );
+  const filteredMonitorIds = new Set(filteredMonitors.map((monitor) => monitor.id));
+  const scopedAlerts = alerts.filter((alert) => filteredMonitorIds.has(alert.monitorId));
+  const unreadScopedAlerts = scopedAlerts.filter((a) => !a.isRead);
   const filteredAlerts = alertsFromDate
-    ? alerts
+    ? scopedAlerts
         .filter((a) => isDateOnOrAfter(a.movementDate, alertsFromDate))
         .sort(compareAlertsByMovementDateDesc)
-    : alerts;
+    : scopedAlerts;
 
   if (loading) {
     return (
@@ -764,7 +829,7 @@ function MonitorsTab({ search }: { search: string }) {
               : 'text-text-secondary hover:text-text'
           }`}
         >
-          Causas ({monitors.length})
+          Causas ({filteredMonitors.length})
         </button>
         <button
           onClick={() => setView('alerts')}
@@ -775,9 +840,9 @@ function MonitorsTab({ search }: { search: string }) {
           }`}
         >
           Alertas
-          {unreadAlerts.length > 0 && (
+          {unreadScopedAlerts.length > 0 && (
             <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-              {unreadAlerts.length}
+              {unreadScopedAlerts.length}
             </span>
           )}
         </button>
@@ -786,7 +851,7 @@ function MonitorsTab({ search }: { search: string }) {
       {view === 'monitors' ? (
         <>
           {/* Scan button */}
-          {monitors.length > 0 && (
+          {filteredMonitors.length > 0 && (
             <div className="flex items-center justify-between border-b border-border px-4 py-2">
               <LastScanInfo />
               <button
@@ -808,11 +873,11 @@ function MonitorsTab({ search }: { search: string }) {
           )}
 
           {/* Monitors list */}
-          {monitors.length === 0 ? (
-            <EmptyMonitors hasSearch={!!search} />
+          {filteredMonitors.length === 0 ? (
+            <EmptyMonitors hasSearch={!!search || portalFilter !== 'all'} />
           ) : (
             <ul className="divide-y divide-border">
-              {monitors.map((m) => (
+              {filteredMonitors.map((m) => (
                 <MonitorCard
                   key={m.id}
                   monitor={m}
@@ -874,7 +939,7 @@ function MonitorsTab({ search }: { search: string }) {
             )}
           </div>
 
-          {unreadAlerts.length > 0 && (
+          {unreadScopedAlerts.length > 0 && (
             <div className="flex justify-end border-b border-border px-4 py-2">
               <button
                 onClick={handleMarkAllRead}
@@ -885,7 +950,7 @@ function MonitorsTab({ search }: { search: string }) {
             </div>
           )}
 
-          {alerts.length === 0 ? (
+          {scopedAlerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-text-secondary">
               <div className="text-text-secondary/50">
                 <Bell size={40} />
@@ -913,7 +978,7 @@ function MonitorsTab({ search }: { search: string }) {
                 <AlertCard
                   key={alert.id}
                   alert={alert}
-                  monitors={monitors}
+                  monitors={filteredMonitors}
                 />
               ))}
             </ul>
@@ -1189,7 +1254,7 @@ function EmptyMonitors({ hasSearch }: { hasSearch: boolean }) {
       </p>
       <p className="text-xs leading-relaxed">
         {hasSearch
-          ? 'Intentá con otro término de búsqueda.'
+          ? 'Intentá con otro término de búsqueda o filtro.'
           : 'Navegá a una causa en MEV, guardala como marcador, y activá el monitoreo para recibir alertas de nuevos movimientos.'}
       </p>
     </div>
@@ -1418,6 +1483,34 @@ function getRelativeTime(isoDate: string): string {
     day: '2-digit',
     month: '2-digit',
   });
+}
+
+function matchesPortalFilter(portal: PortalId, filter: PortalFilter): boolean {
+  return filter === 'all' || portal === filter;
+}
+
+function matchesCaseSearch(
+  item: Pick<Case, 'caseNumber' | 'title' | 'court'>,
+  search: string
+): boolean {
+  if (!search) return true;
+  const lower = search.toLowerCase();
+  return (
+    item.caseNumber.toLowerCase().includes(lower) ||
+    item.title.toLowerCase().includes(lower) ||
+    item.court.toLowerCase().includes(lower)
+  );
+}
+
+function matchesMonitorSearch(monitor: Monitor, search: string): boolean {
+  return matchesCaseSearch(
+    {
+      caseNumber: monitor.caseNumber,
+      title: monitor.title,
+      court: monitor.court,
+    },
+    search
+  );
 }
 
 function compareAlertsByMovementDateDesc(
