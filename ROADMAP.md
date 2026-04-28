@@ -51,6 +51,8 @@ Lo que ya existe:
 ### v1.0.0 - Vista diaria de procuracion
 
 - Vista "movimientos desde fecha".
+- Mostrar solo las causas que tuvieron novedades desde la fecha indicada, agrupando los movimientos dentro de cada causa.
+- Al hacer click en una causa con novedades, abrir directamente el expediente en el portal correspondiente.
 - Filtros por portal, causa y estado.
 - Links directos para revisar movimientos cuando el portal lo permita.
 - Mejor soporte para trabajo diario sobre causas guardadas o monitoreadas.
