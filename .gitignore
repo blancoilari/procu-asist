@@ -24,6 +24,9 @@ web-ext.config.ts
 # Supabase CLI temp
 supabase/.temp/
 
+# Local Chrome Web Store screenshots (may contain case data)
+docs/store-assets/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
