@@ -4,11 +4,23 @@ Objetivo: validar que la version gratuita quede estable antes de subirla a Chrom
 
 Fecha objetivo: 2026-04-27.
 
+## 0. Alcance de mejoras v0.6.1
+
+| Mejora | Estado |
+| --- | --- |
+| Botonera unificada en MEV, PJN y EJE | Implementada; pendiente QA visual en portales reales |
+| Importacion desde resultados MEV | Implementada; pendiente QA manual |
+| Importacion desde sets de busqueda MEV | Implementada; pendiente QA manual |
+| Movimientos desde fecha en causas MEV monitoreadas | Implementada; pendiente QA manual |
+| Materiales de Store, screenshots y claims publicos | Preparados; pendiente envio manual |
+| `notificaciones.scba.gov.ar` | Diferido fuera de v0.6.1 |
+| Importacion desde favoritos/listados PJN | Replanificada para v0.9.0 |
+
 ## 1. Preparacion
 
-- [ ] Ejecutar `npm run compile`.
-- [ ] Ejecutar `npm run build`.
-- [ ] Ejecutar `npm run zip`.
+- [x] Ejecutar `npm run compile`.
+- [x] Ejecutar `npm run build`.
+- [x] Ejecutar `npm run zip`.
 - [ ] Cargar `.output/chrome-mv3` desde `chrome://extensions`.
 - [ ] Confirmar que el panel muestra `v0.6.1`.
 - [ ] Abrir una pestana MEV logueada.
@@ -37,7 +49,7 @@ Fecha objetivo: 2026-04-27.
 ## 4. Fuera de alcance: SCBA Notificaciones
 
 - [ ] Confirmar que ProcuAsist no inyecta botones en `notificaciones.scba.gov.ar`.
-- [ ] Confirmar que el manifest no solicita permisos para `notificaciones.scba.gov.ar`.
+- [x] Confirmar que el manifest no solicita permisos para `notificaciones.scba.gov.ar`.
 - [ ] Confirmar que el panel no muestra `Completar datos MEV` para causas importadas desde Notificaciones.
 
 ## 5. Monitoreo y movimientos desde fecha
@@ -72,9 +84,9 @@ Fecha objetivo: 2026-04-27.
 ## 9. Publicacion
 
 - [ ] Actualizar screenshots anonimizadas.
-- [ ] Revisar `docs/release-v0.6.1-assets.md`.
-- [ ] Confirmar que `CHANGELOG.md` tiene entrada 0.6.1.
-- [ ] Confirmar que `package.json` y `package-lock.json` dicen `0.6.1`.
+- [x] Revisar `docs/release-v0.6.1-assets.md`.
+- [x] Confirmar que `CHANGELOG.md` tiene entrada 0.6.1.
+- [x] Confirmar que `package.json` y `package-lock.json` dicen `0.6.1`.
 - [ ] Subir ZIP al dashboard de Chrome Web Store.
 - [ ] Guardar numero de version enviada a revision.
 

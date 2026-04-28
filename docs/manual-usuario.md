@@ -290,8 +290,8 @@ Si tenes muchas causas en los resultados de busqueda del portal:
 
 1. Realiza una busqueda en el portal (ej: buscar por set o por organismo)
 2. ProcuAsist detecta todos los resultados
-3. En el panel lateral aparece la opcion **"Importar todas"**
-4. Se agregan como marcadores todas las causas de los resultados
+3. En MEV aparece el boton **"Importar"** o **"Importar set"** en la botonera de ProcuAsist.
+4. ProcuAsist agrega las causas como marcadores y las deja monitoreadas.
 
 ---
 

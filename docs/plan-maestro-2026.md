@@ -1,6 +1,6 @@
 # Plan Maestro 2026 - ProcuAsist
 
-Ultima actualizacion: 2026-04-26
+Ultima actualizacion: 2026-04-28
 
 ## 1. Decisiones madre
 
@@ -109,11 +109,12 @@ Si el trabajo se hace in-house, el costo de caja puede ser muy bajo aunque el co
 
 - extension publicada en Chrome Web Store
 - repo enlazado a GitHub
-- soporte MEV / PJN / EJE / SCBA notificaciones
+- soporte MEV / PJN / EJE
 - popup, options, sidepanel, background, offscreen
 - credenciales locales con PIN
 - descarga ZIP en MEV y PJN
-- importacion SCBA notificaciones
+- importacion desde resultados y sets de busqueda MEV
+- vista de movimientos desde fecha para causas MEV monitoreadas
 - monitoreo basico
 
 ### 3.2 Problemas detectados
@@ -618,10 +619,10 @@ Objetivo:
 
 Tareas:
 
-1. consolidar importacion SCBA notificaciones
-2. agregar importacion desde sets/resultados MEV
-3. agregar importacion desde listados/favoritos PJN
-4. agregar vista "movimientos desde fecha"
+1. mantener `notificaciones.scba.gov.ar` fuera del flujo gratuito hasta resolver diferencias de login y sincronizacion con MEV
+2. sostener y pulir importacion desde sets/resultados MEV
+3. agregar importacion desde listados/favoritos PJN en una version posterior
+4. sostener y pulir vista "movimientos desde fecha"
 5. permitir abrir cada movimiento con link directo cuando sea posible
 
 Archivos de partida:
@@ -833,6 +834,11 @@ Titulo:
 
 `scba: consolidar importacion desde notificaciones.scba.gov.ar`
 
+Estado:
+
+- diferido fuera de v0.6.1
+- reservado para una etapa futura de gestion avanzada porque usa otro login y puede no coincidir temporalmente con MEV
+
 Incluye:
 
 - edge cases
@@ -845,17 +851,31 @@ Titulo:
 
 `mev: importar expedientes desde resultados y sets de busqueda`
 
+Estado:
+
+- resuelto en v0.6.1
+- pendiente de QA manual en portal real
+
 ### Ticket P0-07
 
 Titulo:
 
 `pjn: importar favoritos/listados al sidepanel`
 
+Estado:
+
+- replanificado para v0.9.0
+
 ### Ticket P0-08
 
 Titulo:
 
 `feature: vista movimientos desde fecha`
+
+Estado:
+
+- resuelto para causas MEV monitoreadas en v0.6.1
+- pendiente de QA manual en portal real
 
 ### Ticket P0-09
 
@@ -881,6 +901,11 @@ Titulo:
 
 `store: actualizar descripcion, capturas y claims de Chrome Web Store`
 
+Estado:
+
+- materiales y capturas preparados para v0.6.1
+- pendiente envio manual al dashboard de Chrome Web Store
+
 ## 9. Lo que yo arrancaria primero
 
 Si se busca el mejor retorno inmediato, el orden seria:
@@ -888,8 +913,8 @@ Si se busca el mejor retorno inmediato, el orden seria:
 1. `P0-01 docs y claims`
 2. `P0-02 action bar comun`
 3. `P0-03 extraer UI compartida`
-4. `P0-05 importacion SCBA notificaciones`
-5. `P0-08 movimientos desde fecha`
+4. `P0-08 movimientos desde fecha`
+5. `P0-12 Store y claims publicos`
 
 Motivo:
 

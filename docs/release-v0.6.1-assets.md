@@ -77,11 +77,11 @@ Como la Store suele limitar a 5 capturas, reservar como alternativas si conviene
 
 ## 5. Checklist tecnico
 
-- [ ] `npm run compile`
-- [ ] `npm run build`
-- [ ] `npm run zip`
+- [x] `npm run compile`
+- [x] `npm run build`
+- [x] `npm run zip`
 - [ ] QA manual segun `docs/qa-v0.6.1.md`
-- [ ] ZIP generado: `.output/procu-asist-0.6.1-chrome.zip` o equivalente WXT.
+- [x] ZIP generado: `.output/procu-asist-0.6.1-chrome.zip` o equivalente WXT.
 - [ ] Commit y push a GitHub.
 - [ ] Version enviada a revision en Chrome Web Store.
 
