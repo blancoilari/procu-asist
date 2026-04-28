@@ -44,6 +44,8 @@ ProcuAsist se ofrece "tal cual", sin garantias. No reemplaza el control manual d
 
 Carpeta fuente: `D:\Descargas`
 
+Copias normalizadas para Chrome Web Store: `docs/store-assets/v0.6.1/screenshots-1280x800`
+
 - [x] `01_mev_inicio_.png` - MEV / SCBA como portal principal.
 - [x] `02_Menu_procu_Asist_.png` - Panel lateral de ProcuAsist.
 - [x] `03_menu_flotante_.png` - Botonera flotante unificada en MEV.
