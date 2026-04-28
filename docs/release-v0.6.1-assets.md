@@ -40,14 +40,38 @@ DISCLAIMER
 ProcuAsist se ofrece "tal cual", sin garantias. No reemplaza el control manual de actuaciones judiciales ni el criterio profesional del abogado.
 ```
 
-## 4. Screenshots a tomar
+## 4. Screenshots seleccionadas
 
-- [ ] Ajustes con version `v0.6.1`.
-- [ ] MEV expediente con botonera unificada.
-- [ ] Modal de ZIP MEV con seleccion de pasos.
-- [ ] Panel Marcadores con causas importadas.
-- [ ] Panel Monitoreo con busqueda desde fecha.
-- [ ] PJN con boton ZIP.
+Carpeta fuente: `D:\Descargas`
+
+- [x] `01_mev_inicio_.png` - MEV / SCBA como portal principal.
+- [x] `02_Menu_procu_Asist_.png` - Panel lateral de ProcuAsist.
+- [x] `03_menu_flotante_.png` - Botonera flotante unificada en MEV.
+- [x] `04_descargar_expte_completo_.png` - Modal para seleccionar pasos procesales MEV.
+- [x] `04_b_archivo_zip_.png` - Archivo ZIP generado desde MEV.
+- [x] `04_c_archivos_.png` - Contenido descomprimido del ZIP MEV.
+- [x] `04_d_pdf_ejemplo_.png` - Ejemplo de PDF de paso procesal MEV.
+- [x] `05_monitoreo_por_fechas_.png` - Busqueda de movimientos desde una fecha.
+- [x] `05_b_marcadores_.png` - Marcadores con causas importadas desde MEV.
+- [x] `06_PJN_descarga_Expte_completo_.png` - Modal ZIP PJN.
+- [x] `07_zip_pjn_.png` - Archivo ZIP generado desde PJN.
+- [x] `08_zip_descomprimido_.png` - Contenido descomprimido del ZIP PJN.
+- [x] `09_ejemplo_pdf_pjn_.png` - Ejemplo de PDF descargado desde PJN.
+
+Para Chrome Web Store conviene subir primero 5 capturas principales:
+
+- `02_Menu_procu_Asist_.png`
+- `03_menu_flotante_.png`
+- `04_descargar_expte_completo_.png`
+- `05_monitoreo_por_fechas_.png`
+- `06_PJN_descarga_Expte_completo_.png`
+
+Si la Store permite mas capturas, agregar despues:
+
+- `04_c_archivos_.png`
+- `04_d_pdf_ejemplo_.png`
+- `08_zip_descomprimido_.png`
+- `09_ejemplo_pdf_pjn_.png`
 
 ## 5. Checklist tecnico
 

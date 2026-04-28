@@ -28,8 +28,10 @@ Lo que ya existe:
 
 - Unificar la botonera de acciones en MEV, PJN y EJE.
 - Usar un mismo lenguaje visual para Configuracion, ZIP, Guardar y Monitorear.
+- Agregar en PJN los botones flotantes Guardar y Monitorear, ademas de ZIP.
 - Alinear estados de carga, exito, error y progreso.
 - Tomar como base el estilo mas sobrio de PJN.
+- Separar o filtrar las causas del panel lateral por portal/jurisdiccion para no mezclar MEV, PJN y EJE.
 
 ### v0.8.0 - SCBA / MEV mas solido
 
@@ -41,6 +43,7 @@ Lo que ya existe:
 ### v0.9.0 - PJN mas solido
 
 - Mejorar mensajes cuando falta token o sesion.
+- Agregar importacion de causas PJN con dos acciones: relacionadas y favoritas.
 - Consolidar importacion desde favoritos/listados.
 - Reforzar collector y ZIP en expedientes grandes.
 - Mejorar estados de progreso y verificacion.
