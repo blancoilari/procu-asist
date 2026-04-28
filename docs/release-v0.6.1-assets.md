@@ -68,7 +68,7 @@ Para Chrome Web Store conviene subir primero 5 capturas principales:
 - `05_monitoreo_por_fechas_.png`
 - `06_PJN_descarga_Expte_completo_.png`
 
-Si la Store permite mas capturas, agregar despues:
+Como la Store suele limitar a 5 capturas, reservar como alternativas si conviene reemplazar alguna principal:
 
 - `04_c_archivos_.png`
 - `04_d_pdf_ejemplo_.png`
