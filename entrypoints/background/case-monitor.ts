@@ -362,7 +362,7 @@ async function scanSinglePjnCase(
 
   const opened = await navigateScwTab(tabId, caseUrl);
   if (!opened) {
-    throw new Error('No se pudo abrir el expediente PJN/SCW para escanearlo');
+    throw new Error('Legacy PJN scanner disabled');
   }
 
   const scanResults = await chrome.scripting.executeScript({
@@ -489,7 +489,7 @@ async function scanSinglePjnCaseViaTab(
 
   const opened = await navigateScwTab(tabId, caseUrl);
   if (!opened) {
-    throw new Error('No se pudo abrir el expediente PJN/SCW para escanearlo');
+    throw new Error('Legacy PJN scanner disabled');
   }
 
   const scanResults = await chrome.scripting.executeScript({
@@ -720,81 +720,12 @@ function getMevCaseIds(
   return { nidCausa, pidJuzgado };
 }
 
-function getPjnCaseUrl(monitor: Monitor): string | null {
-  const cid = getQueryParam(monitor.portalUrl, 'cid');
-  if (!cid) return null;
-
-  try {
-    const url = new URL(monitor.portalUrl);
-    if (url.hostname !== 'scw.pjn.gov.ar') return null;
-    if (!url.pathname.toLowerCase().includes('expediente.seam')) return null;
-    return url.toString();
-  } catch {
-    return null;
-  }
+function getPjnCaseUrl(_monitor: Monitor): string | null {
+  return null;
 }
 
-async function navigateScwTab(tabId: number, targetUrl: string): Promise<boolean> {
-  try {
-    await chrome.tabs.update(tabId, { url: targetUrl });
-    return waitForTabLoad(tabId, targetUrl, 25_000);
-  } catch (err) {
-    console.warn('[ProcuAsist] Could not navigate PJN/SCW tab for monitoring', err);
-    return false;
-  }
-}
-
-function waitForTabLoad(
-  tabId: number,
-  targetUrl: string,
-  timeoutMs: number
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    let settled = false;
-
-    const finish = (value: boolean) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      chrome.tabs.onUpdated.removeListener(listener);
-      resolve(value);
-    };
-
-    const listener = (
-      updatedTabId: number,
-      changeInfo: { status?: string },
-      tab: chrome.tabs.Tab
-    ) => {
-      if (updatedTabId !== tabId || changeInfo.status !== 'complete') return;
-      if (isExpectedScwCaseUrl(tab.url ?? '', targetUrl)) finish(true);
-    };
-
-    const timer = setTimeout(() => finish(false), timeoutMs);
-    chrome.tabs.onUpdated.addListener(listener);
-
-    chrome.tabs
-      .get(tabId)
-      .then((tab) => {
-        if (tab.status === 'complete' && isExpectedScwCaseUrl(tab.url ?? '', targetUrl)) {
-          finish(true);
-        }
-      })
-      .catch(() => finish(false));
-  });
-}
-
-function isExpectedScwCaseUrl(currentUrl: string, targetUrl: string): boolean {
-  try {
-    const current = new URL(currentUrl);
-    const target = new URL(targetUrl);
-    return (
-      current.hostname === target.hostname &&
-      current.pathname.toLowerCase().includes('expediente.seam') &&
-      current.searchParams.get('cid') === target.searchParams.get('cid')
-    );
-  } catch {
-    return false;
-  }
+async function navigateScwTab(_tabId: number, _targetUrl: string): Promise<boolean> {
+  return false;
 }
 
 async function getCachedPjnEvents(): Promise<PjnEventFeedResult> {
