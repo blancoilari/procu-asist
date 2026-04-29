@@ -12,9 +12,10 @@ Fecha objetivo: 2026-04-27.
 | Importacion desde resultados MEV | Implementada; pendiente QA manual |
 | Importacion desde sets de busqueda MEV | Implementada; pendiente QA manual |
 | Movimientos desde fecha en causas MEV monitoreadas | Implementada; pendiente QA manual |
+| Filtros por portal en panel lateral | Implementada; pendiente QA visual |
+| Importacion y monitoreo inicial PJN desde listados SCW | Implementada; pendiente QA manual |
 | Materiales de Store, screenshots y claims publicos | Preparados; pendiente envio manual |
 | `notificaciones.scba.gov.ar` | Diferido fuera de v0.6.1 |
-| Importacion desde favoritos/listados PJN | Replanificada para v0.9.0 |
 
 ## 1. Preparacion
 
@@ -67,6 +68,12 @@ Fecha objetivo: 2026-04-27.
 - [ ] Se puede seleccionar y deseleccionar actuaciones.
 - [ ] El ZIP PJN incluye resumen y documentos seleccionados cuando el portal entrega PDFs.
 - [ ] Si faltan documentos o falla una descarga, se informa sin romper el ZIP completo.
+- [ ] En listados SCW aparece el boton de importacion correspondiente.
+- [ ] Importar relacionados/favoritos agrega marcadores PJN sin duplicados.
+- [ ] Desde Marcadores se pueden pasar causas PJN visibles a Monitoreo.
+- [ ] `Escanear ahora` en PJN usa el feed si hay token o el listado SCW abierto si no lo hay.
+- [ ] Alertas PJN muestran portal, numero, caratula, juzgado y movimiento.
+- [ ] Al hacer click en una alerta PJN se abre la causa o el portal correspondiente.
 
 ## 7. EJE / JUSCABA
 

@@ -11,6 +11,9 @@ Todos los cambios notables del proyecto se documentan en este archivo.
 - Monitoreo automatico de causas MEV enriquecidas con `nidCausa` y `pidJuzgado`.
 - Busqueda de movimientos desde una fecha indicada sobre causas monitoreadas.
 - Importacion desde resultados y sets de busqueda MEV como fuente principal de Provincia.
+- Importacion de listados PJN/SCW como marcadores, con filtros por portal en el panel.
+- Monitoreo PJN inicial desde feed del portal cuando hay token disponible y respaldo por listados SCW paginados.
+- Alertas enriquecidas con portal, numero, caratula y juzgado.
 - Se deja fuera de alcance `notificaciones.scba.gov.ar` en la version gratuita porque usa otro login y puede no coincidir temporalmente con MEV.
 - Eliminada la seccion vieja de Cuenta/sync en opciones.
 - Reemplazado el icono inicial del onboarding por la balanza de ProcuAsist.
