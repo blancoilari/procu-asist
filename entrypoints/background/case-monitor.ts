@@ -158,7 +158,7 @@ async function scanSingleCase(
   fromDate?: string
 ): Promise<SingleScanResult> {
   if (monitor.portal === 'pjn') {
-    return scanSinglePjnCase(monitor, tabId, fromDate);
+    return scanSinglePjnCaseViaTab(monitor, tabId, fromDate);
   }
 
   if (monitor.portal !== 'mev') {
@@ -353,6 +353,11 @@ async function scanSinglePjnCase(
     };
   }
 
+  const opened = await navigateScwTab(tabId, caseUrl);
+  if (!opened) {
+    throw new Error('No se pudo abrir el expediente PJN/SCW para escanearlo');
+  }
+
   const scanResults = await chrome.scripting.executeScript({
     target: { tabId },
     world: 'MAIN',
@@ -427,6 +432,125 @@ async function scanSinglePjnCase(
 
   if (!result || result.error || !result.html || !result.movements) {
     throw new Error(result?.error ?? 'No result from PJN executeScript');
+  }
+
+  if (result.loginLike) {
+    await notifyNoSession('pjn');
+    throw new Error('session_expired');
+  }
+
+  return persistScanMovements(monitor, result.movements, fromDate);
+}
+
+async function scanSinglePjnCaseViaTab(
+  monitor: Monitor,
+  tabId: number,
+  fromDate?: string
+): Promise<SingleScanResult> {
+  const caseUrl = getPjnCaseUrl(monitor);
+  if (!caseUrl) {
+    console.warn(
+      `[ProcuAsist] PJN monitor ${monitor.caseNumber} missing expediente URL, skipping`
+    );
+    return {
+      newMovements: 0,
+      matchedMovements: [],
+      totalMovements: 0,
+      skippedReason: 'missing_ids',
+    };
+  }
+
+  const opened = await navigateScwTab(tabId, caseUrl);
+  if (!opened) {
+    throw new Error('No se pudo abrir el expediente PJN/SCW para escanearlo');
+  }
+
+  const scanResults = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    func: async () => {
+      try {
+        const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+        const normalize = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+        const findMovementTable = () => {
+          const tables = document.querySelectorAll('table');
+          for (const table of tables) {
+            const headerText = normalize(
+              Array.from(table.querySelectorAll('tr'))
+                .slice(0, 3)
+                .map((row) => row.textContent ?? '')
+                .join(' ')
+            );
+            if (
+              /oficina/i.test(headerText) &&
+              /fecha/i.test(headerText) &&
+              /descripci[oó]n\s*\/\s*detalle|descripcion\s*\/\s*detalle/i.test(headerText)
+            ) {
+              return table;
+            }
+          }
+          return null;
+        };
+
+        const parseMovements = () => {
+          const movements: Array<{ date: string; type: string; description: string }> = [];
+          const movTable = findMovementTable();
+          if (!movTable) return movements;
+
+          const rows = movTable.querySelectorAll('tbody tr, tr');
+          const datePattern = /^\d{1,2}\/\d{1,2}\/\d{4}/;
+
+          for (const row of Array.from(rows)) {
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 4) continue;
+
+            const values = Array.from(cells).map((cell) =>
+              normalize(cell.textContent ?? '')
+            );
+            const dateIndex = values.findIndex((value) => datePattern.test(value));
+            const date = dateIndex >= 0 ? values[dateIndex].substring(0, 10) : '';
+            if (!date) continue;
+
+            const type = values[dateIndex + 1] ?? '';
+            const description = values[dateIndex + 2] ?? values.slice(dateIndex + 1).join(' ');
+            movements.push({ date, type, description });
+          }
+
+          return movements;
+        };
+
+        let movements = parseMovements();
+        for (let i = 0; movements.length === 0 && i < 20; i++) {
+          await sleep(250);
+          movements = parseMovements();
+        }
+
+        const html = document.documentElement?.innerText ?? document.body?.innerText ?? '';
+        const lower = html.toLowerCase();
+        const loginLike =
+          /login|iniciar sesi[oó]n|usuario|contrase(?:n|ñ)a|password/.test(lower) &&
+          !/datos generales|actuaciones|expediente/.test(lower);
+
+        return { html, loginLike, movements };
+      } catch (e) {
+        return { error: String(e) };
+      }
+    },
+  });
+
+  const result = scanResults[0]?.result as
+    | {
+        html: string;
+        loginLike: boolean;
+        movements: Array<{ date: string; type: string; description: string }>;
+        error?: never;
+      }
+    | { error: string; html?: never; movements?: never; loginLike?: never }
+    | null;
+
+  if (!result || result.error || !result.html || !result.movements) {
+    throw new Error(result?.error ?? 'No result from PJN tab scan');
   }
 
   if (result.loginLike) {
@@ -576,6 +700,69 @@ function getPjnCaseUrl(monitor: Monitor): string | null {
     return url.toString();
   } catch {
     return null;
+  }
+}
+
+async function navigateScwTab(tabId: number, targetUrl: string): Promise<boolean> {
+  try {
+    await chrome.tabs.update(tabId, { url: targetUrl });
+    return waitForTabLoad(tabId, targetUrl, 25_000);
+  } catch (err) {
+    console.warn('[ProcuAsist] Could not navigate PJN/SCW tab for monitoring', err);
+    return false;
+  }
+}
+
+function waitForTabLoad(
+  tabId: number,
+  targetUrl: string,
+  timeoutMs: number
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const finish = (value: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve(value);
+    };
+
+    const listener = (
+      updatedTabId: number,
+      changeInfo: { status?: string },
+      tab: chrome.tabs.Tab
+    ) => {
+      if (updatedTabId !== tabId || changeInfo.status !== 'complete') return;
+      if (isExpectedScwCaseUrl(tab.url ?? '', targetUrl)) finish(true);
+    };
+
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    chrome.tabs.onUpdated.addListener(listener);
+
+    chrome.tabs
+      .get(tabId)
+      .then((tab) => {
+        if (tab.status === 'complete' && isExpectedScwCaseUrl(tab.url ?? '', targetUrl)) {
+          finish(true);
+        }
+      })
+      .catch(() => finish(false));
+  });
+}
+
+function isExpectedScwCaseUrl(currentUrl: string, targetUrl: string): boolean {
+  try {
+    const current = new URL(currentUrl);
+    const target = new URL(targetUrl);
+    return (
+      current.hostname === target.hostname &&
+      current.pathname.toLowerCase().includes('expediente.seam') &&
+      current.searchParams.get('cid') === target.searchParams.get('cid')
+    );
+  } catch {
+    return false;
   }
 }
 
