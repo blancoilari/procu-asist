@@ -45,6 +45,7 @@ Lo que ya existe:
 - Mejorar mensajes cuando falta token o sesion.
 - Agregar importacion de causas PJN con dos acciones: relacionadas y favoritas.
 - Consolidar importacion desde favoritos/listados.
+- Relevar y prototipar "Dejar nota" masivo para causas PJN donde el usuario sea letrado, solo en dias martes/viernes y con confirmacion manual antes de ejecutar.
 - Reforzar collector y ZIP en expedientes grandes.
 - Mejorar estados de progreso y verificacion.
 

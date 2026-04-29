@@ -31,6 +31,7 @@ import {
 } from '@/modules/portals/pjn-actuaciones-collector';
 import { mountPjnZipButton } from '@/modules/portals/pjn-zip-ui';
 import { mountPjnCaseActions } from '@/modules/portals/pjn-actions-ui';
+import { mountPjnListImportButton } from '@/modules/portals/pjn-list-import-ui';
 
 export interface PjnCollectActuacionesMessage {
   type: 'PJN_COLLECT_ACTUACIONES';
@@ -115,6 +116,7 @@ function installCollectorListener(): void {
 function initScwDebug(): void {
   const url = new URL(window.location.href);
   if (isScwListadoPage(url.pathname)) {
+    mountPjnListImportButton(url);
     if (import.meta.env.DEV) initListMode(url);
     return;
   }
