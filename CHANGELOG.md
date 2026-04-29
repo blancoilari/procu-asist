@@ -2,6 +2,13 @@
 
 Todos los cambios notables del proyecto se documentan en este archivo.
 
+## [0.6.2] - 2026-04-29
+
+### Reempaquetado para Chrome Web Store
+
+- Incremento de version para poder enviar a revision el paquete estabilizado posterior a la publicacion de `0.6.1`.
+- Sin cambios funcionales adicionales respecto del paquete QA ya validado.
+
 ## [0.6.1] - 2026-04-27
 
 ### Estabilizacion publica gratuita
