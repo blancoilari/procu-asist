@@ -18,7 +18,7 @@
 
 import type { Monitor } from '@/modules/portals/types';
 import { MEV_BASE_URL, MEV_URLS } from '@/modules/portals/mev-selectors';
-import { findScwTab } from '@/modules/portals/pjn-downloader';
+import { getEvents, type PjnEvent } from '@/modules/portals/pjn-api-client';
 import {
   getActiveMonitors,
   updateMonitorScan,
@@ -30,6 +30,12 @@ import { isDateOnOrAfter } from '@/modules/utils/date';
 const BATCH_SIZE = 5;
 /** Delay between fetches within a batch (ms) */
 const FETCH_DELAY = 2000;
+const PJN_EVENT_PAGES_TO_SCAN = 5;
+const PJN_EVENT_PAGE_SIZE = 100;
+
+let pjnEventsCache:
+  | { timestamp: number; result: PjnEventFeedResult }
+  | null = null;
 
 /**
  * Main scan entry point. Called by alarm-manager every 6 hours
@@ -47,18 +53,15 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
   }
 
   const needsMev = monitors.some((monitor) => monitor.portal === 'mev');
-  const needsPjn = monitors.some((monitor) => monitor.portal === 'pjn');
   const mevTabId = needsMev ? await findMevTab() : null;
-  const pjnTabId = needsPjn ? await findScwTab() : null;
+  const pjnTabId = null;
 
-  if ((needsMev && !mevTabId) || (needsPjn && !pjnTabId)) {
+  if (needsMev && !mevTabId) {
     console.warn('[ProcuAsist] Missing portal tab for scan', {
       needsMev,
       hasMevTab: Boolean(mevTabId),
-      needsPjn,
-      hasPjnTab: Boolean(pjnTabId),
     });
-    await notifyNoSession(needsPjn && !pjnTabId ? 'pjn' : 'mev');
+    await notifyNoSession('mev');
   }
 
   let totalNew = 0;
@@ -75,7 +78,7 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
     for (const monitor of batch) {
       try {
         const tabId = getScanTabId(monitor, { mevTabId, pjnTabId });
-        if (!tabId) {
+        if (!tabId && monitor.portal !== 'pjn') {
           missingTabs++;
           continue;
         }
@@ -154,14 +157,18 @@ export interface ScanMovement {
 
 async function scanSingleCase(
   monitor: Monitor,
-  tabId: number,
+  tabId: number | null,
   fromDate?: string
 ): Promise<SingleScanResult> {
   if (monitor.portal === 'pjn') {
-    return scanSinglePjnCaseViaTab(monitor, tabId, fromDate);
+    return scanSinglePjnCaseViaApi(monitor, fromDate);
   }
 
   if (monitor.portal !== 'mev') {
+    return { newMovements: 0, matchedMovements: [], totalMovements: 0 };
+  }
+
+  if (!tabId) {
     return { newMovements: 0, matchedMovements: [], totalMovements: 0 };
   }
 
@@ -442,6 +449,26 @@ async function scanSinglePjnCase(
   return persistScanMovements(monitor, result.movements, fromDate);
 }
 
+async function scanSinglePjnCaseViaApi(
+  monitor: Monitor,
+  fromDate?: string
+): Promise<SingleScanResult> {
+  const feed = await getCachedPjnEvents();
+  if (!feed.ok) {
+    if (feed.errorKind === 'no-session') {
+      await notifyNoSession('pjn');
+    }
+    throw new Error(feed.message);
+  }
+
+  const movements = feed.events
+    .filter((event) => eventMatchesPjnMonitor(event, monitor))
+    .map(pjnEventToMovement)
+    .sort((a, b) => parseDateTimeValue(b.date) - parseDateTimeValue(a.date));
+
+  return persistScanMovements(monitor, movements, fromDate);
+}
+
 async function scanSinglePjnCaseViaTab(
   monitor: Monitor,
   tabId: number,
@@ -567,6 +594,10 @@ interface SingleScanResult {
   totalMovements: number;
   skippedReason?: 'missing_ids';
 }
+
+type PjnEventFeedResult =
+  | { ok: true; events: PjnEvent[] }
+  | { ok: false; errorKind: string; message: string };
 
 // ────────────────────────────────────────────────────────
 // Chrome Notifications
@@ -764,6 +795,114 @@ function isExpectedScwCaseUrl(currentUrl: string, targetUrl: string): boolean {
   } catch {
     return false;
   }
+}
+
+async function getCachedPjnEvents(): Promise<PjnEventFeedResult> {
+  if (pjnEventsCache && Date.now() - pjnEventsCache.timestamp < 60_000) {
+    return pjnEventsCache.result;
+  }
+
+  const events: PjnEvent[] = [];
+
+  for (let page = 0; page < PJN_EVENT_PAGES_TO_SCAN; page++) {
+    const response = await getEvents({
+      page,
+      pageSize: PJN_EVENT_PAGE_SIZE,
+      categoria: 'judicial',
+    });
+
+    if (!response.ok) {
+      const result: PjnEventFeedResult = {
+        ok: false,
+        errorKind: response.error.kind,
+        message: response.error.message,
+      };
+      pjnEventsCache = { timestamp: Date.now(), result };
+      return result;
+    }
+
+    events.push(...response.data.items);
+    if (!response.data.hasNext) break;
+  }
+
+  const result: PjnEventFeedResult = { ok: true, events };
+  pjnEventsCache = { timestamp: Date.now(), result };
+  return result;
+}
+
+function eventMatchesPjnMonitor(event: PjnEvent, monitor: Monitor): boolean {
+  const monitorKey = normalizePjnCaseKey(monitor.caseNumber);
+  const eventKey = normalizePjnCaseKey(event.payload?.claveExpediente ?? '');
+  if (monitorKey && eventKey && monitorKey === eventKey) return true;
+
+  const monitorTitle = normalizeLoose(monitor.title);
+  const eventTitle = normalizeLoose(event.payload?.caratulaExpediente ?? '');
+  return Boolean(
+    monitorTitle &&
+      eventTitle &&
+      (monitorTitle.includes(eventTitle) || eventTitle.includes(monitorTitle))
+  );
+}
+
+function pjnEventToMovement(event: PjnEvent): {
+  date: string;
+  type: string;
+  description: string;
+} {
+  const timestamp =
+    event.payload?.fechaFirma ||
+    event.fechaFirma ||
+    event.fechaAccion ||
+    event.fechaCreacion;
+  const type = event.payload?.tipoEvento || event.tipo || event.categoria || '';
+  const description = type || event.payload?.caratulaExpediente || 'Movimiento PJN';
+
+  return {
+    date: formatPjnTimestamp(timestamp),
+    type,
+    description,
+  };
+}
+
+function normalizePjnCaseKey(value: string): string {
+  const cleaned = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+  const match = cleaned.match(/\b([A-Z]{2,5})\s*0*(\d{1,8})\s*\/\s*(\d{4})\b/);
+  if (match) {
+    return `${match[1]}:${Number(match[2])}:${match[3]}`;
+  }
+  return cleaned.replace(/[^A-Z0-9/]/g, '');
+}
+
+function normalizeLoose(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function formatPjnTimestamp(value: number): string {
+  const ms = value < 10_000_000_000 ? value * 1000 : value;
+  const date = new Date(ms);
+  if (Number.isNaN(date.getTime())) return '';
+  return [
+    String(date.getDate()).padStart(2, '0'),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getFullYear()),
+  ].join('/');
+}
+
+function parseDateTimeValue(date: string): number {
+  const match = date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!match) return 0;
+  return new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1])).getTime();
 }
 
 function getQueryParam(url: string, param: string): string {
