@@ -624,7 +624,7 @@ type PjnVisibleRow = {
 };
 
 type PjnVisibleListResult =
-  | { ok: true; rows: PjnVisibleRow[] }
+  | { ok: true; rows: PjnVisibleRow[]; pagesVisited?: number }
   | { ok: false; message: string };
 
 // ────────────────────────────────────────────────────────
@@ -813,6 +813,44 @@ async function getCachedPjnVisibleList(): Promise<PjnVisibleListResult> {
     };
     pjnVisibleListCache = { timestamp: Date.now(), result };
     return result;
+  }
+
+  try {
+    const response = (await chrome.tabs.sendMessage(tabId, {
+      type: 'PJN_COLLECT_LIST_ROWS',
+      maxPages: 12,
+    })) as
+      | {
+          ok: true;
+          rows: Array<{
+            expediente: string;
+            caratula: string;
+            dependencia: string;
+            situacion: string;
+            ultimaActualizacion: string;
+          }>;
+          pagesVisited?: number;
+        }
+      | { ok: false; error?: string }
+      | undefined;
+
+    if (response?.ok) {
+      const result: PjnVisibleListResult = {
+        ok: true,
+        pagesVisited: response.pagesVisited,
+        rows: response.rows.map((row) => ({
+          caseNumber: row.expediente,
+          title: row.caratula,
+          court: row.dependencia,
+          status: row.situacion,
+          lastMovementDate: row.ultimaActualizacion,
+        })),
+      };
+      pjnVisibleListCache = { timestamp: Date.now(), result };
+      return result;
+    }
+  } catch (err) {
+    console.debug('[ProcuAsist] PJN list content collector unavailable:', err);
   }
 
   const injected = await chrome.scripting.executeScript({
