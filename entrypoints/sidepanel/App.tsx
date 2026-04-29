@@ -861,7 +861,7 @@ function MonitorsTab({
     }
 
     if (report.skippedReason === 'no_tab') {
-      setSinceScanMessage('Abrí MEV con sesión activa y probá nuevamente.');
+      setSinceScanMessage('Abrí el portal correspondiente con sesión activa y probá nuevamente.');
       return;
     }
 
@@ -1018,7 +1018,7 @@ function MonitorsTab({
             </button>
             <p className="text-[10px] leading-snug text-text-secondary">
               Filtra alertas existentes o actualiza el listado recorriendo tus
-              causas MEV monitoreadas.
+              causas monitoreadas.
             </p>
             {sinceScanMessage && (
               <p className="rounded-md bg-bg-secondary px-2 py-1 text-[10px] leading-snug text-text-secondary">

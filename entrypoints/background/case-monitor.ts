@@ -18,6 +18,7 @@
 
 import type { Monitor } from '@/modules/portals/types';
 import { MEV_BASE_URL, MEV_URLS } from '@/modules/portals/mev-selectors';
+import { findScwTab } from '@/modules/portals/pjn-downloader';
 import {
   getActiveMonitors,
   updateMonitorScan,
@@ -45,26 +46,26 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
     return result;
   }
 
-  // Find an open MEV tab to use for fetching
-  const mevTabId = await findMevTab();
-  if (!mevTabId) {
-    console.warn('[ProcuAsist] No MEV tab found, cannot scan');
-    await notifyNoSession();
-    const result = {
-      scanned: 0,
-      newMovements: 0,
-      errors: 0,
-      matchedMovements: 0,
-      skippedReason: 'no_tab',
-    };
-    await storeScanResult(result, options.fromDate, []);
-    return result;
+  const needsMev = monitors.some((monitor) => monitor.portal === 'mev');
+  const needsPjn = monitors.some((monitor) => monitor.portal === 'pjn');
+  const mevTabId = needsMev ? await findMevTab() : null;
+  const pjnTabId = needsPjn ? await findScwTab() : null;
+
+  if ((needsMev && !mevTabId) || (needsPjn && !pjnTabId)) {
+    console.warn('[ProcuAsist] Missing portal tab for scan', {
+      needsMev,
+      hasMevTab: Boolean(mevTabId),
+      needsPjn,
+      hasPjnTab: Boolean(pjnTabId),
+    });
+    await notifyNoSession(needsPjn && !pjnTabId ? 'pjn' : 'mev');
   }
 
   let totalNew = 0;
   let totalErrors = 0;
   let totalParsedMovements = 0;
   let missingIds = 0;
+  let missingTabs = 0;
   const matchedMovements: ScanMovement[] = [];
 
   // Process in batches
@@ -73,7 +74,13 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
 
     for (const monitor of batch) {
       try {
-        const scan = await scanSingleCase(monitor, mevTabId, options.fromDate);
+        const tabId = getScanTabId(monitor, { mevTabId, pjnTabId });
+        if (!tabId) {
+          missingTabs++;
+          continue;
+        }
+
+        const scan = await scanSingleCase(monitor, tabId, options.fromDate);
         totalNew += scan.newMovements;
         totalParsedMovements += scan.totalMovements;
         if (scan.skippedReason === 'missing_ids') missingIds++;
@@ -100,6 +107,9 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
     matchedMovements: matchedMovements.length,
     parsedMovements: totalParsedMovements,
     missingIds,
+    missingTabs,
+    skippedReason:
+      missingTabs === monitors.length ? 'no_tab' : undefined,
   };
 
   console.debug(
@@ -123,6 +133,7 @@ export interface ScanResult {
   matchedMovements?: number;
   parsedMovements?: number;
   missingIds?: number;
+  missingTabs?: number;
   skippedReason?: string;
 }
 
@@ -146,8 +157,11 @@ async function scanSingleCase(
   tabId: number,
   fromDate?: string
 ): Promise<SingleScanResult> {
+  if (monitor.portal === 'pjn') {
+    return scanSinglePjnCase(monitor, tabId, fromDate);
+  }
+
   if (monitor.portal !== 'mev') {
-    // EJE scan not yet implemented
     return { newMovements: 0, matchedMovements: [], totalMovements: 0 };
   }
 
@@ -255,7 +269,14 @@ async function scanSingleCase(
     throw new Error('session_expired');
   }
 
-  const movements = result.movements;
+  return persistScanMovements(monitor, result.movements, fromDate);
+}
+
+async function persistScanMovements(
+  monitor: Monitor,
+  movements: Array<{ date: string; type: string; description: string }>,
+  fromDate?: string
+): Promise<SingleScanResult> {
   const currentCount = movements.length;
   const previousCount = monitor.lastKnownMovementCount;
   const newMovementCount = Math.max(0, currentCount - previousCount);
@@ -314,6 +335,108 @@ async function scanSingleCase(
   };
 }
 
+async function scanSinglePjnCase(
+  monitor: Monitor,
+  tabId: number,
+  fromDate?: string
+): Promise<SingleScanResult> {
+  const caseUrl = getPjnCaseUrl(monitor);
+  if (!caseUrl) {
+    console.warn(
+      `[ProcuAsist] PJN monitor ${monitor.caseNumber} missing expediente URL, skipping`
+    );
+    return {
+      newMovements: 0,
+      matchedMovements: [],
+      totalMovements: 0,
+      skippedReason: 'missing_ids',
+    };
+  }
+
+  const scanResults = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    func: async (url: string) => {
+      try {
+        const resp = await fetch(url, {
+          credentials: 'include',
+          headers: { Accept: 'text/html' },
+        });
+        if (!resp.ok) return { error: `HTTP ${resp.status}` };
+
+        const text = await resp.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/html');
+        const lower = text.toLowerCase();
+        const movements: Array<{ date: string; type: string; description: string }> = [];
+        const tables = doc.querySelectorAll('table');
+        let movTable: HTMLTableElement | null = null;
+
+        for (const table of tables) {
+          const headerText = Array.from(table.querySelectorAll('tr'))
+            .map((row) => row.textContent ?? '')
+            .join(' ')
+            .replace(/\s+/g, ' ');
+          if (
+            /oficina/i.test(headerText) &&
+            /fecha/i.test(headerText) &&
+            /descripci[oó]n\s*\/\s*detalle|descripcion\s*\/\s*detalle/i.test(headerText)
+          ) {
+            movTable = table;
+            break;
+          }
+        }
+
+        if (movTable) {
+          const rows = movTable.querySelectorAll('tbody tr, tr');
+          const datePattern = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+
+          for (const row of Array.from(rows)) {
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 4) continue;
+
+            const values = Array.from(cells).map((cell) =>
+              (cell.textContent ?? '').replace(/\s+/g, ' ').trim()
+            );
+            const date = values.find((value) => datePattern.test(value.substring(0, 10)))?.substring(0, 10) ?? '';
+            if (!date) continue;
+
+            const type = values[2] ?? '';
+            const description = values[3] ?? values.slice(2).join(' ');
+            movements.push({ date, type, description });
+          }
+        }
+
+        return { html: text, loginLike: lower.includes('login') && lower.includes('password'), movements };
+      } catch (e) {
+        return { error: String(e) };
+      }
+    },
+    args: [caseUrl],
+  });
+
+  const result = scanResults[0]?.result as
+    | {
+        html: string;
+        loginLike: boolean;
+        movements: Array<{ date: string; type: string; description: string }>;
+        error?: never;
+      }
+    | { error: string; html?: never; movements?: never; loginLike?: never }
+    | null;
+
+  if (!result || result.error || !result.html || !result.movements) {
+    throw new Error(result?.error ?? 'No result from PJN executeScript');
+  }
+
+  if (result.loginLike) {
+    await notifyNoSession('pjn');
+    throw new Error('session_expired');
+  }
+
+  return persistScanMovements(monitor, result.movements, fromDate);
+}
+
 interface SingleScanResult {
   newMovements: number;
   matchedMovements: ScanMovement[];
@@ -349,19 +472,25 @@ async function sendMovementNotification(
   });
 }
 
-async function notifyNoSession() {
+async function notifyNoSession(portal: 'mev' | 'pjn' = 'mev') {
   // Only notify once per hour
-  const stored = await chrome.storage.session.get('lastNoSessionNotify');
-  const last = stored.lastNoSessionNotify as number | undefined;
+  const key = `lastNoSessionNotify_${portal}`;
+  const stored = await chrome.storage.session.get(key);
+  const last = stored[key] as number | undefined;
   if (last && Date.now() - last < 3600_000) return;
 
-  await chrome.storage.session.set({ lastNoSessionNotify: Date.now() });
+  await chrome.storage.session.set({ [key]: Date.now() });
 
-  await chrome.notifications.create('monitor-no-session', {
+  const portalName = portal === 'pjn' ? 'PJN/SCW' : 'MEV';
+  console.debug('[ProcuAsist] Missing portal session:', portalName);
+
+  await chrome.notifications.create(`monitor-no-session-${portal}`, {
     type: 'basic',
     iconUrl: chrome.runtime.getURL('icon/128.png'),
     title: 'ProcuAsist — Sesión requerida',
-    message:
+    message: portal === 'pjn'
+      ? 'Abri PJN/SCW en una pestana e inicia sesion para que el monitoreo funcione.'
+      :
       'Abrí MEV en una pestaña e iniciá sesión para que el monitoreo de causas funcione.',
     priority: 1,
   });
@@ -374,6 +503,15 @@ async function notifyNoSession() {
 async function findMevTab(): Promise<number | null> {
   const tabs = await chrome.tabs.query({ url: 'https://mev.scba.gov.ar/*' });
   return tabs[0]?.id ?? null;
+}
+
+function getScanTabId(
+  monitor: Monitor,
+  tabs: { mevTabId: number | null; pjnTabId: number | null }
+): number | null {
+  if (monitor.portal === 'mev') return tabs.mevTabId;
+  if (monitor.portal === 'pjn') return tabs.pjnTabId;
+  return null;
 }
 
 async function ensureOffscreen(): Promise<void> {
@@ -425,6 +563,20 @@ function getMevCaseIds(
 
   if (!nidCausa || !pidJuzgado) return null;
   return { nidCausa, pidJuzgado };
+}
+
+function getPjnCaseUrl(monitor: Monitor): string | null {
+  const cid = getQueryParam(monitor.portalUrl, 'cid');
+  if (!cid) return null;
+
+  try {
+    const url = new URL(monitor.portalUrl);
+    if (url.hostname !== 'scw.pjn.gov.ar') return null;
+    if (!url.pathname.toLowerCase().includes('expediente.seam')) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 function getQueryParam(url: string, param: string): string {
