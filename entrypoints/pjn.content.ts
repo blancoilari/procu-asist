@@ -30,6 +30,7 @@ import {
   type PjnCollectorResult,
 } from '@/modules/portals/pjn-actuaciones-collector';
 import { mountPjnZipButton } from '@/modules/portals/pjn-zip-ui';
+import { mountPjnCaseActions } from '@/modules/portals/pjn-actions-ui';
 
 export interface PjnCollectActuacionesMessage {
   type: 'PJN_COLLECT_ACTUACIONES';
@@ -122,6 +123,9 @@ function initScwDebug(): void {
     mountPjnZipButton();
   }
   if (isScwExpediente(url.pathname)) {
+    const parsed = parseExpedientePage(document, url);
+    mountPjnCaseActions(parsed, window.location.href);
+
     // Panel debug M4 solo en dev.
     if (import.meta.env.DEV) initExpedienteMode(url);
     return;
