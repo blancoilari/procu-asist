@@ -248,8 +248,11 @@ function BookmarksTab({
   portalFilter: PortalFilter;
 }) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastDetected, setLastDetected] = useState<Case | null>(null);
+  const [bulkMonitoring, setBulkMonitoring] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState('');
 
   const loadBookmarks = useCallback(async () => {
     try {
@@ -267,16 +270,30 @@ function BookmarksTab({
     }
   }, []);
 
+  const loadMonitors = useCallback(async () => {
+    const response = (await chrome.runtime.sendMessage({
+      type: 'GET_MONITORS',
+    })) as { success: boolean; monitors: Monitor[] };
+
+    if (response?.success) {
+      setMonitors(response.monitors);
+    }
+  }, []);
+
   const filteredBookmarks = bookmarks.filter(
     (bookmark) =>
       matchesPortalFilter(bookmark.portal, portalFilter) &&
       matchesCaseSearch(bookmark, search)
   );
+  const unmonitoredVisible = filteredBookmarks.filter(
+    (bookmark) => !isCaseMonitored(bookmark, monitors)
+  );
 
   // Load bookmarks on mount; search and portal filters are applied locally.
   useEffect(() => {
     loadBookmarks();
-  }, [loadBookmarks]);
+    loadMonitors();
+  }, [loadBookmarks, loadMonitors]);
 
   // Listen for storage changes (bookmarks updated from content script)
   useEffect(() => {
@@ -286,6 +303,9 @@ function BookmarksTab({
     ) => {
       if (area === 'local' && changes.tl_bookmarks) {
         loadBookmarks();
+      }
+      if (area === 'local' && changes.tl_monitors) {
+        loadMonitors();
       }
       if (area === 'session' && changes.lastDetectedCase) {
         setLastDetected(changes.lastDetectedCase.newValue as Case);
@@ -301,7 +321,7 @@ function BookmarksTab({
     });
 
     return () => chrome.storage.onChanged.removeListener(listener);
-  }, [loadBookmarks]);
+  }, [loadBookmarks, loadMonitors]);
 
   const handleAddCurrent = async () => {
     if (!lastDetected) return;
@@ -335,6 +355,38 @@ function BookmarksTab({
     }
   };
 
+  const handleMonitorVisible = async () => {
+    if (!unmonitoredVisible.length) return;
+
+    setBulkMonitoring(true);
+    setBulkMessage('');
+
+    let added = 0;
+    let failed = 0;
+
+    for (const bookmark of unmonitoredVisible) {
+      try {
+        const response = (await chrome.runtime.sendMessage({
+          type: 'ADD_MONITOR',
+          caseData: bookmark,
+        })) as { success?: boolean };
+
+        if (response?.success) added++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+    }
+
+    await loadMonitors();
+    setBulkMonitoring(false);
+    setBulkMessage(
+      failed
+        ? `${added} pasadas a monitoreo, ${failed} con error.`
+        : `${added} causa(s) pasadas a monitoreo.`
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -350,6 +402,38 @@ function BookmarksTab({
         <QuickAddBanner caseData={lastDetected} onAdd={handleAddCurrent} />
       )}
 
+      {filteredBookmarks.length > 0 && (
+        <div className="border-b border-primary/15 bg-primary/5 px-4 py-2">
+          <button
+            type="button"
+            onClick={handleMonitorVisible}
+            disabled={!unmonitoredVisible.length || bulkMonitoring}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {bulkMonitoring ? (
+              <>
+                <Hourglass size={12} /> Pasando a monitoreo...
+              </>
+            ) : (
+              <>
+                <Eye size={12} /> Monitorear visibles ({unmonitoredVisible.length})
+              </>
+            )}
+          </button>
+          {bulkMessage && (
+            <p className="mt-1 text-center text-[10px] text-text-secondary">
+              {bulkMessage}
+            </p>
+          )}
+          {portalFilter === 'pjn' && (
+            <p className="mt-1 text-center text-[10px] text-text-secondary">
+              PJN queda listado en monitoreo; el escaneo automatico PJN se
+              endurece en el siguiente paso.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Bookmarks list */}
       {filteredBookmarks.length === 0 ? (
         <EmptyBookmarks hasSearch={!!search || portalFilter !== 'all'} />
@@ -359,6 +443,7 @@ function BookmarksTab({
             <BookmarkCard
               key={`${b.portal}-${b.caseNumber}`}
               bookmark={b}
+              initiallyMonitored={isCaseMonitored(b, monitors)}
               onOpen={handleOpen}
               onRemove={handleRemove}
             />
@@ -459,19 +544,22 @@ function QuickAddBanner({
 
 function BookmarkCard({
   bookmark,
+  initiallyMonitored,
   onOpen,
   onRemove,
 }: {
   bookmark: Bookmark;
+  initiallyMonitored: boolean;
   onOpen: (b: Bookmark) => void;
   onRemove: (b: Bookmark) => void;
 }) {
   const [showActions, setShowActions] = useState(false);
-  const [monitored, setMonitored] = useState(false);
+  const [monitored, setMonitored] = useState(initiallyMonitored);
   const actionsRef = useRef<HTMLDivElement>(null);
 
   // Check if this bookmark is monitored
   useEffect(() => {
+    setMonitored(initiallyMonitored);
     chrome.runtime
       .sendMessage({
         type: 'IS_MONITORED',
@@ -482,7 +570,7 @@ function BookmarkCard({
         const resp = r as { success: boolean; isMonitored: boolean };
         if (resp?.success) setMonitored(resp.isMonitored);
       });
-  }, [bookmark.portal, bookmark.caseNumber]);
+  }, [bookmark.portal, bookmark.caseNumber, initiallyMonitored]);
 
   // Close actions dropdown on outside click
   useEffect(() => {
@@ -1511,6 +1599,20 @@ function matchesMonitorSearch(monitor: Monitor, search: string): boolean {
     },
     search
   );
+}
+
+function isCaseMonitored(
+  item: Pick<Case, 'portal' | 'caseNumber'>,
+  monitors: Monitor[]
+): boolean {
+  const key = caseMonitorKey(item.portal, item.caseNumber);
+  return monitors.some(
+    (monitor) => caseMonitorKey(monitor.portal, monitor.caseNumber) === key
+  );
+}
+
+function caseMonitorKey(portal: PortalId, caseNumber: string): string {
+  return `${portal}:${caseNumber.replace(/\s+/g, '').toUpperCase()}`;
 }
 
 function compareAlertsByMovementDateDesc(
