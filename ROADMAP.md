@@ -11,6 +11,7 @@ Lo que ya existe:
 - **MEV / SCBA**: auto-login, marcadores, monitoreo basico, descarga ZIP del expediente, seleccion de pasos procesales, PDF resumen y descarga de adjuntos.
 - **MEV sets de busqueda**: importacion masiva desde resultados y sets del portal MEV.
 - **PJN**: auto-login SSO, lectura de listados y favoritos, descarga ZIP de expedientes desde SCW.
+- **PJN monitoreo inicial**: importacion de listados SCW, paso a monitoreo y escaneo por feed o listado abierto.
 - **JUSCABA / EJE**: auto-login y extraccion basica de causas.
 - **Credenciales locales**: cifrado AES-GCM protegido por PIN.
 - **Modelo local-first**: los datos se guardan en el navegador; no hay backend obligatorio.
@@ -43,8 +44,8 @@ Lo que ya existe:
 ### v0.9.0 - PJN mas solido
 
 - Mejorar mensajes cuando falta token o sesion.
-- Agregar importacion de causas PJN con dos acciones: relacionadas y favoritas.
-- Consolidar importacion desde favoritos/listados.
+- Consolidar importacion desde relacionados/favoritos con mejor paginacion y diagnostico.
+- Reforzar el monitoreo PJN: token/feed cuando este disponible y fallback SCW cuando no.
 - Relevar y prototipar "Dejar nota" masivo para causas PJN donde el usuario sea letrado, solo en dias martes/viernes y con confirmacion manual antes de ejecutar.
 - Reforzar collector y ZIP en expedientes grandes.
 - Mejorar estados de progreso y verificacion.

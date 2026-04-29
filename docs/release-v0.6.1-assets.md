@@ -23,9 +23,10 @@ QUE HACE
 - Descarga expedientes de PJN desde SCW cuando el portal permite acceder a los documentos.
 - Permite seleccionar que actuaciones incluir antes de generar el ZIP.
 - Guarda marcadores de causas y permite abrirlas rapido desde el panel lateral.
-- Monitorea causas MEV y muestra alertas de movimientos.
+- Monitorea causas MEV y PJN y muestra alertas de movimientos.
 - Busca movimientos desde una fecha indicada en causas monitoreadas.
 - Importa causas desde resultados y sets de busqueda MEV.
+- Importa causas desde listados PJN/SCW como relacionados o favoritos.
 - Cifra credenciales localmente con PIN maestro.
 
 PORTALES SOPORTADOS
@@ -90,7 +91,7 @@ Como la Store suele limitar a 5 capturas, reservar como alternativas si conviene
 ```text
 Actualice ProcuAsist, la extension gratis de Chrome para abogados.
 
-Ahora importa sets de busqueda MEV, permite buscar movimientos desde una fecha y mantiene la descarga ZIP de MEV/SCBA y PJN.
+Ahora importa sets de busqueda MEV, suma importacion y monitoreo inicial PJN, permite buscar movimientos desde una fecha y mantiene la descarga ZIP de MEV/SCBA y PJN.
 
 Chrome Web Store:
 https://chromewebstore.google.com/detail/procuasist-copiloto-legal/dbkfeofoijnkclfpigimiodcccpjakem
