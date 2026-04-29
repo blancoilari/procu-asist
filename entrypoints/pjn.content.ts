@@ -38,6 +38,11 @@ export interface PjnCollectActuacionesMessage {
   maxWaitMs?: number;
 }
 
+export interface PjnCollectListRowsMessage {
+  type: 'PJN_COLLECT_LIST_ROWS';
+  maxPages?: number;
+}
+
 export default defineContentScript({
   matches: [
     'https://portalpjn.pjn.gov.ar/*',
@@ -85,6 +90,28 @@ function installCollectorListener(): void {
       return false;
     }
 
+    if (msg.type === 'PJN_COLLECT_LIST_ROWS') {
+      const { maxPages } = msg as PjnCollectListRowsMessage;
+      if (!isScwListadoPage(new URL(window.location.href).pathname)) {
+        sendResponse({
+          ok: false,
+          error: 'La pestana scw no esta en un listado PJN.',
+        });
+        return false;
+      }
+
+      collectListRows({ maxPages })
+        .then(sendResponse)
+        .catch((err) => {
+          console.error('[ProcuAsist PJN] error recolectando listado', err);
+          sendResponse({
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+      return true;
+    }
+
     if (msg.type !== 'PJN_COLLECT_ACTUACIONES') return false;
 
     console.log('[ProcuAsist PJN M6a] mensaje recibido, iniciando collector…');
@@ -111,6 +138,125 @@ function installCollectorListener(): void {
       });
     return true; // respuesta asíncrona
   });
+}
+
+async function collectListRows(options: { maxPages?: number } = {}) {
+  const maxPages = Math.max(1, Math.min(options.maxPages ?? 12, 25));
+  const seen = new Set<string>();
+  const rows: ReturnType<typeof parseScwList>['rows'] = [];
+  let pagesVisited = 0;
+
+  for (let page = 0; page < maxPages; page++) {
+    const parsed = parseScwList(document, new URL(window.location.href));
+    pagesVisited++;
+
+    for (const row of parsed.rows) {
+      const key = [
+        normalizeForPaging(row.expediente),
+        normalizeForPaging(row.dependencia),
+        normalizeForPaging(row.caratula),
+      ].join('|');
+      if (!key.trim() || seen.has(key)) continue;
+      seen.add(key);
+      rows.push(row);
+    }
+
+    const next = findNextListPageControl();
+    if (!next) break;
+
+    const before = listSignature();
+    next.click();
+    const changed = await waitForListSignatureChange(before, 3500);
+    if (!changed) break;
+  }
+
+  return {
+    ok: true,
+    rows,
+    pagesVisited,
+  };
+}
+
+function findNextListPageControl(): HTMLElement | null {
+  const candidates = Array.from(
+    document.querySelectorAll<HTMLElement>(
+      'a, button, input[type="button"], input[type="submit"]'
+    )
+  );
+
+  for (const el of candidates) {
+    if (!isVisibleElement(el) || isDisabledElement(el)) continue;
+
+    const input = el as HTMLInputElement;
+    const label = normalizeForPaging(
+      [el.textContent, input.value, el.title, el.getAttribute('aria-label')]
+        .filter(Boolean)
+        .join(' ')
+    );
+
+    if (/\b(proximo|siguiente|next)\b|[>›»]/.test(label)) {
+      return el;
+    }
+  }
+
+  return null;
+}
+
+function waitForListSignatureChange(
+  previousSignature: string,
+  timeoutMs: number
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    const check = () => {
+      if (listSignature() !== previousSignature) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() - startedAt >= timeoutMs) {
+        resolve(false);
+        return;
+      }
+      window.setTimeout(check, 150);
+    };
+    window.setTimeout(check, 150);
+  });
+}
+
+function listSignature(): string {
+  const parsed = parseScwList(document, new URL(window.location.href));
+  return parsed.rows
+    .map((row) =>
+      [
+        normalizeForPaging(row.expediente),
+        normalizeForPaging(row.ultimaActualizacion),
+        normalizeForPaging(row.situacion),
+      ].join(':')
+    )
+    .join(';');
+}
+
+function isVisibleElement(el: HTMLElement): boolean {
+  const style = window.getComputedStyle(el);
+  return style.display !== 'none' && style.visibility !== 'hidden';
+}
+
+function isDisabledElement(el: HTMLElement): boolean {
+  const input = el as HTMLInputElement;
+  return (
+    input.disabled ||
+    el.getAttribute('aria-disabled') === 'true' ||
+    /\b(disabled|ui-state-disabled|rf-dsbl)\b/i.test(el.className)
+  );
+}
+
+function normalizeForPaging(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function initScwDebug(): void {

@@ -427,8 +427,8 @@ function BookmarksTab({
           )}
           {portalFilter === 'pjn' && (
             <p className="mt-1 text-center text-[10px] text-text-secondary">
-              PJN queda listado en monitoreo; el escaneo automatico PJN se
-              endurece en el siguiente paso.
+              Para escanear PJN sin token, dejá abierto el listado SCW
+              correspondiente.
             </p>
           )}
         </div>
