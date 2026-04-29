@@ -36,6 +36,9 @@ const PJN_EVENT_PAGE_SIZE = 100;
 let pjnEventsCache:
   | { timestamp: number; result: PjnEventFeedResult }
   | null = null;
+let pjnVisibleListCache:
+  | { timestamp: number; result: PjnVisibleListResult }
+  | null = null;
 
 /**
  * Main scan entry point. Called by alarm-manager every 6 hours
@@ -455,10 +458,23 @@ async function scanSinglePjnCaseViaApi(
 ): Promise<SingleScanResult> {
   const feed = await getCachedPjnEvents();
   if (!feed.ok) {
-    if (feed.errorKind === 'no-session') {
-      await notifyNoSession('pjn');
+    const visibleList = await getCachedPjnVisibleList();
+    if (visibleList.ok) {
+      const movements = visibleList.rows
+        .filter((row) => visiblePjnRowMatchesMonitor(row, monitor))
+        .map(visiblePjnRowToMovement)
+        .filter((movement) => movement.date)
+        .sort((a, b) => parseDateTimeValue(b.date) - parseDateTimeValue(a.date));
+
+      return persistScanMovements(monitor, movements, fromDate);
     }
-    throw new Error(feed.message);
+
+    return {
+      newMovements: 0,
+      matchedMovements: [],
+      totalMovements: 0,
+      skippedReason: feed.errorKind === 'no-session' ? 'missing_ids' : undefined,
+    };
   }
 
   const movements = feed.events
@@ -599,6 +615,18 @@ type PjnEventFeedResult =
   | { ok: true; events: PjnEvent[] }
   | { ok: false; errorKind: string; message: string };
 
+type PjnVisibleRow = {
+  caseNumber: string;
+  title: string;
+  court: string;
+  status: string;
+  lastMovementDate: string;
+};
+
+type PjnVisibleListResult =
+  | { ok: true; rows: PjnVisibleRow[] }
+  | { ok: false; message: string };
+
 // ────────────────────────────────────────────────────────
 // Chrome Notifications
 // ────────────────────────────────────────────────────────
@@ -657,6 +685,17 @@ async function notifyNoSession(portal: 'mev' | 'pjn' = 'mev') {
 
 async function findMevTab(): Promise<number | null> {
   const tabs = await chrome.tabs.query({ url: 'https://mev.scba.gov.ar/*' });
+  return tabs[0]?.id ?? null;
+}
+
+async function findScwListTab(): Promise<number | null> {
+  const tabs = await chrome.tabs.query({
+    url: [
+      'https://scw.pjn.gov.ar/scw/consultaListaRelacionados.seam*',
+      'https://scw.pjn.gov.ar/scw/consultaListaFavoritos.seam*',
+      'https://scw.pjn.gov.ar/scw/consultaListaNoIniciados.seam*',
+    ],
+  });
   return tabs[0]?.id ?? null;
 }
 
@@ -761,6 +800,91 @@ async function getCachedPjnEvents(): Promise<PjnEventFeedResult> {
   return result;
 }
 
+async function getCachedPjnVisibleList(): Promise<PjnVisibleListResult> {
+  if (pjnVisibleListCache && Date.now() - pjnVisibleListCache.timestamp < 30_000) {
+    return pjnVisibleListCache.result;
+  }
+
+  const tabId = await findScwListTab();
+  if (!tabId) {
+    const result: PjnVisibleListResult = {
+      ok: false,
+      message: 'No hay una lista PJN/SCW abierta para usar como respaldo.',
+    };
+    pjnVisibleListCache = { timestamp: Date.now(), result };
+    return result;
+  }
+
+  const injected = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    func: () => {
+      const normalize = (value: string) =>
+        value
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/\s+/g, ' ')
+          .trim();
+      const clean = (value: string | null | undefined) =>
+        (value ?? '').replace(/\s+/g, ' ').trim();
+      const dateOf = (value: string) => value.match(/\d{1,2}\/\d{1,2}\/\d{4}/)?.[0] ?? '';
+
+      const tables = Array.from(document.querySelectorAll('table'));
+      let table: HTMLTableElement | null = null;
+
+      for (const candidate of tables) {
+        const headers = Array.from(candidate.querySelectorAll('th, thead td')).map((cell) =>
+          normalize(cell.textContent ?? '')
+        );
+        if (
+          headers.some((header) => header.includes('expediente')) &&
+          headers.some((header) => header.includes('caratula')) &&
+          headers.some((header) => header.includes('ult'))
+        ) {
+          table = candidate;
+          break;
+        }
+      }
+
+      if (!table) return { rows: [] };
+
+      const headers = Array.from(table.querySelectorAll('th, thead td')).map((cell) =>
+        normalize(cell.textContent ?? '')
+      );
+      const indexOf = (needle: string) => headers.findIndex((header) => header.includes(needle));
+      const expedienteIndex = indexOf('expediente');
+      const dependenciaIndex = indexOf('dependencia');
+      const caratulaIndex = indexOf('caratula');
+      const situacionIndex = indexOf('situacion');
+      const ultimaIndex = headers.findIndex((header) => header.includes('ult'));
+
+      const rows = Array.from(table.querySelectorAll('tbody tr'))
+        .map((tr) => {
+          const cells = Array.from(tr.querySelectorAll('td')).map((cell) =>
+            clean(cell.textContent)
+          );
+          if (!cells.length) return null;
+          const caseNumber = clean(cells[expedienteIndex] ?? cells[0] ?? '');
+          const title = clean(cells[caratulaIndex] ?? cells[2] ?? '');
+          const court = clean(cells[dependenciaIndex] ?? cells[1] ?? '');
+          const status = clean(cells[situacionIndex] ?? cells[3] ?? '');
+          const lastMovementDate = dateOf(cells[ultimaIndex] ?? cells[cells.length - 1] ?? '');
+          if (!caseNumber || !title) return null;
+          return { caseNumber, title, court, status, lastMovementDate };
+        })
+        .filter(Boolean);
+
+      return { rows };
+    },
+  });
+
+  const rows = (injected[0]?.result as { rows?: PjnVisibleRow[] } | undefined)?.rows ?? [];
+  const result: PjnVisibleListResult = { ok: true, rows };
+  pjnVisibleListCache = { timestamp: Date.now(), result };
+  return result;
+}
+
 function eventMatchesPjnMonitor(event: PjnEvent, monitor: Monitor): boolean {
   const monitorKey = normalizePjnCaseKey(monitor.caseNumber);
   const eventKey = normalizePjnCaseKey(event.payload?.claveExpediente ?? '');
@@ -773,6 +897,32 @@ function eventMatchesPjnMonitor(event: PjnEvent, monitor: Monitor): boolean {
       eventTitle &&
       (monitorTitle.includes(eventTitle) || eventTitle.includes(monitorTitle))
   );
+}
+
+function visiblePjnRowMatchesMonitor(row: PjnVisibleRow, monitor: Monitor): boolean {
+  const monitorKey = normalizePjnCaseKey(monitor.caseNumber);
+  const rowKey = normalizePjnCaseKey(row.caseNumber);
+  if (monitorKey && rowKey && monitorKey === rowKey) return true;
+
+  const monitorTitle = normalizeLoose(monitor.title);
+  const rowTitle = normalizeLoose(row.title);
+  return Boolean(
+    monitorTitle &&
+      rowTitle &&
+      (monitorTitle.includes(rowTitle) || rowTitle.includes(monitorTitle))
+  );
+}
+
+function visiblePjnRowToMovement(row: PjnVisibleRow): {
+  date: string;
+  type: string;
+  description: string;
+} {
+  return {
+    date: normalizeDateString(row.lastMovementDate),
+    type: row.status,
+    description: row.status || 'Ultima actualizacion PJN',
+  };
 }
 
 function pjnEventToMovement(event: PjnEvent): {
@@ -827,6 +977,16 @@ function formatPjnTimestamp(value: number): string {
     String(date.getDate()).padStart(2, '0'),
     String(date.getMonth() + 1).padStart(2, '0'),
     String(date.getFullYear()),
+  ].join('/');
+}
+
+function normalizeDateString(value: string): string {
+  const match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!match) return '';
+  return [
+    match[1].padStart(2, '0'),
+    match[2].padStart(2, '0'),
+    match[3],
   ].join('/');
 }
 
