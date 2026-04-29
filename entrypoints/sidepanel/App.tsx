@@ -1251,15 +1251,29 @@ function AlertCard({
       }`}
     >
       <button onClick={handleOpenCase} className="w-full text-left">
-        {/* Header: case number + time */}
-        <div className="mb-1 flex items-center justify-between">
-          <span className="text-xs font-semibold">
-            {monitor?.caseNumber ?? 'Causa eliminada'}
+        {/* Header: portal + case number + time */}
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-1.5">
+            {monitor && <PortalBadge portal={monitor.portal} />}
+            <span className="truncate text-xs font-semibold">
+              {monitor?.caseNumber ?? 'Causa eliminada'}
+            </span>
           </span>
           <span className="text-[10px] text-text-secondary">
             {getRelativeTime(alert.createdAt)}
           </span>
         </div>
+
+        {monitor?.title && (
+          <p className="mb-0.5 line-clamp-2 text-xs leading-snug text-text">
+            {monitor.title}
+          </p>
+        )}
+        {monitor?.court && (
+          <p className="mb-1.5 truncate text-[10px] uppercase text-text-secondary">
+            {monitor.court}
+          </p>
+        )}
 
         {/* Movement info */}
         <div className="mb-1 flex items-center gap-1.5">
