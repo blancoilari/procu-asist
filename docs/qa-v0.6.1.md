@@ -64,6 +64,11 @@ Fecha objetivo: 2026-04-27.
 ## 6. PJN
 
 - [ ] En expediente SCW aparece boton ZIP.
+- [x] En expediente SCW aparece boton Nota cuando PJN muestra "Dejar Nota".
+- [x] El boton Nota abre el flujo oficial de "Dejar Nota" de PJN sin ejecutar una accion por fuera del portal.
+- [ ] En listado SCW `Relacionados letrado` aparece `Notas PJN`.
+- [ ] `Notas PJN` arma preview masivo, cruza contra marcadores y excluye causas `EN LETRA`.
+- [ ] En el panel, Marcadores PJN muestra preparacion de notas con seleccion manual y detalle copiable.
 - [ ] El modal lista actuaciones y permite filtrar por categoria.
 - [ ] Se puede seleccionar y deseleccionar actuaciones.
 - [ ] El ZIP PJN incluye resumen y documentos seleccionados cuando el portal entrega PDFs.
@@ -74,6 +79,24 @@ Fecha objetivo: 2026-04-27.
 - [ ] `Escanear ahora` en PJN usa el feed si hay token o el listado SCW abierto si no lo hay.
 - [ ] Alertas PJN muestran portal, numero, caratula, juzgado y movimiento.
 - [ ] Al hacer click en una alerta PJN se abre la causa o el portal correspondiente.
+
+### Relevamiento "Dejar Nota" PJN - 2026-05-05
+
+Capturas aportadas sobre `scw.pjn.gov.ar/scw/expediente.seam?cid=209646`:
+
+- El expediente muestra el boton nativo `Dejar Nota` junto a `Volver a Mi Lista` y `Presentar escrito`.
+- Al hacer click, PJN abre un modal titulado `Libro de Notas Electronicas`.
+- El modal pregunta: `Confirma dejar nota en el expediente seleccionado?`.
+- Acciones del modal: `Confirmar` y `Cancelar`.
+- Al confirmar, PJN vuelve al expediente y muestra alerta informativa: `Se ha dejado nota en el expediente en forma correcta. Es posible verificar dicha accion en la seccion de notas del expediente`.
+- La seccion `Notas` agrega una fila con fecha `05/05/2026`, interviniente `PATRICIO GREGORIO BLANCO ILARI` y detalle horario.
+- El boton nativo `Dejar Nota` sigue visible aunque la nota del dia ya haya sido dejada.
+- Si se intenta confirmar otra vez el mismo dia, PJN responde con alerta de error: `Ya se ha dejado nota con el usuario 20301911298 en el expediente: 3638/2023. No es posible realizar dicha accion mas de una vez al dia por expediente`.
+- Prueba local: el boton `Nota` de ProcuAsist abre el mismo modal nativo de PJN; la extension no confirma por si sola.
+- Mejora local probada: ProcuAsist detecta las alertas de PJN y cambia su boton a `Nota hecha` si el portal informa exito, o a `Ya hecha` si informa duplicado del dia.
+- En Network se observa actividad de carga/AJAX contra `expediente.seam` y `collect`, pero las capturas no muestran un request de confirmacion abierto con payload/headers; no alcanza para documentar parametros JSF exactos.
+
+Decision tecnica: ProcuAsist debe limitarse a abrir el boton nativo `Dejar Nota` y dejar la confirmacion en manos del usuario. No automatizar `Confirmar` hasta tener contrato tecnico y decision explicita.
 
 ## 7. EJE / JUSCABA
 
