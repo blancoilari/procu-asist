@@ -66,8 +66,8 @@ Fecha objetivo: 2026-04-27.
 - [ ] En expediente SCW aparece boton ZIP.
 - [x] En expediente SCW aparece boton Nota cuando PJN muestra "Dejar Nota".
 - [x] El boton Nota abre el flujo oficial de "Dejar Nota" de PJN sin ejecutar una accion por fuera del portal.
-- [ ] En listado SCW `Relacionados letrado` aparece `Notas PJN`.
-- [ ] `Notas PJN` arma preview masivo, cruza contra marcadores y excluye causas `EN LETRA`.
+- [x] En listado SCW `Relacionados letrado` aparece `Notas PJN`.
+- [x] `Notas PJN` arma preview masivo, cruza contra marcadores y excluye causas `EN LETRA`.
 - [ ] En el panel, Marcadores PJN muestra preparacion de notas con seleccion manual y detalle copiable.
 - [ ] El modal lista actuaciones y permite filtrar por categoria.
 - [ ] Se puede seleccionar y deseleccionar actuaciones.
@@ -97,6 +97,17 @@ Capturas aportadas sobre `scw.pjn.gov.ar/scw/expediente.seam?cid=209646`:
 - En Network se observa actividad de carga/AJAX contra `expediente.seam` y `collect`, pero las capturas no muestran un request de confirmacion abierto con payload/headers; no alcanza para documentar parametros JSF exactos.
 
 Decision tecnica: ProcuAsist debe limitarse a abrir el boton nativo `Dejar Nota` y dejar la confirmacion en manos del usuario. No automatizar `Confirmar` hasta tener contrato tecnico y decision explicita.
+
+### Relevamiento "Notas PJN" masivo - 2026-05-05
+
+Capturas aportadas sobre `scw.pjn.gov.ar/scw/consultaListaRelacionados.seam`:
+
+- En el listado `Relacionados letrado` aparece el boton flotante `Notas PJN`.
+- El boton abre un modal `Dejar nota PJN` con paginas revisadas, metricas y tabla de expedientes.
+- El modal muestra contadores de seleccionadas, elegibles, `EN LETRA` y no marcadas.
+- Las causas `EN LETRA` aparecen como `Excluida: EN LETRA` y quedan sin seleccion activa.
+- `Copiar detalle` funciona y cambia temporalmente a `Copiado`.
+- Alcance validado: preparacion/copiado del lote. No ejecuta notas masivas automaticamente.
 
 ## 7. EJE / JUSCABA
 
