@@ -68,7 +68,7 @@ Fecha objetivo: 2026-04-27.
 - [x] El boton Nota abre el flujo oficial de "Dejar Nota" de PJN sin ejecutar una accion por fuera del portal.
 - [x] En listado SCW `Relacionados letrado` aparece `Notas PJN`.
 - [x] `Notas PJN` arma preview masivo, cruza contra marcadores y excluye causas `EN LETRA`.
-- [ ] En el panel, Marcadores PJN muestra preparacion de notas con seleccion manual y detalle copiable.
+- [x] En el panel, Marcadores PJN muestra preparacion de notas con seleccion manual y detalle copiable.
 - [ ] El modal lista actuaciones y permite filtrar por categoria.
 - [ ] Se puede seleccionar y deseleccionar actuaciones.
 - [ ] El ZIP PJN incluye resumen y documentos seleccionados cuando el portal entrega PDFs.
@@ -108,6 +108,16 @@ Capturas aportadas sobre `scw.pjn.gov.ar/scw/consultaListaRelacionados.seam`:
 - Las causas `EN LETRA` aparecen como `Excluida: EN LETRA` y quedan sin seleccion activa.
 - `Copiar detalle` funciona y cambia temporalmente a `Copiado`.
 - Alcance validado: preparacion/copiado del lote. No ejecuta notas masivas automaticamente.
+
+### Relevamiento panel Marcadores PJN - 2026-05-05
+
+Capturas aportadas del sidepanel:
+
+- En Marcadores aparece `Preparar notas PJN (x/y)` cuando hay marcadores PJN.
+- El bloque muestra contadores de elegibles, `EN LETRA` y sin letrado.
+- Permite seleccion manual de causas elegibles.
+- `Copiar detalle` copia la preparacion y cambia temporalmente a `Copiado`.
+- Alcance validado: preparacion desde marcadores. No ejecuta notas automaticamente.
 
 ## 7. EJE / JUSCABA
 
