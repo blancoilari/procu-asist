@@ -8,6 +8,7 @@ import {
   Hourglass,
   Link as LinkIcon,
   Clipboard,
+  FilePenLine,
   FileText,
   Trash2,
   Pause,
@@ -434,6 +435,10 @@ function BookmarksTab({
         </div>
       )}
 
+      {filteredBookmarks.some((bookmark) => bookmark.portal === 'pjn') && (
+        <PjnBookmarkNotePrep bookmarks={filteredBookmarks} />
+      )}
+
       {/* Bookmarks list */}
       {filteredBookmarks.length === 0 ? (
         <EmptyBookmarks hasSearch={!!search || portalFilter !== 'all'} />
@@ -466,6 +471,128 @@ function BookmarksTab({
 // ──────────────────────────────────────────────────────────
 // Quick-Add Banner (appears when a case is detected)
 // ──────────────────────────────────────────────────────────
+
+function PjnBookmarkNotePrep({ bookmarks }: { bookmarks: Bookmark[] }) {
+  const pjnBookmarks = bookmarks.filter((bookmark) => bookmark.portal === 'pjn');
+  const eligible = pjnBookmarks.filter(isPjnBookmarkEligibleForNote);
+  const eligibleKey = eligible.map((bookmark) => bookmark.caseNumber).join('|');
+  const [expanded, setExpanded] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setSelected(new Set(eligible.map((bookmark) => bookmark.caseNumber)));
+  }, [eligibleKey]);
+
+  if (!pjnBookmarks.length) return null;
+
+  const selectedCount = selected.size;
+  const enLetra = pjnBookmarks.filter((bookmark) =>
+    isPortalStatusEnLetra(bookmark.metadata?.estadoPortal)
+  ).length;
+  const notLetrado = pjnBookmarks.filter(
+    (bookmark) => !isPjnLetradoBookmark(bookmark)
+  ).length;
+
+  const toggle = (caseNumber: string) => {
+    const next = new Set(selected);
+    if (next.has(caseNumber)) next.delete(caseNumber);
+    else next.add(caseNumber);
+    setSelected(next);
+  };
+
+  const copyDetail = () => {
+    const lines = ['Preparacion de nota PJN desde marcadores'];
+    for (const bookmark of pjnBookmarks) {
+      const checked = selected.has(bookmark.caseNumber) ? '[x]' : '[ ]';
+      const status = isPjnBookmarkEligibleForNote(bookmark)
+        ? 'Lista para nota'
+        : isPortalStatusEnLetra(bookmark.metadata?.estadoPortal)
+          ? 'Excluida: EN LETRA'
+          : 'Excluida: no consta como relacionado letrado';
+      lines.push(
+        `${checked} ${bookmark.caseNumber} | ${bookmark.metadata?.estadoPortal ?? '-'} | ${status} | ${bookmark.title}`
+      );
+    }
+    navigator.clipboard.writeText(lines.join('\n'));
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  };
+
+  return (
+    <div className="border-b border-red-200 bg-red-50 px-4 py-2 dark:border-red-900/50 dark:bg-red-950/20">
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-red-700 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-800"
+      >
+        <FilePenLine size={12} />
+        Preparar notas PJN ({selectedCount}/{eligible.length})
+      </button>
+      <p className="mt-1 text-center text-[10px] text-red-900/70 dark:text-red-200/80">
+        Usa marcadores PJN importados como letrado y excluye EN LETRA.
+      </p>
+
+      {expanded && (
+        <div className="mt-2 rounded-lg border border-red-200 bg-white p-2 dark:border-red-900/50 dark:bg-bg">
+          <div className="mb-2 grid grid-cols-3 gap-1 text-center text-[10px]">
+            <div className="rounded bg-green-50 px-1 py-1 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+              {eligible.length} elegibles
+            </div>
+            <div className="rounded bg-amber-50 px-1 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+              {enLetra} en letra
+            </div>
+            <div className="rounded bg-slate-100 px-1 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              {notLetrado} sin letrado
+            </div>
+          </div>
+          <div className="max-h-44 space-y-1 overflow-y-auto">
+            {pjnBookmarks.map((bookmark) => {
+              const canSelect = isPjnBookmarkEligibleForNote(bookmark);
+              const status = canSelect
+                ? bookmark.metadata?.estadoPortal || 'Sin estado'
+                : isPortalStatusEnLetra(bookmark.metadata?.estadoPortal)
+                  ? 'EN LETRA'
+                  : 'No consta letrado';
+              return (
+                <label
+                  key={bookmark.caseNumber}
+                  className={`flex gap-2 rounded border px-2 py-1.5 text-[10px] ${
+                    canSelect
+                      ? 'border-green-200 bg-green-50/60 dark:border-green-900/50 dark:bg-green-900/10'
+                      : 'border-border bg-bg-secondary text-text-secondary'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(bookmark.caseNumber)}
+                    disabled={!canSelect}
+                    onChange={() => toggle(bookmark.caseNumber)}
+                    className="mt-0.5"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">
+                      {bookmark.caseNumber} · {status}
+                    </span>
+                    <span className="block truncate">{bookmark.title}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={copyDetail}
+            className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-700 px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-50 dark:text-red-200 dark:hover:bg-red-950/30"
+          >
+            <Clipboard size={12} />
+            {copied ? 'Copiado' : 'Copiar detalle'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function QuickAddBanner({
   caseData,
@@ -1627,6 +1754,30 @@ function isCaseMonitored(
 
 function caseMonitorKey(portal: PortalId, caseNumber: string): string {
   return `${portal}:${caseNumber.replace(/\s+/g, '').toUpperCase()}`;
+}
+
+function isPjnBookmarkEligibleForNote(bookmark: Bookmark): boolean {
+  return (
+    isPjnLetradoBookmark(bookmark) &&
+    !isPortalStatusEnLetra(bookmark.metadata?.estadoPortal)
+  );
+}
+
+function isPjnLetradoBookmark(bookmark: Bookmark): boolean {
+  return bookmark.metadata?.source === 'pjn-relacionados-letrado';
+}
+
+function isPortalStatusEnLetra(value: string | undefined): boolean {
+  return normalizePortalStatus(value) === 'en letra';
+}
+
+function normalizePortalStatus(value: string | undefined): string {
+  return (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function compareAlertsByMovementDateDesc(
