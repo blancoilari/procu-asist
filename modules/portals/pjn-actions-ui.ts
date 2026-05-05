@@ -146,7 +146,7 @@ function mountLeaveNoteButton(bar: HTMLDivElement, caseData: Case): void {
   const btn = createPortalActionButton({
     id: LEAVE_NOTE_BUTTON_ID,
     icon: ICON_FILE_PEN,
-    label: 'Nota',
+    label: 'Dejar nota',
     title: `Abrir Dejar Nota para ${caseData.caseNumber}`,
     variant: nativeControl ? 'primary' : 'muted',
   });
@@ -164,7 +164,7 @@ function mountLeaveNoteButton(bar: HTMLDivElement, caseData: Case): void {
 
     const control = findNativeLeaveNoteControl();
     if (!control) {
-      resetButtonAfterError(btn, ICON_FILE_PEN, 'Nota');
+      resetButtonAfterError(btn, ICON_FILE_PEN, 'Dejar nota');
       return;
     }
 
@@ -181,7 +181,7 @@ function mountLeaveNoteButton(bar: HTMLDivElement, caseData: Case): void {
     window.setTimeout(() => {
       if (applyLeaveNotePortalStatus(btn, caseData)) return;
       btn.disabled = false;
-      setPortalActionButtonState(btn, ICON_FILE_PEN, 'Nota', 'primary');
+      setPortalActionButtonState(btn, ICON_FILE_PEN, 'Dejar nota', 'primary');
     }, 1500);
   });
 
