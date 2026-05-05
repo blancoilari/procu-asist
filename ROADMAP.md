@@ -75,6 +75,23 @@ Lineas candidatas:
 - copiloto IA sobre expediente
 - borradores de presentaciones
 
+### ProcuEstudio
+
+ProcuEstudio sera una app web nueva y separada de la extension gratis.
+
+Idea central:
+
+- no pedirle al abogado que cargue todo de cero
+- usar ProcuAsist como conector judicial con MEV, PJN y EJE
+- importar causas, movimientos, documentos y datos detectables desde los portales
+- dejar los datos dudosos como sugerencias para confirmar
+- convertir cada causa en un expediente vivo del estudio
+
+Documentos iniciales:
+
+- [MVP de ProcuEstudio](docs/plans/procu-estudio-mvp.md)
+- [Contrato de sincronizacion ProcuAsist -> ProcuEstudio](docs/plans/procu-estudio-sync-contract.md)
+
 ### SCBA PyNE
 
 Objetivo futuro razonable:

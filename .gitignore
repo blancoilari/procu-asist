@@ -9,8 +9,10 @@ lerna-debug.log*
 
 node_modules
 .output
+.next
 stats.html
 stats-*.json
+*.tsbuildinfo
 .wxt
 web-ext.config.ts
 
