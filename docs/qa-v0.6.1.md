@@ -64,11 +64,11 @@ Fecha objetivo: 2026-04-27.
 ## 6. PJN
 
 - [ ] En expediente SCW aparece boton ZIP.
-- [x] En expediente SCW aparece boton Nota cuando PJN muestra "Dejar Nota".
-- [x] El boton Nota abre el flujo oficial de "Dejar Nota" de PJN sin ejecutar una accion por fuera del portal.
-- [x] En listado SCW `Relacionados letrado` aparece `Notas PJN`.
-- [x] `Notas PJN` arma preview masivo, cruza contra marcadores y excluye causas `EN LETRA`.
-- [x] En el panel, Marcadores PJN muestra preparacion de notas con seleccion manual y detalle copiable.
+- [x] En expediente SCW aparece boton `Dejar nota` cuando PJN muestra "Dejar Nota" y es martes/viernes.
+- [x] El boton `Dejar nota` abre el flujo oficial de "Dejar Nota" de PJN sin ejecutar una accion por fuera del portal.
+- [x] En listado SCW `Relacionados letrado` aparece `Dejar notas` solo martes/viernes.
+- [x] `Dejar notas` arma preview masivo, cruza contra marcadores y excluye causas `EN LETRA`.
+- [x] En el panel, Marcadores PJN muestra `Dejar notas PJN` solo martes/viernes, con seleccion manual y detalle copiable.
 - [ ] El modal lista actuaciones y permite filtrar por categoria.
 - [ ] Se puede seleccionar y deseleccionar actuaciones.
 - [ ] El ZIP PJN incluye resumen y documentos seleccionados cuando el portal entrega PDFs.
@@ -92,18 +92,19 @@ Capturas aportadas sobre `scw.pjn.gov.ar/scw/expediente.seam?cid=209646`:
 - La seccion `Notas` agrega una fila con fecha `05/05/2026`, interviniente `PATRICIO GREGORIO BLANCO ILARI` y detalle horario.
 - El boton nativo `Dejar Nota` sigue visible aunque la nota del dia ya haya sido dejada.
 - Si se intenta confirmar otra vez el mismo dia, PJN responde con alerta de error: `Ya se ha dejado nota con el usuario 20301911298 en el expediente: 3638/2023. No es posible realizar dicha accion mas de una vez al dia por expediente`.
-- Prueba local: el boton `Nota` de ProcuAsist abre el mismo modal nativo de PJN; la extension no confirma por si sola.
+- Prueba local: el boton `Dejar nota` de ProcuAsist abre el mismo modal nativo de PJN; la extension no confirma por si sola.
 - Mejora local probada: ProcuAsist detecta las alertas de PJN y cambia su boton a `Nota hecha` si el portal informa exito, o a `Ya hecha` si informa duplicado del dia.
+- Observacion posterior a las 20:47 del mismo dia: PJN ya no muestra el boton nativo `Dejar Nota` en expedientes SCW; ProcuAsist debe dejar la accion deshabilitada porque no hay flujo oficial para abrir.
 - En Network se observa actividad de carga/AJAX contra `expediente.seam` y `collect`, pero las capturas no muestran un request de confirmacion abierto con payload/headers; no alcanza para documentar parametros JSF exactos.
 
 Decision tecnica: ProcuAsist debe limitarse a abrir el boton nativo `Dejar Nota` y dejar la confirmacion en manos del usuario. No automatizar `Confirmar` hasta tener contrato tecnico y decision explicita.
 
-### Relevamiento "Notas PJN" masivo - 2026-05-05
+### Relevamiento "Dejar notas" PJN masivo - 2026-05-05
 
 Capturas aportadas sobre `scw.pjn.gov.ar/scw/consultaListaRelacionados.seam`:
 
-- En el listado `Relacionados letrado` aparece el boton flotante `Notas PJN`.
-- El boton abre un modal `Dejar nota PJN` con paginas revisadas, metricas y tabla de expedientes.
+- En el listado `Relacionados letrado` aparece el boton flotante `Dejar notas`.
+- El boton abre un modal `Dejar notas PJN` con paginas revisadas, metricas y tabla de expedientes.
 - El modal muestra contadores de seleccionadas, elegibles, `EN LETRA` y no marcadas.
 - Las causas `EN LETRA` aparecen como `Excluida: EN LETRA` y quedan sin seleccion activa.
 - `Copiar detalle` funciona y cambia temporalmente a `Copiado`.
@@ -113,11 +114,21 @@ Capturas aportadas sobre `scw.pjn.gov.ar/scw/consultaListaRelacionados.seam`:
 
 Capturas aportadas del sidepanel:
 
-- En Marcadores aparece `Preparar notas PJN (x/y)` cuando hay marcadores PJN.
+- En Marcadores aparece `Dejar notas PJN (x/y)` cuando hay marcadores PJN.
 - El bloque muestra contadores de elegibles, `EN LETRA` y sin letrado.
 - Permite seleccion manual de causas elegibles.
 - `Copiar detalle` copia la preparacion y cambia temporalmente a `Copiado`.
 - Alcance validado: preparacion desde marcadores. No ejecuta notas automaticamente.
+- Ajuste posterior: las acciones de nota de PJN no se muestran fuera de martes/viernes.
+
+### QA "Dejar nota" PJN - 2026-05-08
+
+- En viernes de nota, el listado `Relacionados letrado` muestra el boton nativo `Dejar nota` de PJN y el boton ProcuAsist `Dejar notas`.
+- El modal ProcuAsist `Dejar notas PJN` revisa la pagina visible, cruza contra marcadores, excluye causas `EN LETRA` y deja seleccionadas las causas elegibles.
+- En expediente SCW `COM 001520/2023`, ProcuAsist muestra `Dejar nota` junto a `ZIP`, `Guardado` y `Monitorear`.
+- Al hacer click en `Dejar nota`, ProcuAsist abre el modal oficial de PJN `Libro de Notas Electronicas`.
+- El modal oficial pregunta `Confirma dejar nota en el expediente seleccionado?` y ofrece `Confirmar` / `Cancelar`.
+- Alcance validado: ProcuAsist no confirma automaticamente; la confirmacion queda en manos del usuario.
 
 ## 7. EJE / JUSCABA
 

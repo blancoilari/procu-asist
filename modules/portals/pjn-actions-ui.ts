@@ -23,6 +23,7 @@ import {
   createPortalActionButton,
   setPortalActionButtonState,
 } from '@/modules/ui/portal-action-bar';
+import { isPjnNoteDay } from './pjn-note-days';
 
 const ACTION_BAR_ID = 'procu-asist-action-bar';
 const CONFIG_BUTTON_ID = 'procu-asist-config';
@@ -141,19 +142,21 @@ function mountBookmarkButton(bar: HTMLDivElement, caseData: Case): void {
 
 function mountLeaveNoteButton(bar: HTMLDivElement, caseData: Case): void {
   if (document.getElementById(LEAVE_NOTE_BUTTON_ID)) return;
+  if (!isPjnNoteDay()) return;
 
   const nativeControl = findNativeLeaveNoteControl();
   const btn = createPortalActionButton({
     id: LEAVE_NOTE_BUTTON_ID,
     icon: ICON_FILE_PEN,
-    label: 'Dejar nota',
-    title: `Abrir Dejar Nota para ${caseData.caseNumber}`,
+    label: nativeControl ? 'Dejar nota' : 'No disponible',
+    title: nativeControl
+      ? `Abrir Dejar Nota para ${caseData.caseNumber}`
+      : getLeaveNoteUnavailableTitle(),
     variant: nativeControl ? 'primary' : 'muted',
   });
 
   if (!nativeControl) {
     btn.disabled = true;
-    btn.title = 'PJN no muestra Dejar Nota para este expediente';
   }
 
   applyLeaveNotePortalStatus(btn, caseData);
@@ -350,9 +353,8 @@ function classifyLeaveNoteStatusText(value: string): LeaveNoteStatus | null {
   return null;
 }
 
-function isPjnNoteDay(date = new Date()): boolean {
-  const day = date.getDay();
-  return day === 2 || day === 5;
+function getLeaveNoteUnavailableTitle(): string {
+  return 'PJN no muestra Dejar Nota ahora. Puede depender del horario del portal.';
 }
 
 function isVisibleElement(el: HTMLElement): boolean {
