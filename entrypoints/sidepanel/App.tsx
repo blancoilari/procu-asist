@@ -27,6 +27,7 @@ import type {
   PortalId,
 } from '@/modules/portals/types';
 import type { ProcuAsistSettings } from '@/modules/storage/settings-store';
+import { isPjnNoteDay } from '@/modules/portals/pjn-note-days';
 import { DONATE_URL } from '@/modules/tier/limits';
 import { useDarkMode } from '@/modules/ui/use-dark-mode';
 import Onboarding, { isOnboardingDone } from '@/modules/ui/Onboarding';
@@ -435,7 +436,8 @@ function BookmarksTab({
         </div>
       )}
 
-      {filteredBookmarks.some((bookmark) => bookmark.portal === 'pjn') && (
+      {isPjnNoteDay() &&
+        filteredBookmarks.some((bookmark) => bookmark.portal === 'pjn') && (
         <PjnBookmarkNotePrep bookmarks={filteredBookmarks} />
       )}
 
@@ -502,11 +504,11 @@ function PjnBookmarkNotePrep({ bookmarks }: { bookmarks: Bookmark[] }) {
   };
 
   const copyDetail = () => {
-    const lines = ['Preparacion de nota PJN desde marcadores'];
+    const lines = ['Preparacion de dejar nota PJN desde marcadores'];
     for (const bookmark of pjnBookmarks) {
       const checked = selected.has(bookmark.caseNumber) ? '[x]' : '[ ]';
       const status = isPjnBookmarkEligibleForNote(bookmark)
-        ? 'Lista para nota'
+        ? 'Lista para dejar nota'
         : isPortalStatusEnLetra(bookmark.metadata?.estadoPortal)
           ? 'Excluida: EN LETRA'
           : 'Excluida: no consta como relacionado letrado';
@@ -527,7 +529,7 @@ function PjnBookmarkNotePrep({ bookmarks }: { bookmarks: Bookmark[] }) {
         className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-red-700 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-800"
       >
         <FilePenLine size={12} />
-        Preparar notas PJN ({selectedCount}/{eligible.length})
+        Dejar notas PJN ({selectedCount}/{eligible.length})
       </button>
       <p className="mt-1 text-center text-[10px] text-red-900/70 dark:text-red-200/80">
         Usa marcadores PJN importados como letrado y excluye EN LETRA.

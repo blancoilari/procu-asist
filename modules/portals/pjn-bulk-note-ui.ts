@@ -5,6 +5,7 @@ import {
   setPortalActionButtonState,
 } from '@/modules/ui/portal-action-bar';
 import { collectScwListRows } from './pjn-list-collector';
+import { isPjnNoteDay } from './pjn-note-days';
 import { parseScwList, type PjnCaseRow } from './pjn-parser';
 
 const ACTION_BAR_ID = 'procu-asist-action-bar';
@@ -26,6 +27,7 @@ interface NoteCandidate {
 
 export function mountPjnBulkNoteButton(url: URL): void {
   if (document.getElementById(BUTTON_ID)) return;
+  if (!isPjnNoteDay()) return;
 
   const parsed = parseScwList(document, url);
   if (parsed.mode !== 'relacionados-letrado') return;
@@ -36,9 +38,9 @@ export function mountPjnBulkNoteButton(url: URL): void {
   const btn = createPortalActionButton({
     id: BUTTON_ID,
     icon: ICON_FILE_PEN,
-    label: 'Notas PJN',
-    title: 'Preparar nota masiva para relacionados como letrado guardados',
-    variant: isPjnNoteDay() ? 'primary' : 'secondary',
+    label: 'Dejar notas',
+    title: 'Preparar Dejar Nota para relacionados como letrado guardados',
+    variant: 'primary',
   });
 
   btn.addEventListener('click', () => {
@@ -64,12 +66,12 @@ async function openBulkNotePreview(btn: HTMLButtonElement): Promise<void> {
     ]);
     const candidates = buildNoteCandidates(collected.rows, bookmarks);
     renderBulkNoteModal(candidates, collected.pagesVisited);
-    setPortalActionButtonState(btn, ICON_FILE_PEN, 'Notas PJN', 'primary');
+    setPortalActionButtonState(btn, ICON_FILE_PEN, 'Dejar notas', 'primary');
   } catch (err) {
     console.error('[ProcuAsist PJN] bulk note preview error:', err);
     setPortalActionButtonState(btn, ICON_X, 'Error', 'danger');
     window.setTimeout(() => {
-      setPortalActionButtonState(btn, ICON_FILE_PEN, 'Notas PJN', 'secondary');
+      setPortalActionButtonState(btn, ICON_FILE_PEN, 'Dejar notas', 'secondary');
     }, 2500);
   } finally {
     btn.disabled = false;
@@ -154,7 +156,7 @@ function renderBulkNoteModal(candidates: NoteCandidate[], pagesVisited: number):
     justifyContent: 'space-between',
     gap: '16px',
   } satisfies Partial<CSSStyleDeclaration>);
-  header.innerHTML = `<div><strong style="font-size:15px">Dejar nota PJN</strong><div style="font-size:12px;color:#6b7280;margin-top:3px">Relacionados como letrado guardados en marcadores. Paginas revisadas: ${pagesVisited}.</div></div>`;
+  header.innerHTML = `<div><strong style="font-size:15px">Dejar notas PJN</strong><div style="font-size:12px;color:#6b7280;margin-top:3px">Relacionados como letrado guardados en marcadores. Paginas revisadas: ${pagesVisited}.</div></div>`;
 
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
@@ -185,23 +187,6 @@ function renderBulkNoteModal(candidates: NoteCandidate[], pagesVisited: number):
   `;
   body.appendChild(summary);
 
-  if (!isPjnNoteDay()) {
-    const warning = document.createElement('div');
-    warning.textContent =
-      'Hoy no es martes ni viernes. ProcuAsist prepara el lote, pero no deberia ejecutarse la nota masiva fuera de esos dias.';
-    Object.assign(warning.style, {
-      marginBottom: '12px',
-      padding: '10px 12px',
-      border: '1px solid #f59e0b',
-      borderRadius: '8px',
-      background: '#fffbeb',
-      color: '#92400e',
-      fontSize: '12px',
-      fontWeight: '600',
-    } satisfies Partial<CSSStyleDeclaration>);
-    body.appendChild(warning);
-  }
-
   const table = document.createElement('table');
   Object.assign(table.style, {
     width: '100%',
@@ -211,7 +196,7 @@ function renderBulkNoteModal(candidates: NoteCandidate[], pagesVisited: number):
   table.innerHTML = `
     <thead>
       <tr style="background:#f3f4f6;text-align:left">
-        <th style="${thStyle()}">Nota</th>
+        <th style="${thStyle()}">Dejar nota</th>
         <th style="${thStyle()}">Expediente</th>
         <th style="${thStyle()}">Situacion</th>
         <th style="${thStyle()}">Caratula</th>
@@ -264,7 +249,7 @@ function renderBulkNoteModal(candidates: NoteCandidate[], pagesVisited: number):
   } satisfies Partial<CSSStyleDeclaration>);
   const note = document.createElement('div');
   note.textContent =
-    'Siguiente paso: relevar con un expediente real si PJN confirma, navega o deja la nota al hacer click.';
+    'ProcuAsist prepara la seleccion; la nota se deja desde el flujo oficial de PJN.';
   Object.assign(note.style, {
     color: '#6b7280',
     fontSize: '12px',
@@ -295,7 +280,7 @@ function renderBulkNoteModal(candidates: NoteCandidate[], pagesVisited: number):
 }
 
 function buildDetailText(candidates: NoteCandidate[], selected: Set<number>): string {
-  const lines = ['Preparacion de nota PJN'];
+  const lines = ['Preparacion de dejar nota PJN'];
   candidates.forEach((candidate, index) => {
     const mark = selected.has(index) ? '[x]' : '[ ]';
     lines.push(
@@ -308,7 +293,7 @@ function buildDetailText(candidates: NoteCandidate[], selected: Set<number>): st
 function statusLabel(status: NoteRowStatus): string {
   switch (status) {
     case 'eligible':
-      return 'Lista para nota';
+      return 'Lista para dejar nota';
     case 'en-letra':
       return 'Excluida: EN LETRA';
     case 'not-bookmarked':
@@ -358,11 +343,6 @@ function buttonStyle(variant: 'primary' | 'secondary'): Partial<CSSStyleDeclarat
     padding: '8px 12px',
     cursor: 'pointer',
   };
-}
-
-function isPjnNoteDay(date = new Date()): boolean {
-  const day = date.getDay();
-  return day === 2 || day === 5;
 }
 
 function isEnLetra(value: string): boolean {
