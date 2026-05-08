@@ -2,6 +2,15 @@
 
 Todos los cambios notables del proyecto se documentan en este archivo.
 
+## [0.6.3] - 2026-05-08
+
+### Ajuste validado de notas PJN
+
+- Acciones `Dejar nota` y `Dejar notas` visibles solo martes/viernes.
+- El flujo individual abre el modal oficial de PJN y no confirma automaticamente.
+- El preview masivo de PJN cruza marcadores, excluye causas `EN LETRA` y prepara la seleccion sin ejecutar notas automaticas.
+- QA manual validado en PJN/SCW real el 2026-05-08.
+
 ## [0.6.2] - 2026-04-29
 
 ### Reempaquetado para Chrome Web Store

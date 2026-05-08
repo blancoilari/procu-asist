@@ -148,10 +148,11 @@ Capturas aportadas del sidepanel:
 - [ ] Actualizar screenshots anonimizadas.
 - [x] Revisar `docs/release-v0.6.1-assets.md`.
 - [x] Confirmar que `CHANGELOG.md` tiene entrada 0.6.1.
-- [x] Confirmar que `package.json` y `package-lock.json` dicen `0.6.2`.
+- [x] Confirmar que `package.json` y `package-lock.json` dicen `0.6.3`.
 - [x] Subir ZIP al dashboard de Chrome Web Store.
 - [x] Guardar numero de version enviada a revision: `0.6.2`.
 - [x] Enviar a revision en Chrome Web Store el 2026-04-29.
+- [ ] Subir ZIP `0.6.3` al dashboard de Chrome Web Store.
 
 ## 10. Riesgos conocidos aceptables
 
