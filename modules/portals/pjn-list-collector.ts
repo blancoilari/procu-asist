@@ -34,9 +34,15 @@ export async function collectScwListRows(
 
     const before = listSignature();
     next.click();
-    const changed = await waitForListSignatureChange(before, 3500);
+    // El re-render AJAX del SCW puede ser lento: 6s antes de dar por
+    // terminada la paginación (cortar antes trunca el listado en silencio).
+    const changed = await waitForListSignatureChange(before, 6000);
     if (!changed) break;
   }
+
+  console.debug(
+    `[ProcuAsist PJN] Listado recolectado: ${rows.length} filas en ${pagesVisited} página(s)`
+  );
 
   return {
     ok: true,
@@ -244,9 +250,14 @@ function normalizeExpedienteKey(value: string): string {
 }
 
 function findNextListPageControl(): HTMLElement | null {
+  // RichFaces (JSF) renders the datascroller's page buttons as <td>/<div>/
+  // <span> with inline onclick — NOT as real links or buttons — so the
+  // selector must include those. Class names cover RichFaces 3 (SCW/Seam)
+  // and RichFaces 4 scrollers.
   const candidates = Array.from(
     document.querySelectorAll<HTMLElement>(
-      'a, button, input[type="button"], input[type="submit"]'
+      'a, button, input[type="button"], input[type="submit"], ' +
+        '.rich-datascr-button, .rf-ds-btn, td[onclick], span[onclick], div[onclick]'
     )
   );
 
@@ -259,8 +270,15 @@ function findNextListPageControl(): HTMLElement | null {
         .filter(Boolean)
         .join(' ')
     );
+    const compact = label.replace(/\s+/g, '');
 
-    if (/\b(proximo|siguiente|next)\b|[>›»]/.test(label)) {
+    // Exact single-arrow first: '»»'/'>>' (saltar a la ÚLTIMA página) NO
+    // sirve como "siguiente" — matchearlo salteaba las páginas del medio.
+    if (compact === '>' || compact === '›' || compact === '»') return el;
+    if (
+      /\b(proximo|siguiente|next)\b/.test(label) &&
+      !/\b(ultimo|ultima|last)\b/.test(label)
+    ) {
       return el;
     }
   }
@@ -312,7 +330,9 @@ function isDisabledElement(el: HTMLElement): boolean {
   return (
     input.disabled ||
     el.getAttribute('aria-disabled') === 'true' ||
-    /\b(disabled|ui-state-disabled|rf-dsbl)\b/i.test(el.className)
+    /\b(disabled|ui-state-disabled|rf-dsbl|rf-ds-dis|rich-datascr-button-dsbld)\b/i.test(
+      el.className
+    )
   );
 }
 

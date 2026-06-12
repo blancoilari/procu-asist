@@ -298,6 +298,23 @@ export async function markAlertRead(alertId: string): Promise<void> {
   }
 }
 
+/** Mark every alert of one monitor (case) as read */
+export async function markAlertsReadForMonitor(
+  monitorId: string
+): Promise<void> {
+  const alerts = await getAlerts();
+  let changed = false;
+  for (const alert of alerts) {
+    if (alert.monitorId === monitorId && !alert.isRead) {
+      alert.isRead = true;
+      changed = true;
+    }
+  }
+  if (changed) {
+    await chrome.storage.local.set({ [ALERTS_KEY]: alerts });
+  }
+}
+
 /** Mark all alerts as read */
 export async function markAllAlertsRead(): Promise<void> {
   const alerts = await getAlerts();

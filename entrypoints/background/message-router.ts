@@ -39,6 +39,7 @@ import {
   getUnreadAlertCount,
   markAlertRead,
   markAllAlertsRead,
+  markAlertsReadForMonitor,
 } from '@/modules/storage/monitor-store';
 import { getSettings, updateSettings } from '@/modules/storage/settings-store';
 import { generateCaseZip } from '@/modules/pdf/case-zip-generator';
@@ -187,6 +188,33 @@ async function handleMessage(
         message.caseData.caseNumber
       );
       const bookmark = await addBookmark(message.caseData);
+
+      // "Marcador = monitoreo": salvo que el usuario lo apague en Ajustes,
+      // guardar una causa también la suma a la Procuración Automática.
+      // MEV necesita nidCausa/pidJuzgado para poder escanear; PJN matchea
+      // por expediente/carátula contra el feed de la API.
+      const cd = message.caseData;
+      const settings = await getSettings();
+      const canAutoMonitor =
+        settings.autoMonitorOnBookmark !== false &&
+        (cd.portal === 'pjn' ||
+          (cd.portal === 'mev' &&
+            cd.metadata?.nidCausa &&
+            cd.metadata?.pidJuzgado));
+      if (canAutoMonitor) {
+        await addMonitor({
+          portal: cd.portal,
+          caseNumber: cd.caseNumber,
+          title: cd.title,
+          court: cd.court,
+          portalUrl: cd.portalUrl,
+          metadata: {
+            nidCausa: cd.metadata?.nidCausa,
+            pidJuzgado: cd.metadata?.pidJuzgado,
+          },
+        });
+      }
+
       return { success: true, bookmark, isNew: !existing };
     }
 
@@ -365,6 +393,11 @@ async function handleMessage(
       return { success: true };
     }
 
+    case 'MARK_MONITOR_ALERTS_READ': {
+      await markAlertsReadForMonitor(message.monitorId);
+      return { success: true };
+    }
+
     case 'ENRICH_SCBA_MIS_CAUSAS': {
       return enrichScbaMisCausas();
     }
@@ -421,12 +454,15 @@ async function handleMessage(
             imported++;
           }
 
-          if (
+          // MEV requiere nidCausa/pidJuzgado para el escaneo; PJN se
+          // monitorea por expediente/carátula contra el feed de la API.
+          const canMonitor =
             message.monitor &&
-            portal === 'mev' &&
-            caseData.metadata?.nidCausa &&
-            caseData.metadata?.pidJuzgado
-          ) {
+            (portal === 'pjn' ||
+              (portal === 'mev' &&
+                caseData.metadata?.nidCausa &&
+                caseData.metadata?.pidJuzgado));
+          if (canMonitor) {
             const wasMonitored = await isMonitored(portal, richCaseObj.caseNumber);
             await addMonitor({
               portal,
@@ -435,8 +471,8 @@ async function handleMessage(
               court: caseData.court,
               portalUrl: caseData.portalUrl,
               metadata: {
-                nidCausa: caseData.metadata.nidCausa,
-                pidJuzgado: caseData.metadata.pidJuzgado,
+                nidCausa: caseData.metadata?.nidCausa,
+                pidJuzgado: caseData.metadata?.pidJuzgado,
               },
             });
             if (!wasMonitored) monitored++;
