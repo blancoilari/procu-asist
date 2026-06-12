@@ -62,7 +62,12 @@ export async function downloadPjnPdf(
       world: 'MAIN',
       func: async (fetchUrl: string) => {
         try {
-          const resp = await fetch(fetchUrl, { credentials: 'include' });
+          // Timeout duro: sin esto una descarga colgada del SCW deja el
+          // flujo entero esperando para siempre.
+          const resp = await fetch(fetchUrl, {
+            credentials: 'include',
+            signal: AbortSignal.timeout(45_000),
+          });
           if (!resp.ok) return { error: `HTTP ${resp.status}` };
 
           const contentType =

@@ -576,7 +576,20 @@ function renderFooter(
     label: 'Cancelar',
     variant: 'secondary',
   });
-  cancelBtn.addEventListener('click', close);
+  // Antes de descargar: cierra el modal. Durante la descarga: aborta la
+  // generación en el background (cancelación cooperativa).
+  let downloading = false;
+  cancelBtn.addEventListener('click', () => {
+    if (!downloading) {
+      close();
+      return;
+    }
+    cancelBtn.textContent = 'Cancelando…';
+    cancelBtn.disabled = true;
+    void chrome.runtime
+      .sendMessage({ type: 'PJN_CANCEL_ZIP' })
+      .catch(() => {});
+  });
 
   const continueBtn = createPortalModalButton({
     label: 'ZIP',
@@ -606,11 +619,12 @@ function renderFooter(
       return;
     }
 
-    // UI: disable buttons, show progress
+    // UI: disable download buttons, keep Cancel active to abort mid-run
     const activeBtn = format === 'pdf' ? pdfBtn : continueBtn;
     continueBtn.disabled = true;
     pdfBtn.disabled = true;
-    cancelBtn.disabled = true;
+    downloading = true;
+    cancelBtn.textContent = 'Cancelar descarga';
     activeBtn.textContent = `Generando ${fmtLabel}…`;
     activeBtn.style.opacity = '0.7';
     info.innerHTML = `<span style="color:${FAB_COLOR}; font-weight:600;">
@@ -670,7 +684,9 @@ function renderFooter(
       pdfBtn.textContent = 'Un PDF';
       continueBtn.style.opacity = '1';
       pdfBtn.style.opacity = '1';
+      downloading = false;
       cancelBtn.disabled = false;
+      cancelBtn.textContent = 'Cancelar';
     }
   };
 

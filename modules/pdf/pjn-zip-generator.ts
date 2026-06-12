@@ -66,6 +66,14 @@ export interface PjnZipResult {
 
 export type PjnZipProgress = (stage: string, current: number, total: number) => void;
 
+// Cancelación cooperativa: el modal manda PJN_CANCEL_ZIP y el loop de
+// descargas corta en el próximo documento. Una sola generación a la vez.
+let cancelRequested = false;
+
+export function requestPjnZipCancel(): void {
+  cancelRequested = true;
+}
+
 // ────────────────────────────────────────────────────────
 // Entry point
 // ────────────────────────────────────────────────────────
@@ -76,6 +84,7 @@ export async function generatePjnCaseZip(
 ): Promise<PjnZipResult> {
   const { datosGenerales, actuaciones, portalUrl, scwTabId } = input;
   const format = input.format ?? 'zip';
+  cancelRequested = false;
 
   if (actuaciones.length === 0) {
     return { success: false, error: 'No hay actuaciones seleccionadas.' };
@@ -127,6 +136,10 @@ export async function generatePjnCaseZip(
   const usedFilenames = new Set<string>();
 
   for (let i = 0; i < ordered.length; i++) {
+    if (cancelRequested) {
+      return { success: false, error: 'Descarga cancelada.' };
+    }
+
     const a = ordered[i];
     const idx = i + 1; // contador interno para progress/failedItems, no para filenames
     const baseFilename = buildActuacionFilename(a);
@@ -146,6 +159,9 @@ export async function generatePjnCaseZip(
     // Descargar el "download" primero (si existe); si solo hay "view", usarlo.
     const docs = pickDocumentsForDownload(a);
     for (let d = 0; d < docs.length; d++) {
+      if (cancelRequested) {
+        return { success: false, error: 'Descarga cancelada.' };
+      }
       const doc = docs[d];
       const suffix = docs.length > 1 ? `_doc${d + 1}` : '';
       const suggested = uniqueFilename(

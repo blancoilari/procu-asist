@@ -36,6 +36,7 @@ export type ProcuAsistMessage =
   | PjnGetEventsDebugMessage
   | PjnDownloadPdfMessage
   | PjnGenerateZipMessage
+  | PjnCancelZipMessage
   | OpenPjnCaseMessage
   | ConsumePjnOpenTargetMessage;
 
@@ -270,6 +271,11 @@ export interface PjnGenerateZipMessage {
   } | null;
   /** URL de la pestaña scw desde la que se disparó la descarga. */
   portalUrl: string;
+}
+
+/** Cancel an in-progress PJN ZIP/PDF generation (cooperative). */
+export interface PjnCancelZipMessage {
+  type: 'PJN_CANCEL_ZIP';
 }
 
 /** Open a PJN case from the side panel. Because SCW deep links (cid) expire,

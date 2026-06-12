@@ -57,7 +57,10 @@ import {
   findScwActuacionesTab,
   findScwTab,
 } from '@/modules/portals/pjn-downloader';
-import { generatePjnCaseZip } from '@/modules/pdf/pjn-zip-generator';
+import {
+  generatePjnCaseZip,
+  requestPjnZipCancel,
+} from '@/modules/pdf/pjn-zip-generator';
 import { PJN_SCW_BASE_URL, PJN_SCW_PATHS } from '@/modules/portals/pjn-selectors';
 
 export function setupMessageRouter() {
@@ -491,6 +494,11 @@ async function handleMessage(
           error: err instanceof Error ? err.message : String(err),
         };
       }
+    }
+
+    case 'PJN_CANCEL_ZIP': {
+      requestPjnZipCancel();
+      return { success: true };
     }
 
     // --- PJN document download ---

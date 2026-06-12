@@ -295,6 +295,7 @@ function handleResultsPage(doc: Document) {
     });
     injectResultsImportButton(results);
     void continueSetImportIfActive(results);
+    void continuePageWalkIfActive(results);
   }
 }
 
@@ -316,6 +317,8 @@ function injectResultsImportButton(results: MevSearchResult[]) {
 
   btn.addEventListener('click', async () => {
     if (await startSetImportIfPossible(results, btn)) return;
+    // Multi-page results: walk every page first, then offer the selection.
+    if (startPageWalkIfPossible(results, btn)) return;
 
     // Let the user pick which results to import.
     const selected = await showMevImportSelectionModal(results);
@@ -423,6 +426,131 @@ async function continueSetImportIfActive(results: MevSearchResult[]) {
     `Set importado: ${response.imported} nuevas, ${response.existing} existentes, ${response.monitored} monitoreadas.`,
     'success'
   );
+}
+
+// --- Multi-page results walk -------------------------------------------
+// resultados.asp pagina del lado del servidor (POST/stateful), así que no
+// se pueden fetchear las páginas: se recorren clickeando "Siguiente" y
+// acumulando resultados en sessionStorage, igual que la importación de sets.
+
+const MEV_PAGE_WALK_SESSION_KEY = 'procu_asist_mev_page_walk';
+const MEV_PAGE_WALK_MAX_PAGES = 15;
+
+interface MevPageWalkSession {
+  collected: MevSearchResult[];
+  pagesVisited: number;
+  startedAt: number;
+}
+
+/** Busca el control "Siguiente" del paginador nativo de resultados.asp. */
+function findNextResultsPageControl(): HTMLElement | null {
+  const candidates = Array.from(
+    document.querySelectorAll(
+      'a, input[type="submit"], input[type="button"], button'
+    )
+  ) as HTMLElement[];
+
+  for (const el of candidates) {
+    // No matchear nuestra propia UI inyectada.
+    if (el.closest('[id^="procu-asist"]')) continue;
+    const text = (
+      (el as HTMLInputElement).value ||
+      el.textContent ||
+      el.getAttribute('title') ||
+      ''
+    )
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+    if (!text) continue;
+    if (/^(siguiente\b|p[áa]gina siguiente\b|pr[óo]xima\b|>{1,2}$)/.test(text)) {
+      return el;
+    }
+  }
+  return null;
+}
+
+function readPageWalkSession(): MevPageWalkSession | null {
+  const raw = sessionStorage.getItem(MEV_PAGE_WALK_SESSION_KEY);
+  if (!raw) return null;
+  try {
+    const session = JSON.parse(raw) as MevPageWalkSession;
+    if (!Array.isArray(session.collected)) return null;
+    if (Date.now() - session.startedAt > 10 * 60 * 1000) {
+      sessionStorage.removeItem(MEV_PAGE_WALK_SESSION_KEY);
+      return null;
+    }
+    return session;
+  } catch {
+    sessionStorage.removeItem(MEV_PAGE_WALK_SESSION_KEY);
+    return null;
+  }
+}
+
+/** Si los resultados tienen más de una página, arranca el recorrido. */
+function startPageWalkIfPossible(
+  results: MevSearchResult[],
+  btn: HTMLButtonElement
+): boolean {
+  const next = findNextResultsPageControl();
+  if (!next) return false;
+
+  const session: MevPageWalkSession = {
+    collected: results,
+    pagesVisited: 1,
+    startedAt: Date.now(),
+  };
+  sessionStorage.setItem(MEV_PAGE_WALK_SESSION_KEY, JSON.stringify(session));
+
+  setPortalActionButtonState(btn, ICON_LOADER, 'Recolectando', 'muted');
+  btn.disabled = true;
+  showSetImportStatus('Recolectando resultados (página 1)...');
+  next.click();
+  return true;
+}
+
+async function continuePageWalkIfActive(results: MevSearchResult[]) {
+  // La importación de sets tiene prioridad si está en curso.
+  if (readSetImportSession()) return;
+  const session = readPageWalkSession();
+  if (!session) return;
+
+  session.collected = mergeMevSearchResults(session.collected, results);
+  session.pagesVisited += 1;
+
+  const next = findNextResultsPageControl();
+  if (next && session.pagesVisited < MEV_PAGE_WALK_MAX_PAGES) {
+    sessionStorage.setItem(MEV_PAGE_WALK_SESSION_KEY, JSON.stringify(session));
+    showSetImportStatus(
+      `Recolectando resultados (página ${session.pagesVisited}, ${session.collected.length} causas)...`
+    );
+    setTimeout(() => next.click(), 400);
+    return;
+  }
+
+  sessionStorage.removeItem(MEV_PAGE_WALK_SESSION_KEY);
+  if (next) {
+    showSetImportStatus(
+      `Límite de ${MEV_PAGE_WALK_MAX_PAGES} páginas alcanzado — puede haber más resultados.`
+    );
+  }
+
+  const selected = await showMevImportSelectionModal(session.collected);
+  if (!selected || selected.length === 0) {
+    document.getElementById('procu-asist-set-import-status')?.remove();
+    return;
+  }
+
+  try {
+    const response = await bulkImportMevResults(selected);
+    showSetImportStatus(
+      `Importadas: ${response.imported} nuevas, ${response.existing} existentes, ${response.monitored} monitoreadas.`,
+      'success'
+    );
+  } catch (err) {
+    console.error('[ProcuAsist] MEV page-walk import error:', err);
+    showSetImportStatus('Error al importar los resultados.');
+  }
 }
 
 function readSetImportSession(): MevSetImportSession | null {
