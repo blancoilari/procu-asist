@@ -41,11 +41,11 @@ import PlazosTab from '@/modules/ui/PlazosTab';
 import { exportBackup, importBackup } from '@/modules/storage/backup';
 import { isDateOnOrAfter, parseDateOnly } from '@/modules/utils/date';
 
-type Tab = 'bookmarks' | 'monitors' | 'plazos' | 'settings';
+type Tab = 'cases' | 'plazos' | 'settings';
 type PortalFilter = 'all' | PortalId;
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('bookmarks');
+  const [activeTab, setActiveTab] = useState<Tab>('cases');
   const [search, setSearch] = useState('');
   const [portalFilter, setPortalFilter] = useState<PortalFilter>('all');
   const [unreadCount, setUnreadCount] = useState(0);
@@ -130,7 +130,7 @@ export default function App() {
 
       {/* Tab Navigation */}
       <nav className="flex border-b border-border">
-        {(['bookmarks', 'monitors', 'plazos', 'settings'] as Tab[]).map((tab) => (
+        {(['cases', 'plazos', 'settings'] as Tab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -140,14 +140,9 @@ export default function App() {
                 : 'text-text-secondary hover:text-text'
             }`}
           >
-            {tab === 'bookmarks' && (
+            {tab === 'cases' && (
               <span className="inline-flex items-center gap-1">
-                <Star size={13} /> Marcadores
-              </span>
-            )}
-            {tab === 'monitors' && (
-              <span className="inline-flex items-center gap-1">
-                <Eye size={13} /> Monitoreo
+                <Star size={13} /> Causas
                 {unreadCount > 0 && (
                   <span className="absolute -top-0.5 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                     {unreadCount > 99 ? '99+' : unreadCount}
@@ -169,17 +164,14 @@ export default function App() {
         ))}
       </nav>
 
-      {(activeTab === 'bookmarks' || activeTab === 'monitors') && (
+      {activeTab === 'cases' && (
         <PortalFilterBar value={portalFilter} onChange={setPortalFilter} />
       )}
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto">
-        {activeTab === 'bookmarks' && (
-          <BookmarksTab search={search} portalFilter={portalFilter} />
-        )}
-        {activeTab === 'monitors' && (
-          <MonitorsTab search={search} portalFilter={portalFilter} />
+        {activeTab === 'cases' && (
+          <CasesTab search={search} portalFilter={portalFilter} />
         )}
         {activeTab === 'plazos' && <PlazosTab />}
         {activeTab === 'settings' && <SettingsTab />}
@@ -258,236 +250,6 @@ function PortalFilterBar({
           </button>
         ))}
       </div>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────────────────
-// Bookmarks Tab
-// ──────────────────────────────────────────────────────────
-
-function BookmarksTab({
-  search,
-  portalFilter,
-}: {
-  search: string;
-  portalFilter: PortalFilter;
-}) {
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
-  const [monitors, setMonitors] = useState<Monitor[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [lastDetected, setLastDetected] = useState<Case | null>(null);
-  const [bulkMonitoring, setBulkMonitoring] = useState(false);
-  const [bulkMessage, setBulkMessage] = useState('');
-
-  const loadBookmarks = useCallback(async () => {
-    try {
-      const response = (await chrome.runtime.sendMessage({
-        type: 'GET_BOOKMARKS',
-      })) as { success: boolean; bookmarks: Bookmark[] };
-
-      if (response?.success) {
-        setBookmarks(response.bookmarks);
-      }
-    } catch (err) {
-      console.error('[ProcuAsist] Failed to load bookmarks:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadMonitors = useCallback(async () => {
-    const response = (await chrome.runtime.sendMessage({
-      type: 'GET_MONITORS',
-    })) as { success: boolean; monitors: Monitor[] };
-
-    if (response?.success) {
-      setMonitors(response.monitors);
-    }
-  }, []);
-
-  const filteredBookmarks = bookmarks.filter(
-    (bookmark) =>
-      matchesPortalFilter(bookmark.portal, portalFilter) &&
-      matchesCaseSearch(bookmark, search)
-  );
-  const unmonitoredVisible = filteredBookmarks.filter(
-    (bookmark) => !isCaseMonitored(bookmark, monitors)
-  );
-
-  // Load bookmarks on mount; search and portal filters are applied locally.
-  useEffect(() => {
-    loadBookmarks();
-    loadMonitors();
-  }, [loadBookmarks, loadMonitors]);
-
-  // Listen for storage changes (bookmarks updated from content script)
-  useEffect(() => {
-    const listener = (
-      changes: Record<string, chrome.storage.StorageChange>,
-      area: string
-    ) => {
-      if (area === 'local' && changes.tl_bookmarks) {
-        loadBookmarks();
-      }
-      if (area === 'local' && changes.tl_monitors) {
-        loadMonitors();
-      }
-      if (area === 'session' && changes.lastDetectedCase) {
-        setLastDetected(changes.lastDetectedCase.newValue as Case);
-      }
-    };
-    chrome.storage.onChanged.addListener(listener);
-
-    // Also check for last detected case on mount
-    chrome.storage.session.get('lastDetectedCase', (result) => {
-      if (result.lastDetectedCase) {
-        setLastDetected(result.lastDetectedCase as Case);
-      }
-    });
-
-    return () => chrome.storage.onChanged.removeListener(listener);
-  }, [loadBookmarks, loadMonitors]);
-
-  const handleAddCurrent = async () => {
-    if (!lastDetected) return;
-    const response = (await chrome.runtime.sendMessage({
-      type: 'ADD_BOOKMARK',
-      caseData: lastDetected,
-    })) as { success: boolean; isNew: boolean };
-
-    if (response?.success) {
-      loadBookmarks();
-      if (response.isNew) {
-        // Clear last detected so the banner goes away
-        await chrome.storage.session.remove('lastDetectedCase');
-        setLastDetected(null);
-      }
-    }
-  };
-
-  const handleRemove = async (bookmark: Bookmark) => {
-    await chrome.runtime.sendMessage({
-      type: 'REMOVE_BOOKMARK',
-      portal: bookmark.portal,
-      caseNumber: bookmark.caseNumber,
-    });
-    loadBookmarks();
-  };
-
-  const handleOpen = (bookmark: Bookmark) => {
-    openPortalCase(bookmark.portal, bookmark.caseNumber, bookmark.portalUrl);
-  };
-
-  const handleMonitorVisible = async () => {
-    if (!unmonitoredVisible.length) return;
-
-    setBulkMonitoring(true);
-    setBulkMessage('');
-
-    let added = 0;
-    let failed = 0;
-
-    for (const bookmark of unmonitoredVisible) {
-      try {
-        const response = (await chrome.runtime.sendMessage({
-          type: 'ADD_MONITOR',
-          caseData: bookmark,
-        })) as { success?: boolean };
-
-        if (response?.success) added++;
-        else failed++;
-      } catch {
-        failed++;
-      }
-    }
-
-    await loadMonitors();
-    setBulkMonitoring(false);
-    setBulkMessage(
-      failed
-        ? `${added} pasadas a monitoreo, ${failed} con error.`
-        : `${added} causa(s) pasadas a monitoreo.`
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col">
-      {/* Quick-add banner when on a case page */}
-      {lastDetected && (
-        <QuickAddBanner caseData={lastDetected} onAdd={handleAddCurrent} />
-      )}
-
-      {filteredBookmarks.length > 0 && (
-        <div className="border-b border-primary/15 bg-primary/5 px-4 py-2">
-          <button
-            type="button"
-            onClick={handleMonitorVisible}
-            disabled={!unmonitoredVisible.length || bulkMonitoring}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {bulkMonitoring ? (
-              <>
-                <Hourglass size={12} /> Pasando a monitoreo...
-              </>
-            ) : (
-              <>
-                <Eye size={12} /> Monitorear visibles ({unmonitoredVisible.length})
-              </>
-            )}
-          </button>
-          {bulkMessage && (
-            <p className="mt-1 text-center text-[10px] text-text-secondary">
-              {bulkMessage}
-            </p>
-          )}
-          {portalFilter === 'pjn' && (
-            <p className="mt-1 text-center text-[10px] text-text-secondary">
-              Para escanear PJN sin token, dejá abierto el listado SCW
-              correspondiente.
-            </p>
-          )}
-        </div>
-      )}
-
-      {isPjnNoteDay() &&
-        filteredBookmarks.some((bookmark) => bookmark.portal === 'pjn') && (
-        <PjnBookmarkNotePrep bookmarks={filteredBookmarks} />
-      )}
-
-      {/* Bookmarks list */}
-      {filteredBookmarks.length === 0 ? (
-        <EmptyBookmarks hasSearch={!!search || portalFilter !== 'all'} />
-      ) : (
-        <ul className="divide-y divide-border">
-          {filteredBookmarks.map((b) => (
-            <BookmarkCard
-              key={`${b.portal}-${b.caseNumber}`}
-              bookmark={b}
-              initiallyMonitored={isCaseMonitored(b, monitors)}
-              onOpen={handleOpen}
-              onRemove={handleRemove}
-            />
-          ))}
-        </ul>
-      )}
-
-      {/* Count footer */}
-      {filteredBookmarks.length > 0 && (
-        <div className="border-t border-border px-4 py-2 text-center text-xs text-text-secondary">
-          {filteredBookmarks.length} marcador
-          {filteredBookmarks.length !== 1 ? 'es' : ''}
-          {search || portalFilter !== 'all' ? ' encontrados' : ''}
-        </div>
-      )}
     </div>
   );
 }
@@ -690,222 +452,32 @@ function QuickAddBanner({
 }
 
 // ──────────────────────────────────────────────────────────
-// Bookmark Card
+// Cases Tab (marcador = monitoreo: una sola lista de causas)
 // ──────────────────────────────────────────────────────────
 
-function BookmarkCard({
-  bookmark,
-  initiallyMonitored,
-  onOpen,
-  onRemove,
-}: {
-  bookmark: Bookmark;
-  initiallyMonitored: boolean;
-  onOpen: (b: Bookmark) => void;
-  onRemove: (b: Bookmark) => void;
-}) {
-  const [showActions, setShowActions] = useState(false);
-  const [monitored, setMonitored] = useState(initiallyMonitored);
-  const actionsRef = useRef<HTMLDivElement>(null);
-
-  // Check if this bookmark is monitored
-  useEffect(() => {
-    setMonitored(initiallyMonitored);
-    chrome.runtime
-      .sendMessage({
-        type: 'IS_MONITORED',
-        portal: bookmark.portal,
-        caseNumber: bookmark.caseNumber,
-      })
-      .then((r) => {
-        const resp = r as { success: boolean; isMonitored: boolean };
-        if (resp?.success) setMonitored(resp.isMonitored);
-      });
-  }, [bookmark.portal, bookmark.caseNumber, initiallyMonitored]);
-
-  // Close actions dropdown on outside click
-  useEffect(() => {
-    if (!showActions) return;
-    const handler = (e: MouseEvent) => {
-      if (
-        actionsRef.current &&
-        !actionsRef.current.contains(e.target as Node)
-      ) {
-        setShowActions(false);
-      }
-    };
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
-  }, [showActions]);
-
-  const portalBadge = <PortalBadge portal={bookmark.portal} />;
-
-  const timeAgo = getRelativeTime(bookmark.createdAt);
-
-  return (
-    <li className="group relative px-4 py-3 hover:bg-bg-secondary/50 transition-colors">
-      {/* Main content - clickable to open */}
-      <button
-        onClick={() => onOpen(bookmark)}
-        className="w-full text-left"
-        title={`Abrir en ${bookmark.portal === 'eje' ? 'JUSCABA' : bookmark.portal.toUpperCase()}`}
-      >
-        {/* Top row: portal badge + case number */}
-        <div className="mb-1 flex items-center gap-2">
-          {portalBadge}
-          <span className="text-sm font-semibold">{bookmark.caseNumber}</span>
-          {monitored && (
-            <span
-              className="inline-flex items-center rounded bg-violet-100 px-1.5 py-0.5 text-violet-700 dark:bg-violet-900 dark:text-violet-300"
-              title="Monitoreando"
-            >
-              <Eye size={11} />
-            </span>
-          )}
-        </div>
-
-        {/* Title (carátula) */}
-        <p className="mb-1 text-xs leading-snug text-text-secondary line-clamp-2">
-          {bookmark.title}
-        </p>
-
-        {/* Bottom row: court + time */}
-        <div className="flex items-center justify-between text-[10px] text-text-secondary/70">
-          <span className="truncate max-w-[65%]">{bookmark.court}</span>
-          <span>{timeAgo}</span>
-        </div>
-
-        {/* Last movement if available */}
-        {bookmark.lastMovementDate && (
-          <div className="mt-1.5 flex items-center gap-1 rounded bg-amber-50 px-2 py-1 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-            <FileText size={11} />
-            <span>
-              {bookmark.lastMovementDate}
-              {bookmark.lastMovementDesc && ` — ${bookmark.lastMovementDesc}`}
-            </span>
-          </div>
-        )}
-      </button>
-
-      {/* Actions button (appears on hover) */}
-      <div ref={actionsRef} className="absolute right-2 top-2">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowActions(!showActions);
-          }}
-          className="rounded p-1 text-text-secondary opacity-0 hover:bg-border group-hover:opacity-100 transition-opacity"
-          title="Opciones"
-        >
-          <MoreIcon />
-        </button>
-
-        {/* Dropdown */}
-        {showActions && (
-          <div className="absolute right-0 top-full z-10 mt-1 w-40 rounded-lg border border-border bg-bg shadow-lg">
-            <button
-              onClick={() => {
-                onOpen(bookmark);
-                setShowActions(false);
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-bg-secondary"
-            >
-              <LinkIcon size={13} /> Abrir en portal
-            </button>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(
-                  `${bookmark.caseNumber} — ${bookmark.title}`
-                );
-                setShowActions(false);
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-bg-secondary"
-            >
-              <Clipboard size={13} /> Copiar carátula
-            </button>
-            <button
-              onClick={async () => {
-                if (monitored) {
-                  // Already monitored — no action from here, go to monitors tab
-                  setShowActions(false);
-                  return;
-                }
-                await chrome.runtime.sendMessage({
-                  type: 'ADD_MONITOR',
-                  caseData: bookmark,
-                });
-                setMonitored(true);
-                setShowActions(false);
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-bg-secondary"
-            >
-              <Eye size={13} /> {monitored ? 'Ya monitoreada' : 'Monitorear causa'}
-            </button>
-            <button
-              onClick={() => {
-                // Open the case in MEV so user can generate PDF from there
-                onOpen(bookmark);
-                setShowActions(false);
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-bg-secondary"
-            >
-              <FileText size={13} /> Abrir para descargar PDF
-            </button>
-            <hr className="border-border" />
-            <button
-              onClick={() => {
-                onRemove(bookmark);
-                setShowActions(false);
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-            >
-              <Trash2 size={13} /> Eliminar
-            </button>
-          </div>
-        )}
-      </div>
-    </li>
-  );
+/** Una causa guardada: la unión de su marcador y su monitor. */
+interface MergedCase {
+  portal: PortalId;
+  caseNumber: string;
+  title: string;
+  court: string;
+  portalUrl: string;
+  bookmark?: Bookmark;
+  monitor?: Monitor;
 }
 
-// ──────────────────────────────────────────────────────────
-// Empty State
-// ──────────────────────────────────────────────────────────
-
-function EmptyBookmarks({ hasSearch }: { hasSearch: boolean }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-text-secondary">
-      <div className="text-text-secondary/50">
-        {hasSearch ? <Search size={40} /> : <Star size={40} />}
-      </div>
-      <p className="text-sm font-medium">
-        {hasSearch
-          ? 'No se encontraron marcadores'
-          : 'No hay marcadores guardados'}
-      </p>
-      <p className="text-xs leading-relaxed">
-        {hasSearch
-          ? 'Intentá con otro término de búsqueda o filtro.'
-          : 'Navegá a una causa en MEV o PJN y hacé clic en "Guardar" para agregarla acá.'}
-      </p>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────────────────
-// Monitors Tab
-// ──────────────────────────────────────────────────────────
-
-function MonitorsTab({
+function CasesTab({
   search,
   portalFilter,
 }: {
   search: string;
   portalFilter: PortalFilter;
 }) {
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [alerts, setAlerts] = useState<MovementAlert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastDetected, setLastDetected] = useState<Case | null>(null);
   const [scanning, setScanning] = useState(false);
   const [scanningSince, setScanningSince] = useState(false);
   const [sinceScanMessage, setSinceScanMessage] = useState('');
@@ -914,7 +486,11 @@ function MonitorsTab({
 
   const loadData = useCallback(async () => {
     try {
-      const [monResp, alertResp] = await Promise.all([
+      const [bmResp, monResp, alertResp] = await Promise.all([
+        chrome.runtime.sendMessage({ type: 'GET_BOOKMARKS' }) as Promise<{
+          success: boolean;
+          bookmarks: Bookmark[];
+        }>,
         chrome.runtime.sendMessage({ type: 'GET_MONITORS' }) as Promise<{
           success: boolean;
           monitors: Monitor[];
@@ -925,12 +501,13 @@ function MonitorsTab({
         }>,
       ]);
 
+      if (bmResp?.success) setBookmarks(bmResp.bookmarks);
       if (monResp?.success) {
         setMonitors(monResp.monitors);
       }
       if (alertResp?.success) setAlerts(alertResp.alerts);
     } catch (err) {
-      console.error('[ProcuAsist] Failed to load monitors:', err);
+      console.error('[ProcuAsist] Failed to load cases:', err);
     } finally {
       setLoading(false);
     }
@@ -948,27 +525,65 @@ function MonitorsTab({
     ) => {
       if (
         area === 'local' &&
-        (changes.tl_monitors || changes.tl_alerts)
+        (changes.tl_bookmarks || changes.tl_monitors || changes.tl_alerts)
       ) {
         loadData();
       }
+      if (area === 'session' && changes.lastDetectedCase) {
+        setLastDetected(changes.lastDetectedCase.newValue as Case);
+      }
     };
     chrome.storage.onChanged.addListener(listener);
+
+    // Also check for last detected case on mount
+    chrome.storage.session.get('lastDetectedCase', (result) => {
+      if (result.lastDetectedCase) {
+        setLastDetected(result.lastDetectedCase as Case);
+      }
+    });
+
     return () => chrome.storage.onChanged.removeListener(listener);
   }, [loadData]);
 
-  const handleToggle = async (monitorId: string) => {
-    await chrome.runtime.sendMessage({
-      type: 'TOGGLE_MONITOR',
-      monitorId,
-    });
+  const handleAddCurrent = async () => {
+    if (!lastDetected) return;
+    const response = (await chrome.runtime.sendMessage({
+      type: 'ADD_BOOKMARK',
+      caseData: lastDetected,
+    })) as { success: boolean; isNew: boolean };
+
+    if (response?.success) {
+      loadData();
+      if (response.isNew) {
+        // Clear last detected so the banner goes away
+        await chrome.storage.session.remove('lastDetectedCase');
+        setLastDetected(null);
+      }
+    }
+  };
+
+  const handleToggleAvisos = async (entry: MergedCase) => {
+    if (entry.monitor) {
+      await chrome.runtime.sendMessage({
+        type: 'TOGGLE_MONITOR',
+        monitorId: entry.monitor.id,
+      });
+    } else if (entry.bookmark) {
+      // Aún sin monitor (p. ej. MEV sin IDs internos): intentar crearlo.
+      await chrome.runtime.sendMessage({
+        type: 'ADD_MONITOR',
+        caseData: entry.bookmark,
+      });
+    }
     loadData();
   };
 
-  const handleRemove = async (monitorId: string) => {
+  const handleRemove = async (entry: MergedCase) => {
+    // Una sola acción: el background elimina marcador + monitoreo + alertas.
     await chrome.runtime.sendMessage({
-      type: 'REMOVE_MONITOR',
-      monitorId,
+      type: 'REMOVE_BOOKMARK',
+      portal: entry.portal,
+      caseNumber: entry.caseNumber,
     });
     loadData();
   };
@@ -1038,16 +653,52 @@ function MonitorsTab({
     loadData();
   };
 
-  const handleOpenCase = (monitor: Monitor) => {
-    openPortalCase(monitor.portal, monitor.caseNumber, monitor.portalUrl);
+  const handleOpenCase = (entry: MergedCase) => {
+    openPortalCase(entry.portal, entry.caseNumber, entry.portalUrl);
   };
 
-  const filteredMonitors = monitors.filter(
-    (monitor) =>
-      matchesPortalFilter(monitor.portal, portalFilter) &&
-      matchesMonitorSearch(monitor, search)
+  // ── Lista unificada: marcadores ∪ monitores (tras conciliar son 1:1) ──
+  const monitorByKey = new Map(
+    monitors.map((m) => [caseMonitorKey(m.portal, m.caseNumber), m] as const)
   );
-  const filteredMonitorIds = new Set(filteredMonitors.map((monitor) => monitor.id));
+  const mergedCases: MergedCase[] = bookmarks.map((b) => ({
+    portal: b.portal,
+    caseNumber: b.caseNumber,
+    title: b.title,
+    court: b.court,
+    portalUrl: b.portalUrl,
+    bookmark: b,
+    monitor: monitorByKey.get(caseMonitorKey(b.portal, b.caseNumber)),
+  }));
+  const bookmarkKeys = new Set(
+    bookmarks.map((b) => caseMonitorKey(b.portal, b.caseNumber))
+  );
+  for (const m of monitors) {
+    if (!bookmarkKeys.has(caseMonitorKey(m.portal, m.caseNumber))) {
+      mergedCases.push({
+        portal: m.portal,
+        caseNumber: m.caseNumber,
+        title: m.title,
+        court: m.court,
+        portalUrl: m.portalUrl,
+        monitor: m,
+      });
+    }
+  }
+
+  const filteredCases = mergedCases.filter(
+    (entry) =>
+      matchesPortalFilter(entry.portal, portalFilter) &&
+      matchesCaseSearch(entry, search)
+  );
+  const filteredBookmarks = filteredCases
+    .map((entry) => entry.bookmark)
+    .filter((b): b is Bookmark => Boolean(b));
+  const filteredMonitorIds = new Set(
+    filteredCases
+      .map((entry) => entry.monitor?.id)
+      .filter((id): id is string => Boolean(id))
+  );
   const scopedAlerts = alerts.filter((alert) => filteredMonitorIds.has(alert.monitorId));
   const unreadScopedAlerts = scopedAlerts.filter((a) => !a.isRead);
   // Las novedades se cuentan POR EXPEDIENTE, no por movimiento.
@@ -1070,7 +721,7 @@ function MonitorsTab({
     }
     for (const [monitorId, group] of byMonitor) {
       alertGroups.push({
-        monitor: filteredMonitors.find((m) => m.id === monitorId),
+        monitor: monitors.find((m) => m.id === monitorId),
         alerts: group,
       });
     }
@@ -1104,7 +755,7 @@ function MonitorsTab({
               : 'text-text-secondary hover:text-text'
           }`}
         >
-          Causas ({filteredMonitors.length})
+          Causas ({filteredCases.length})
         </button>
         <button
           onClick={() => setView('alerts')}
@@ -1125,8 +776,18 @@ function MonitorsTab({
 
       {view === 'monitors' ? (
         <>
+          {/* Quick-add banner when on a case page */}
+          {lastDetected && (
+            <QuickAddBanner caseData={lastDetected} onAdd={handleAddCurrent} />
+          )}
+
+          {isPjnNoteDay() &&
+            filteredBookmarks.some((bookmark) => bookmark.portal === 'pjn') && (
+            <PjnBookmarkNotePrep bookmarks={filteredBookmarks} />
+          )}
+
           {/* Scan button */}
-          {filteredMonitors.length > 0 && (
+          {filteredCases.length > 0 && (
             <div className="flex items-center justify-between border-b border-border px-4 py-2">
               <LastScanInfo />
               <button
@@ -1147,22 +808,38 @@ function MonitorsTab({
             </div>
           )}
 
-          {/* Monitors list */}
-          {filteredMonitors.length === 0 ? (
+          {/* Unified cases list */}
+          {filteredCases.length === 0 ? (
             <EmptyMonitors hasSearch={!!search || portalFilter !== 'all'} />
           ) : (
             <ul className="divide-y divide-border">
-              {filteredMonitors.map((m) => (
-                <MonitorCard
-                  key={m.id}
-                  monitor={m}
-                  alerts={alerts.filter((a) => a.monitorId === m.id)}
-                  onToggle={handleToggle}
+              {filteredCases.map((entry) => (
+                <CaseCard
+                  key={`${entry.portal}-${entry.caseNumber}`}
+                  entry={entry}
+                  unread={
+                    entry.monitor
+                      ? alerts.filter(
+                          (a) =>
+                            a.monitorId === entry.monitor?.id && !a.isRead
+                        ).length
+                      : 0
+                  }
+                  onToggleAvisos={handleToggleAvisos}
                   onRemove={handleRemove}
                   onOpen={handleOpenCase}
                 />
               ))}
             </ul>
+          )}
+
+          {/* Count footer */}
+          {filteredCases.length > 0 && (
+            <div className="border-t border-border px-4 py-2 text-center text-xs text-text-secondary">
+              {filteredCases.length} causa
+              {filteredCases.length !== 1 ? 's' : ''}
+              {search || portalFilter !== 'all' ? ' encontradas' : ''}
+            </div>
           )}
         </>
       ) : (
@@ -1269,22 +946,36 @@ function MonitorsTab({
 // Monitor Card
 // ──────────────────────────────────────────────────────────
 
-function MonitorCard({
-  monitor,
-  alerts,
-  onToggle,
+/**
+ * Tarjeta unificada de causa: marcador + monitoreo en una sola fila.
+ * Muestra el estado de los avisos (activos / pausados / sin datos para
+ * escanear) y concentra todas las acciones en un único menú.
+ */
+function CaseCard({
+  entry,
+  unread,
+  onToggleAvisos,
   onRemove,
   onOpen,
 }: {
-  monitor: Monitor;
-  alerts: MovementAlert[];
-  onToggle: (id: string) => void;
-  onRemove: (id: string) => void;
-  onOpen: (m: Monitor) => void;
+  entry: MergedCase;
+  unread: number;
+  onToggleAvisos: (entry: MergedCase) => void;
+  onRemove: (entry: MergedCase) => void;
+  onOpen: (entry: MergedCase) => void;
 }) {
   const [showActions, setShowActions] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
-  const unread = alerts.filter((a) => !a.isRead).length;
+  const monitor = entry.monitor;
+  // MEV sin IDs internos no se puede escanear; PJN siempre puede.
+  const canMonitor =
+    entry.portal === 'pjn' ||
+    (entry.portal === 'mev' &&
+      Boolean(
+        entry.bookmark?.metadata?.nidCausa &&
+          entry.bookmark?.metadata?.pidJuzgado
+      )) ||
+    Boolean(monitor);
 
   useEffect(() => {
     if (!showActions) return;
@@ -1300,21 +991,28 @@ function MonitorCard({
     return () => document.removeEventListener('click', handler);
   }, [showActions]);
 
-  const portalBadge = <PortalBadge portal={monitor.portal} />;
-
   return (
     <li className="group relative px-4 py-3 hover:bg-bg-secondary/50 transition-colors">
       <button
-        onClick={() => onOpen(monitor)}
+        onClick={() => onOpen(entry)}
         className="w-full text-left"
+        title={`Abrir en ${entry.portal === 'eje' ? 'JUSCABA' : entry.portal.toUpperCase()}`}
       >
         {/* Top row */}
         <div className="mb-1 flex items-center gap-2">
-          {portalBadge}
-          <span className="text-sm font-semibold">{monitor.caseNumber}</span>
-          {!monitor.isActive && (
+          <PortalBadge portal={entry.portal} />
+          <span className="text-sm font-semibold">{entry.caseNumber}</span>
+          {monitor && !monitor.isActive && (
             <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-              Pausado
+              Avisos pausados
+            </span>
+          )}
+          {!monitor && !canMonitor && (
+            <span
+              className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+              title="Falta información interna del portal para poder escanear esta causa. Abrila una vez en MEV para completarla."
+            >
+              Sin escaneo
             </span>
           )}
           {unread > 0 && (
@@ -1326,27 +1024,36 @@ function MonitorCard({
 
         {/* Title */}
         <p className="mb-1 text-xs leading-snug text-text-secondary line-clamp-2">
-          {monitor.title}
+          {entry.title}
         </p>
 
         {/* Bottom row: court + last scan */}
         <div className="flex items-center justify-between text-[10px] text-text-secondary/70">
-          <span className="truncate max-w-[60%]">{monitor.court}</span>
+          <span className="truncate max-w-[60%]">{entry.court}</span>
           <span>
-            {monitor.lastScanAt
+            {monitor?.lastScanAt
               ? `Esc. ${getRelativeTime(monitor.lastScanAt)}`
               : 'Sin escanear'}
           </span>
         </div>
 
         {/* Last known movement */}
-        {monitor.lastKnownMovementDate && (
+        {monitor?.lastKnownMovementDate ? (
           <div className="mt-1.5 flex items-center gap-1 text-[10px] text-text-secondary">
             <FileText size={11} />
             <span>Último mov: {monitor.lastKnownMovementDate}</span>
             <span>({monitor.lastKnownMovementCount} totales)</span>
           </div>
-        )}
+        ) : entry.bookmark?.lastMovementDate ? (
+          <div className="mt-1.5 flex items-center gap-1 text-[10px] text-text-secondary">
+            <FileText size={11} />
+            <span>
+              {entry.bookmark.lastMovementDate}
+              {entry.bookmark.lastMovementDesc &&
+                ` — ${entry.bookmark.lastMovementDesc}`}
+            </span>
+          </div>
+        ) : null}
       </button>
 
       {/* Actions */}
@@ -1357,6 +1064,7 @@ function MonitorCard({
             setShowActions(!showActions);
           }}
           className="rounded p-1 text-text-secondary opacity-0 hover:bg-border group-hover:opacity-100 transition-opacity"
+          title="Opciones"
         >
           <MoreIcon />
         </button>
@@ -1365,7 +1073,7 @@ function MonitorCard({
           <div className="absolute right-0 top-full z-10 mt-1 w-44 rounded-lg border border-border bg-bg shadow-lg">
             <button
               onClick={() => {
-                onOpen(monitor);
+                onOpen(entry);
                 setShowActions(false);
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-bg-secondary"
@@ -1374,30 +1082,47 @@ function MonitorCard({
             </button>
             <button
               onClick={() => {
-                onToggle(monitor.id);
+                navigator.clipboard.writeText(
+                  `${entry.caseNumber} — ${entry.title}`
+                );
                 setShowActions(false);
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-bg-secondary"
             >
-              {monitor.isActive ? (
-                <>
-                  <Pause size={13} /> Pausar monitoreo
-                </>
-              ) : (
-                <>
-                  <Play size={13} /> Reanudar monitoreo
-                </>
-              )}
+              <Clipboard size={13} /> Copiar carátula
             </button>
+            {canMonitor && (
+              <button
+                onClick={() => {
+                  onToggleAvisos(entry);
+                  setShowActions(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-bg-secondary"
+              >
+                {monitor && monitor.isActive ? (
+                  <>
+                    <Pause size={13} /> Pausar avisos
+                  </>
+                ) : monitor ? (
+                  <>
+                    <Play size={13} /> Reanudar avisos
+                  </>
+                ) : (
+                  <>
+                    <Eye size={13} /> Activar avisos
+                  </>
+                )}
+              </button>
+            )}
             <hr className="border-border" />
             <button
               onClick={() => {
-                onRemove(monitor.id);
+                onRemove(entry);
                 setShowActions(false);
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
             >
-              <Trash2 size={13} /> Quitar del monitoreo
+              <Trash2 size={13} /> Eliminar causa
             </button>
           </div>
         )}
@@ -1556,17 +1281,17 @@ function EmptyMonitors({ hasSearch }: { hasSearch: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-text-secondary">
       <div className="text-text-secondary/50">
-        {hasSearch ? <Search size={40} /> : <Eye size={40} />}
+        {hasSearch ? <Search size={40} /> : <Star size={40} />}
       </div>
       <p className="text-sm font-medium">
         {hasSearch
-          ? 'No se encontraron causas monitoreadas'
-          : 'No hay causas en monitoreo'}
+          ? 'No se encontraron causas'
+          : 'No hay causas guardadas'}
       </p>
       <p className="text-xs leading-relaxed">
         {hasSearch
           ? 'Intentá con otro término de búsqueda o filtro.'
-          : 'Navegá a una causa en MEV, guardala como marcador, y activá el monitoreo para recibir alertas de nuevos movimientos.'}
+          : 'Navegá a una causa en MEV o PJN y hacé clic en "Guardar": queda guardada y monitoreada automáticamente.'}
       </p>
     </div>
   );
@@ -1645,12 +1370,6 @@ function SettingsTab() {
         description="Re-logueo automático cuando expira la sesión"
         checked={settings.autoReconnect}
         onChange={(v) => handleToggle('autoReconnect', v)}
-      />
-      <SettingToggle
-        label="Monitorear al guardar"
-        description="Al guardar un marcador, la causa se suma sola a la Procuración Automática"
-        checked={settings.autoMonitorOnBookmark}
-        onChange={(v) => handleToggle('autoMonitorOnBookmark', v)}
       />
       <SettingToggle
         label="Mantener sesión iniciada (no pedir PIN)"
@@ -1941,27 +1660,6 @@ function matchesCaseSearch(
     item.caseNumber.toLowerCase().includes(lower) ||
     item.title.toLowerCase().includes(lower) ||
     item.court.toLowerCase().includes(lower)
-  );
-}
-
-function matchesMonitorSearch(monitor: Monitor, search: string): boolean {
-  return matchesCaseSearch(
-    {
-      caseNumber: monitor.caseNumber,
-      title: monitor.title,
-      court: monitor.court,
-    },
-    search
-  );
-}
-
-function isCaseMonitored(
-  item: Pick<Case, 'portal' | 'caseNumber'>,
-  monitors: Monitor[]
-): boolean {
-  const key = caseMonitorKey(item.portal, item.caseNumber);
-  return monitors.some(
-    (monitor) => caseMonitorKey(monitor.portal, monitor.caseNumber) === key
   );
 }
 

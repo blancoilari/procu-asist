@@ -189,18 +189,16 @@ async function handleMessage(
       );
       const bookmark = await addBookmark(message.caseData);
 
-      // "Marcador = monitoreo": salvo que el usuario lo apague en Ajustes,
-      // guardar una causa también la suma a la Procuración Automática.
+      // "Marcador = monitoreo": guardar una causa SIEMPRE la suma a la
+      // Procuración Automática (se puede pausar por causa desde la lista).
       // MEV necesita nidCausa/pidJuzgado para poder escanear; PJN matchea
       // por expediente/carátula contra el feed de la API.
       const cd = message.caseData;
-      const settings = await getSettings();
       const canAutoMonitor =
-        settings.autoMonitorOnBookmark !== false &&
-        (cd.portal === 'pjn' ||
-          (cd.portal === 'mev' &&
-            cd.metadata?.nidCausa &&
-            cd.metadata?.pidJuzgado));
+        cd.portal === 'pjn' ||
+        (cd.portal === 'mev' &&
+          cd.metadata?.nidCausa &&
+          cd.metadata?.pidJuzgado);
       if (canAutoMonitor) {
         await addMonitor({
           portal: cd.portal,
@@ -220,6 +218,18 @@ async function handleMessage(
 
     case 'REMOVE_BOOKMARK': {
       await removeBookmark(message.portal, message.caseNumber);
+      // Marcador = monitoreo: eliminar la causa también quita su monitor
+      // y sus alertas (removeMonitor cascadea las alertas).
+      const allMonitors = await getMonitors();
+      const normalized = message.caseNumber.replace(/\s+/g, '').toUpperCase();
+      const orphan = allMonitors.find(
+        (m) =>
+          m.portal === message.portal &&
+          m.caseNumber.replace(/\s+/g, '').toUpperCase() === normalized
+      );
+      if (orphan) {
+        await removeMonitor(orphan.id);
+      }
       return { success: true };
     }
 
