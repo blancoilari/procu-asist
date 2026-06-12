@@ -2,6 +2,7 @@ import { setupAlarms } from './background/alarm-manager';
 import { setupMessageRouter } from './background/message-router';
 import { setupPjnTokenCapture } from './background/pjn-token-capture';
 import { installPjnDebugHelpers } from './background/pjn-debug-helpers';
+import { reconcileBookmarksAndMonitors } from './background/case-reconciler';
 import { ensureKey } from '@/modules/crypto/key-manager';
 
 export default defineBackground(() => {
@@ -10,6 +11,9 @@ export default defineBackground(() => {
   // Restore the vault key after a service-worker restart so auto-login,
   // keep-alive and monitoring keep working without re-prompting for the PIN.
   void ensureKey();
+
+  // Marcador = monitoreo: converge los stores (idempotente).
+  void reconcileBookmarksAndMonitors();
 
   // Register alarms for keep-alive, session checks, and monitoring
   setupAlarms();

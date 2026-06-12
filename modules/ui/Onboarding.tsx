@@ -27,24 +27,24 @@ const STEPS = [
   },
   {
     icon: '⭐',
-    title: 'Marcadores rápidos',
+    title: 'Guardá tus causas',
     description:
-      'Guardá tus expedientes favoritos con un click desde MEV o PJN. Accedelos desde el panel lateral sin buscar cada vez.',
+      'Guardá tus expedientes con un click desde MEV o PJN. Quedan en el panel lateral, listos para abrir sin buscarlos cada vez.',
     features: [
-      'Click en el icono ⭐ dentro del expediente',
+      'Click en "Guardar" dentro del expediente',
       'Buscar por número, carátula o juzgado',
-      'Importar causas desde resultados de búsqueda',
+      'Importar causas desde listados y sets de búsqueda',
     ],
   },
   {
     icon: '👁',
-    title: 'Monitoreo de causas',
+    title: 'Monitoreo automático',
     description:
-      'ProcuAsist revisa automáticamente tus causas cada 6 horas y te avisa cuando hay nuevos movimientos.',
+      'Toda causa guardada se monitorea sola: ProcuAsist la revisa cada 6 horas y te avisa cuando hay movimientos nuevos.',
     features: [
-      'Activá el monitoreo con el icono 👁',
+      'Sin pasos extra: guardar = monitorear',
       'Recibí notificaciones de Chrome',
-      'Escaneo manual cuando lo necesites',
+      'Pausá los avisos por causa cuando quieras',
     ],
   },
   {

@@ -18,11 +18,6 @@ export interface ProcuAsistSettings {
    * behavior when updating. The user opts in via the side-panel toggle.
    */
   persistUnlock: boolean;
-  /**
-   * When true (default), saving a bookmark also adds the case to monitoring
-   * ("marcador = monitoreo"). Monitoring can still be paused per-case.
-   */
-  autoMonitorOnBookmark: boolean;
   /** Preferred MEV judicial department code (e.g., "80" for Avellaneda) */
   mevDepartamento: string;
 }
@@ -36,7 +31,6 @@ export const DEFAULT_SETTINGS: ProcuAsistSettings = {
   keepAlivePjn: true,
   autoReconnect: true,
   persistUnlock: false, // safe default: do not persist the key across restarts
-  autoMonitorOnBookmark: true,
   mevDepartamento: 'aa', // "TODOS los Deptos" by default
 };
 
