@@ -26,7 +26,10 @@ import type {
   MovementAlert,
   PortalId,
 } from '@/modules/portals/types';
-import type { ProcuAsistSettings } from '@/modules/storage/settings-store';
+import {
+  DEFAULT_SETTINGS,
+  type ProcuAsistSettings,
+} from '@/modules/storage/settings-store';
 import { isPjnNoteDay } from '@/modules/portals/pjn-note-days';
 import { DONATE_URL } from '@/modules/tier/limits';
 import { useDarkMode } from '@/modules/ui/use-dark-mode';
@@ -218,8 +221,8 @@ function PortalFilterBar({
 }) {
   return (
     <div className="border-b border-border px-4 pb-2">
-      <div className="grid grid-cols-4 gap-1 rounded-xl bg-bg-secondary p-1">
-        {(['all', 'mev', 'pjn', 'eje'] as PortalFilter[]).map((portal) => (
+      <div className="grid grid-cols-3 gap-1 rounded-xl bg-bg-secondary p-1">
+        {(['all', 'mev', 'pjn'] as PortalFilter[]).map((portal) => (
           <button
             key={portal}
             type="button"
@@ -352,9 +355,7 @@ function BookmarksTab({
   };
 
   const handleOpen = (bookmark: Bookmark) => {
-    if (bookmark.portalUrl) {
-      chrome.tabs.create({ url: bookmark.portalUrl });
-    }
+    openPortalCase(bookmark.portal, bookmark.caseNumber, bookmark.portalUrl);
   };
 
   const handleMonitorVisible = async () => {
@@ -726,7 +727,7 @@ function BookmarkCard({
       <button
         onClick={() => onOpen(bookmark)}
         className="w-full text-left"
-        title="Abrir en MEV"
+        title={`Abrir en ${bookmark.portal === 'eje' ? 'JUSCABA' : bookmark.portal.toUpperCase()}`}
       >
         {/* Top row: portal badge + case number */}
         <div className="mb-1 flex items-center gap-2">
@@ -864,7 +865,7 @@ function EmptyBookmarks({ hasSearch }: { hasSearch: boolean }) {
       <p className="text-xs leading-relaxed">
         {hasSearch
           ? 'Intentá con otro término de búsqueda o filtro.'
-          : 'Navegá a una causa en MEV o JUSCABA y hacé clic en "Guardar" para agregarla acá.'}
+          : 'Navegá a una causa en MEV o PJN y hacé clic en "Guardar" para agregarla acá.'}
       </p>
     </div>
   );
@@ -953,12 +954,17 @@ function MonitorsTab({
 
   const handleScanNow = async () => {
     setScanning(true);
-    await chrome.runtime.sendMessage({ type: 'RUN_SCAN_NOW' });
-    // The scan runs async, give it a moment then refresh
-    setTimeout(() => {
-      loadData();
+    try {
+      await chrome.runtime.sendMessage({ type: 'RUN_SCAN_NOW' });
+      // The scan runs async, give it a moment then refresh
+      setTimeout(() => {
+        loadData();
+        setScanning(false);
+      }, 5000);
+    } catch (err) {
+      console.warn('[ProcuAsist] No se pudo iniciar el escaneo:', err);
       setScanning(false);
-    }, 5000);
+    }
   };
 
   const handleScanSince = async () => {
@@ -968,10 +974,15 @@ function MonitorsTab({
     setSinceScanMessage('Buscando movimientos en causas monitoreadas...');
     const startedAt = Date.now();
 
-    const resp = (await chrome.runtime.sendMessage({
-      type: 'RUN_SCAN_SINCE',
-      fromDate: alertsFromDate,
-    })) as { success?: boolean };
+    let resp: { success?: boolean } | undefined;
+    try {
+      resp = (await chrome.runtime.sendMessage({
+        type: 'RUN_SCAN_SINCE',
+        fromDate: alertsFromDate,
+      })) as { success?: boolean };
+    } catch (err) {
+      console.warn('[ProcuAsist] No se pudo iniciar el barrido:', err);
+    }
 
     if (!resp?.success) {
       setSinceScanMessage('No se pudo iniciar el barrido.');
@@ -1007,9 +1018,7 @@ function MonitorsTab({
   };
 
   const handleOpenCase = (monitor: Monitor) => {
-    if (monitor.portalUrl) {
-      chrome.tabs.create({ url: monitor.portalUrl });
-    }
+    openPortalCase(monitor.portal, monitor.caseNumber, monitor.portalUrl);
   };
 
   const filteredMonitors = monitors.filter(
@@ -1368,8 +1377,8 @@ function AlertCard({
   };
 
   const handleOpenCase = () => {
-    if (monitor?.portalUrl) {
-      chrome.tabs.create({ url: monitor.portalUrl });
+    if (monitor) {
+      openPortalCase(monitor.portal, monitor.caseNumber, monitor.portalUrl);
     }
   };
 
@@ -1504,8 +1513,10 @@ function SettingsTab() {
       .sendMessage({ type: 'GET_SETTINGS' })
       .then((r) => {
         const resp = r as { success: boolean; settings: ProcuAsistSettings };
-        if (resp?.success) setSettings(resp.settings);
-      });
+        // Fall back to defaults on failure — otherwise the spinner never ends.
+        setSettings(resp?.success ? resp.settings : { ...DEFAULT_SETTINGS });
+      })
+      .catch(() => setSettings({ ...DEFAULT_SETTINGS }));
   }, []);
 
   const handleToggle = async (
@@ -1553,16 +1564,22 @@ function SettingsTab() {
         onChange={(v) => handleToggle('keepAliveMev', v)}
       />
       <SettingToggle
-        label="Keep-Alive JUSCABA"
-        description="Mantiene la sesión activa en JUSCABA"
-        checked={settings.keepAliveEje}
-        onChange={(v) => handleToggle('keepAliveEje', v)}
+        label="Keep-Alive PJN"
+        description="Mantiene la sesión activa en PJN"
+        checked={settings.keepAlivePjn}
+        onChange={(v) => handleToggle('keepAlivePjn', v)}
       />
       <SettingToggle
         label="Auto-reconexión"
         description="Re-logueo automático cuando expira la sesión"
         checked={settings.autoReconnect}
         onChange={(v) => handleToggle('autoReconnect', v)}
+      />
+      <SettingToggle
+        label="Mantener sesión iniciada (no pedir PIN)"
+        description="Más cómodo, menos seguro: la clave queda guardada en este perfil de Chrome. Si lo apagás, te vuelve a pedir el PIN al reiniciar."
+        checked={settings.persistUnlock}
+        onChange={(v) => handleToggle('persistUnlock', v)}
       />
 
       <hr className="my-2 border-border" />
@@ -1718,6 +1735,25 @@ function getRelativeTime(isoDate: string): string {
 
 function matchesPortalFilter(portal: PortalId, filter: PortalFilter): boolean {
   return filter === 'all' || portal === filter;
+}
+
+/**
+ * Open a saved case in a new tab. PJN deep links (SCW `cid`) expire, so for PJN
+ * we ask the background to open the listing and let the content script click
+ * the matching row. Other portals use their stored direct URL.
+ */
+function openPortalCase(
+  portal: PortalId,
+  caseNumber: string,
+  portalUrl: string
+): void {
+  if (portal === 'pjn' && caseNumber) {
+    void chrome.runtime.sendMessage({ type: 'OPEN_PJN_CASE', caseNumber });
+    return;
+  }
+  if (portalUrl) {
+    void chrome.tabs.create({ url: portalUrl });
+  }
 }
 
 function matchesCaseSearch(

@@ -5,7 +5,7 @@
  */
 
 import { encrypt, decrypt } from '@/modules/crypto/aes-gcm';
-import { getKey } from '@/modules/crypto/key-manager';
+import { ensureKey } from '@/modules/crypto/key-manager';
 import type {
   PortalId,
   PortalCredentials,
@@ -19,7 +19,7 @@ export async function saveCredentials(
   portal: PortalId,
   credentials: PortalCredentials
 ): Promise<void> {
-  const key = getKey();
+  const key = await ensureKey();
   if (!key) throw new Error('Vault is locked. Enter PIN first.');
 
   const plaintext = JSON.stringify(credentials);
@@ -37,7 +37,7 @@ export async function saveCredentials(
 export async function getCredentials(
   portal: PortalId
 ): Promise<PortalCredentials | null> {
-  const key = getKey();
+  const key = await ensureKey();
   if (!key) throw new Error('Vault is locked. Enter PIN first.');
 
   const stored = await chrome.storage.local.get(`${STORAGE_PREFIX}${portal}`);

@@ -63,44 +63,6 @@ const COLORS = {
 };
 
 /**
- * Generate a PDF for a case and return it as a base64 data URI.
- */
-export function generateCasePdf(data: PdfCaseData): string {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
-  });
-
-  let y = MARGIN_TOP;
-
-  // ── Header ──
-  y = drawHeader(doc, data, y);
-
-  // ── Case Metadata ──
-  y = drawCaseMetadata(doc, data, y);
-
-  // ── Movements Table ──
-  if (data.movements.length > 0) {
-    y = drawMovementsTable(doc, data.movements, y);
-  }
-
-  // ── Attachments ──
-  if (data.attachments && data.attachments.length > 0) {
-    y = drawAttachmentsList(doc, data.attachments, y);
-  }
-
-  // ── Footer on every page ──
-  const pageCount = doc.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    drawFooter(doc, i, pageCount, data.caseNumber);
-  }
-
-  return doc.output('datauristring');
-}
-
-/**
  * Generate a PDF and return as Blob for download.
  */
 export function generateCasePdfBlob(data: PdfCaseData): Blob {
@@ -175,9 +137,31 @@ function drawCaseMetadata(
   data: PdfCaseData,
   y: number
 ): number {
-  // Background box
+  // Measure the carátula and metadata FIRST: the background box must be
+  // drawn at its final size before any text, otherwise a long title forces
+  // a second filled rect that paints over the already-written content.
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  const titleLines = doc.splitTextToSize(
+    data.title || 'Sin carátula',
+    CONTENT_WIDTH - 30
+  ) as string[];
+
+  const metaItems: string[] = [];
+  if (data.court) metaItems.push(`Juzgado: ${data.court}`);
+  if (data.fechaInicio) metaItems.push(`Inicio: ${data.fechaInicio}`);
+  if (data.estadoPortal) metaItems.push(`Estado: ${data.estadoPortal}`);
+  if (data.numeroReceptoria) metaItems.push(`Receptoría: ${data.numeroReceptoria}`);
+  const col1 = metaItems.slice(0, 2).join('  |  ');
+  const col2 = metaItems.slice(2).join('  |  ');
+
+  const metaY = y + 15 + titleLines.length * 4 + 2;
+  const contentBottom = metaItems.length > 0 ? metaY + (col2 ? 4 : 0) : metaY - 6;
+  const boxHeight = Math.max(40, contentBottom - y + 6);
+
+  // Background box (single draw, final size)
   doc.setFillColor(...COLORS.headerBg);
-  doc.roundedRect(MARGIN_LEFT, y, CONTENT_WIDTH, 40, 2, 2, 'F');
+  doc.roundedRect(MARGIN_LEFT, y, CONTENT_WIDTH, boxHeight, 2, 2, 'F');
 
   // Case number (big)
   doc.setTextColor(...COLORS.primary);
@@ -204,41 +188,17 @@ function drawCaseMetadata(
   doc.setFont('helvetica', 'bold');
   doc.text('Carátula:', MARGIN_LEFT + 5, y + 15);
   doc.setFont('helvetica', 'normal');
-  const titleLines = doc.splitTextToSize(
-    data.title || 'Sin carátula',
-    CONTENT_WIDTH - 30
-  ) as string[];
   doc.text(titleLines, MARGIN_LEFT + 25, y + 15);
 
   // Metadata row
-  const metaY = y + 15 + titleLines.length * 4 + 2;
-  doc.setFontSize(8);
-  doc.setTextColor(...COLORS.gray);
-
-  const metaItems: string[] = [];
-  if (data.court) metaItems.push(`Juzgado: ${data.court}`);
-  if (data.fechaInicio) metaItems.push(`Inicio: ${data.fechaInicio}`);
-  if (data.estadoPortal) metaItems.push(`Estado: ${data.estadoPortal}`);
-  if (data.numeroReceptoria) metaItems.push(`Receptoría: ${data.numeroReceptoria}`);
-
   if (metaItems.length > 0) {
-    // Split into two columns
-    const col1 = metaItems.slice(0, 2).join('  |  ');
-    const col2 = metaItems.slice(2).join('  |  ');
+    doc.setFontSize(8);
+    doc.setTextColor(...COLORS.gray);
     doc.text(col1, MARGIN_LEFT + 5, metaY);
     if (col2) doc.text(col2, MARGIN_LEFT + 5, metaY + 4);
   }
 
-  // Adjust box height dynamically
-  const boxHeight = Math.max(40, metaY - y + 8);
-  // Redraw box if needed (won't look great, but safe)
-  if (boxHeight > 40) {
-    doc.setFillColor(...COLORS.headerBg);
-    doc.roundedRect(MARGIN_LEFT, y, CONTENT_WIDTH, boxHeight, 2, 2, 'F');
-    // Redraw text... skip for simplicity, initial 40mm is usually enough
-  }
-
-  return y + 44;
+  return y + boxHeight + 4;
 }
 
 function drawMovementsTable(

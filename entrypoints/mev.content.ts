@@ -86,11 +86,68 @@ export default defineContentScript({
 
 // --- Login Page ---
 
+const LOGIN_ATTEMPTS_KEY = 'procu_asist_login_attempts';
+const MAX_AUTO_LOGIN_ATTEMPTS = 2;
+const LOGIN_ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * Auto-login retry guard. Without it, wrong saved credentials loop forever
+ * (submit → error page → content script re-runs → submit…), which can get
+ * the MEV account blocked by the portal.
+ */
+function canAttemptAutoLogin(): boolean {
+  try {
+    const raw = sessionStorage.getItem(LOGIN_ATTEMPTS_KEY);
+    if (!raw) return true;
+    const data = JSON.parse(raw) as { count: number; firstAt: number };
+    if (Date.now() - data.firstAt > LOGIN_ATTEMPT_WINDOW_MS) return true;
+    return data.count < MAX_AUTO_LOGIN_ATTEMPTS;
+  } catch {
+    return true;
+  }
+}
+
+function recordAutoLoginAttempt(): void {
+  try {
+    const now = Date.now();
+    const raw = sessionStorage.getItem(LOGIN_ATTEMPTS_KEY);
+    let data = { count: 0, firstAt: now };
+    if (raw) {
+      const parsed = JSON.parse(raw) as { count: number; firstAt: number };
+      if (now - parsed.firstAt <= LOGIN_ATTEMPT_WINDOW_MS) data = parsed;
+    }
+    data.count += 1;
+    sessionStorage.setItem(LOGIN_ATTEMPTS_KEY, JSON.stringify(data));
+  } catch {
+    // sessionStorage unavailable — nothing to record
+  }
+}
+
+function clearAutoLoginAttempts(): void {
+  try {
+    sessionStorage.removeItem(LOGIN_ATTEMPTS_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 async function handleLoginPage(doc: Document) {
   console.debug('[ProcuAsist] MEV login page detected');
 
-  // Check if we have a returnUrl stored (from session expiry)
-  const returnUrl = sessionStorage.getItem('procu_asist_return_url');
+  // If MEV is already showing a login error (wrong or blocked credentials),
+  // retrying with the same saved credentials would only make it worse.
+  const bodyText = doc.body?.textContent ?? '';
+  if (/incorrect|bloquead|deshabilitad/i.test(bodyText)) {
+    console.warn('[ProcuAsist] MEV login page shows an error — skipping auto-login');
+    return;
+  }
+
+  if (!canAttemptAutoLogin()) {
+    console.warn(
+      '[ProcuAsist] Auto-login attempt limit reached for MEV — log in manually'
+    );
+    return;
+  }
 
   // Request credentials from background
   const response = await chrome.runtime.sendMessage({
@@ -135,6 +192,7 @@ async function handleLoginPage(doc: Document) {
     const form = doc.querySelector(MEV_SELECTORS.login.form) as HTMLFormElement;
     if (form) {
       console.debug('[ProcuAsist] Submitting login form');
+      recordAutoLoginAttempt();
       form.submit();
     }
   }, 500);
@@ -211,6 +269,7 @@ function handleBusquedaPage(_doc: Document) {
 
   // Notify background that login was successful
   chrome.runtime.sendMessage({ type: 'LOGIN_SUCCESS', portal: 'mev' });
+  clearAutoLoginAttempts();
 
   // Check if there's a returnUrl to navigate back to
   const returnUrl = sessionStorage.getItem('procu_asist_return_url');
@@ -258,11 +317,22 @@ function injectResultsImportButton(results: MevSearchResult[]) {
   btn.addEventListener('click', async () => {
     if (await startSetImportIfPossible(results, btn)) return;
 
+    // Let the user pick which results to import.
+    const selected = await showMevImportSelectionModal(results);
+    if (!selected) return; // cancelled
+    if (selected.length === 0) {
+      setPortalActionButtonState(btn, ICON_X, 'Nada elegido', 'warning');
+      setTimeout(() => {
+        setPortalActionButtonState(btn, ICON_DOWNLOAD, 'Importar', 'secondary');
+      }, 2200);
+      return;
+    }
+
     setPortalActionButtonState(btn, ICON_LOADER, 'Importando', 'muted');
     btn.disabled = true;
 
     try {
-      const response = await bulkImportMevResults(results);
+      const response = await bulkImportMevResults(selected);
 
       setPortalActionButtonState(
         btn,
@@ -560,29 +630,38 @@ function handleProveidoPage(doc: Document) {
 function startSessionMonitor() {
   // Poll URL changes to detect session expiry redirect to login
   let lastUrl = window.location.href;
+  let fired = false;
+
+  // Single firing point: the interval and the MutationObserver can both
+  // detect the login form, but SESSION_EXPIRED must only be sent once.
+  const fireSessionExpired = () => {
+    if (fired) return;
+    fired = true;
+    clearInterval(checkInterval);
+    observer.disconnect();
+    handleSessionExpired();
+  };
 
   const checkInterval = setInterval(() => {
     const currentUrl = window.location.href;
     if (currentUrl !== lastUrl) {
       lastUrl = currentUrl;
       if (currentUrl.toLowerCase().includes('loguin')) {
-        clearInterval(checkInterval);
-        handleSessionExpired();
+        fireSessionExpired();
+        return;
       }
     }
 
     // Also check DOM for login form appearing (e.g., via redirect within same page)
     if (isLoginPage(document)) {
-      clearInterval(checkInterval);
-      handleSessionExpired();
+      fireSessionExpired();
     }
   }, 3000);
 
   // Also watch for DOM mutations that might indicate session expiry
   const observer = new MutationObserver(() => {
     if (isLoginPage(document)) {
-      observer.disconnect();
-      handleSessionExpired();
+      fireSessionExpired();
     }
   });
 
@@ -776,7 +855,9 @@ function injectBookmarkButton(caseData: {
 
 // --- Movement Selection Modal ---
 
-function showMovementSelectionModal(movements: Movement[]): Promise<Movement[] | null> {
+function showMovementSelectionModal(
+  movements: Movement[]
+): Promise<{ movements: Movement[]; format: 'zip' | 'pdf' } | null> {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     Object.assign(overlay.style, {
@@ -829,9 +910,13 @@ function showMovementSelectionModal(movements: Movement[]): Promise<Movement[] |
 
     const updateDownloadBtn = () => {
       const count = checkboxes.filter((cb) => cb.checked).length;
-      downloadBtn.textContent = `Descargar seleccionados (${count})`;
-      downloadBtn.disabled = count === 0;
-      downloadBtn.style.opacity = count === 0 ? '0.5' : '1';
+      const disabled = count === 0;
+      downloadBtn.textContent = `ZIP (${count})`;
+      downloadPdfBtn.textContent = `Un PDF (${count})`;
+      downloadBtn.disabled = disabled;
+      downloadPdfBtn.disabled = disabled;
+      downloadBtn.style.opacity = disabled ? '0.5' : '1';
+      downloadPdfBtn.style.opacity = disabled ? '0.5' : '1';
     };
 
     for (let i = 0; i < movements.length; i++) {
@@ -912,7 +997,12 @@ function showMovementSelectionModal(movements: Movement[]): Promise<Movement[] |
     });
 
     const downloadBtn = createPortalModalButton({
-      label: `Descargar seleccionados (${movements.length})`,
+      label: `ZIP (${movements.length})`,
+      variant: 'secondary',
+    });
+
+    const downloadPdfBtn = createPortalModalButton({
+      label: `Un PDF (${movements.length})`,
       variant: 'primary',
     });
 
@@ -924,7 +1014,13 @@ function showMovementSelectionModal(movements: Movement[]): Promise<Movement[] |
     downloadBtn.addEventListener('click', () => {
       const selected = movements.filter((_, i) => checkboxes[i].checked);
       overlay.remove();
-      resolve(selected);
+      resolve({ movements: selected, format: 'zip' });
+    });
+
+    downloadPdfBtn.addEventListener('click', () => {
+      const selected = movements.filter((_, i) => checkboxes[i].checked);
+      overlay.remove();
+      resolve({ movements: selected, format: 'pdf' });
     });
 
     overlay.addEventListener('click', (e) => {
@@ -936,6 +1032,7 @@ function showMovementSelectionModal(movements: Movement[]): Promise<Movement[] |
 
     bottomBar.appendChild(cancelBtn);
     bottomBar.appendChild(downloadBtn);
+    bottomBar.appendChild(downloadPdfBtn);
 
     modal.appendChild(title);
     modal.appendChild(topBar);
@@ -943,6 +1040,135 @@ function showMovementSelectionModal(movements: Movement[]): Promise<Movement[] |
     modal.appendChild(bottomBar);
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
+  });
+}
+
+// --- MEV Results Import Selection Modal ---
+
+function showMevImportSelectionModal(
+  results: MevSearchResult[]
+): Promise<MevSearchResult[] | null> {
+  return new Promise((resolve) => {
+    document.getElementById('procu-asist-mev-import-modal')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'procu-asist-mev-import-modal';
+    Object.assign(overlay.style, {
+      position: 'fixed', inset: '0', backgroundColor: 'rgba(0,0,0,0.5)',
+      zIndex: '9999999', display: 'flex', alignItems: 'center',
+      justifyContent: 'center',
+    });
+
+    const modal = document.createElement('div');
+    Object.assign(modal.style, {
+      backgroundColor: 'white', borderRadius: '12px', padding: '20px',
+      maxWidth: '720px', width: '92%', maxHeight: '82vh',
+      display: 'flex', flexDirection: 'column',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+      fontFamily: 'system-ui, sans-serif',
+    });
+
+    const title = document.createElement('h3');
+    title.textContent = `Importar resultados — MEV (${results.length} causa(s))`;
+    Object.assign(title.style, { margin: '0 0 4px 0', color: '#1f2937', fontSize: '16px' });
+
+    const subtitle = document.createElement('p');
+    subtitle.textContent = 'Elegí cuáles importar como marcadores.';
+    Object.assign(subtitle.style, { margin: '0 0 12px 0', color: '#6b7280', fontSize: '12px' });
+
+    const topBar = document.createElement('div');
+    Object.assign(topBar.style, { display: 'flex', gap: '8px', marginBottom: '10px' });
+    const selectAllBtn = createPortalModalButton({ label: 'Seleccionar todos', variant: 'secondary' });
+    const deselectAllBtn = createPortalModalButton({ label: 'Ninguno', variant: 'secondary' });
+    topBar.appendChild(selectAllBtn);
+    topBar.appendChild(deselectAllBtn);
+
+    const list = document.createElement('div');
+    Object.assign(list.style, {
+      overflowY: 'auto', flex: '1', marginBottom: '12px',
+      border: '1px solid #e5e7eb', borderRadius: '8px',
+    });
+
+    const checkboxes: HTMLInputElement[] = [];
+    const importBtn = createPortalModalButton({ label: 'Importar', variant: 'primary' });
+
+    const updateCount = () => {
+      const count = checkboxes.filter((cb) => cb.checked).length;
+      importBtn.textContent = `Importar seleccionados (${count})`;
+      importBtn.disabled = count === 0;
+      importBtn.style.opacity = count === 0 ? '0.5' : '1';
+    };
+
+    results.forEach((result, i) => {
+      const label = document.createElement('label');
+      Object.assign(label.style, {
+        display: 'flex', alignItems: 'center', gap: '10px',
+        padding: '8px 12px',
+        borderBottom: i < results.length - 1 ? '1px solid #f3f4f6' : 'none',
+        cursor: 'pointer', fontSize: '12px', lineHeight: '1.4',
+      });
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = true;
+      cb.style.flexShrink = '0';
+      cb.addEventListener('change', updateCount);
+      checkboxes.push(cb);
+
+      const info = document.createElement('div');
+      info.style.flex = '1';
+      const num = document.createElement('span');
+      num.textContent = result.numero || result.nidCausa || '?';
+      Object.assign(num.style, { fontWeight: '600', color: '#1f2937', marginRight: '8px' });
+      const car = document.createElement('span');
+      car.textContent = result.caratula || '(sin caratula)';
+      car.style.color = '#374151';
+      info.appendChild(num);
+      info.appendChild(car);
+
+      label.appendChild(cb);
+      label.appendChild(info);
+      list.appendChild(label);
+    });
+
+    selectAllBtn.addEventListener('click', () => {
+      checkboxes.forEach((cb) => { cb.checked = true; });
+      updateCount();
+    });
+    deselectAllBtn.addEventListener('click', () => {
+      checkboxes.forEach((cb) => { cb.checked = false; });
+      updateCount();
+    });
+
+    const bottomBar = document.createElement('div');
+    Object.assign(bottomBar.style, { display: 'flex', justifyContent: 'flex-end', gap: '8px' });
+    const cancelBtn = createPortalModalButton({ label: 'Cancelar', variant: 'secondary' });
+
+    const finish = (value: MevSearchResult[] | null) => {
+      overlay.remove();
+      resolve(value);
+    };
+
+    cancelBtn.addEventListener('click', () => finish(null));
+    importBtn.addEventListener('click', () => {
+      finish(results.filter((_, i) => checkboxes[i].checked));
+    });
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) finish(null);
+    });
+
+    bottomBar.appendChild(cancelBtn);
+    bottomBar.appendChild(importBtn);
+
+    modal.appendChild(title);
+    modal.appendChild(subtitle);
+    modal.appendChild(topBar);
+    modal.appendChild(list);
+    modal.appendChild(bottomBar);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    updateCount();
   });
 }
 
@@ -955,8 +1181,8 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
   const btn = createPortalActionButton({
     id: 'procu-asist-zip',
     icon: ICON_PACKAGE,
-    label: 'ZIP',
-    title: `Descargar expediente ${caseData.numero} como ZIP (resumen + adjuntos)`,
+    label: 'Descargar',
+    title: `Descargar expediente ${caseData.numero} (ZIP o un PDF único)`,
     variant: 'primary',
   });
 
@@ -1005,9 +1231,10 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
   document.body.appendChild(progressBar);
 
   btn.addEventListener('click', async () => {
-    // Show selection modal first
-    const selectedMovements = await showMovementSelectionModal(movements);
-    if (!selectedMovements || selectedMovements.length === 0) return;
+    // Show selection modal first (lets the user pick ZIP or single PDF)
+    const choice = await showMovementSelectionModal(movements);
+    if (!choice || choice.movements.length === 0) return;
+    const selectedMovements = choice.movements;
 
     setPortalActionButtonState(btn, ICON_LOADER, 'Preparando', 'muted');
     btn.disabled = true;
@@ -1018,6 +1245,7 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
     try {
       const response = (await chrome.runtime.sendMessage({
         type: 'GENERATE_ZIP',
+        format: choice.format,
         caseData: {
           caseNumber: caseData.numero,
           title: caseData.caratula,
@@ -1068,7 +1296,7 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
         setPortalActionButtonState(
           btn,
           ICON_CHECK,
-          'ZIP listo',
+          choice.format === 'pdf' ? 'PDF listo' : 'ZIP listo',
           s?.allSuccessful ? 'success' : 'warning'
         );
         progressLabel.textContent = `Listo: ${summary}`;
@@ -1090,7 +1318,7 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
     }
 
     setTimeout(() => {
-      setPortalActionButtonState(btn, ICON_PACKAGE, 'ZIP', 'primary');
+      setPortalActionButtonState(btn, ICON_PACKAGE, 'Descargar', 'primary');
       btn.disabled = false;
       progressBar.style.display = 'none';
     }, 5000);
@@ -1144,10 +1372,25 @@ function showVerificationOverlay(
     Object.assign(row.style, {
       padding: '8px', borderBottom: '1px solid #e5e7eb', fontSize: '12px',
     });
-    const badge = item.type === 'proveido' ? 'DOC' : 'ADJ';
-    row.innerHTML = `<strong style="color:#dc2626">[${badge}]</strong> Paso ${item.index} — ${item.date}<br>` +
-      `<span style="color:#374151">${item.description}</span><br>` +
-      `<span style="color:#9ca3af;font-size:11px">Error: ${item.error}</span>`;
+    // Built with textContent (not innerHTML): description/error come from
+    // portal data and must never be interpreted as HTML.
+    const badge = document.createElement('strong');
+    badge.style.color = '#dc2626';
+    badge.textContent = item.type === 'proveido' ? '[DOC]' : '[ADJ]';
+    row.appendChild(badge);
+    row.appendChild(
+      document.createTextNode(` Paso ${item.index} — ${item.date}`)
+    );
+    row.appendChild(document.createElement('br'));
+    const desc = document.createElement('span');
+    desc.style.color = '#374151';
+    desc.textContent = item.description;
+    row.appendChild(desc);
+    row.appendChild(document.createElement('br'));
+    const errSpan = document.createElement('span');
+    Object.assign(errSpan.style, { color: '#9ca3af', fontSize: '11px' });
+    errSpan.textContent = `Error: ${item.error}`;
+    row.appendChild(errSpan);
     list.appendChild(row);
   }
 

@@ -10,6 +10,7 @@ import { scanMonitoredCases } from './case-monitor';
 export const ALARMS = {
   KEEPALIVE_MEV: 'tl-keepalive-mev',
   KEEPALIVE_EJE: 'tl-keepalive-eje',
+  KEEPALIVE_PJN: 'tl-keepalive-pjn',
   MONITOR_SCAN: 'tl-monitor-scan',
 } as const;
 
@@ -22,27 +23,46 @@ export function setupAlarms() {
   chrome.alarms.onAlarm.addListener(handleAlarm);
 }
 
-function createAlarms() {
-  // Keep-alive heartbeats every 4 minutes (MEV timeout is ~20 min)
+async function createAlarms() {
+  // Keep-alive heartbeats every 4 minutes (MEV timeout is ~20 min).
+  // Re-creating these resets their timer, which is harmless at 4 min.
   chrome.alarms.create(ALARMS.KEEPALIVE_MEV, { periodInMinutes: 4 });
   chrome.alarms.create(ALARMS.KEEPALIVE_EJE, { periodInMinutes: 4 });
+  chrome.alarms.create(ALARMS.KEEPALIVE_PJN, { periodInMinutes: 4 });
 
-  // Case monitoring scan every 6 hours
-  chrome.alarms.create(ALARMS.MONITOR_SCAN, { periodInMinutes: 360 });
+  // Case monitoring scan every 6 hours. chrome.alarms.create() with an
+  // existing name cancels and replaces it, resetting the 6h countdown —
+  // so re-creating it on every browser start means short sessions would
+  // never reach a scan. Only create it if it doesn't already exist, and
+  // give the first fire a short delay so a fresh install/startup scans soon.
+  const existing = await chrome.alarms.get(ALARMS.MONITOR_SCAN);
+  if (!existing) {
+    chrome.alarms.create(ALARMS.MONITOR_SCAN, {
+      delayInMinutes: 5,
+      periodInMinutes: 360,
+    });
+  }
 
   console.debug('[ProcuAsist] Alarms registered');
 }
 
 async function handleAlarm(alarm: chrome.alarms.Alarm) {
-  switch (alarm.name) {
-    case ALARMS.KEEPALIVE_MEV:
-      await keepAlive('mev');
-      break;
-    case ALARMS.KEEPALIVE_EJE:
-      await keepAlive('eje');
-      break;
-    case ALARMS.MONITOR_SCAN:
-      await scanMonitoredCases();
-      break;
+  try {
+    switch (alarm.name) {
+      case ALARMS.KEEPALIVE_MEV:
+        await keepAlive('mev');
+        break;
+      case ALARMS.KEEPALIVE_EJE:
+        await keepAlive('eje');
+        break;
+      case ALARMS.KEEPALIVE_PJN:
+        await keepAlive('pjn');
+        break;
+      case ALARMS.MONITOR_SCAN:
+        await scanMonitoredCases();
+        break;
+    }
+  } catch (err) {
+    console.error(`[ProcuAsist] Alarm handler failed (${alarm.name}):`, err);
   }
 }

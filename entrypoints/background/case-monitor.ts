@@ -289,6 +289,22 @@ async function persistScanMovements(
 ): Promise<SingleScanResult> {
   const currentCount = movements.length;
   const previousCount = monitor.lastKnownMovementCount;
+
+  // Parse-glitch protection: a scan that suddenly sees 0 movements for a
+  // case that had some is almost certainly a failed parse (layout change,
+  // partial load), not a real emptying of the expediente. Lowering the
+  // baseline to 0 would silently swallow alerts for every later movement.
+  if (currentCount === 0 && previousCount > 0) {
+    console.warn(
+      `[ProcuAsist] Empty parse for ${monitor.caseNumber} (baseline ${previousCount}); keeping baseline`
+    );
+    return {
+      newMovements: 0,
+      matchedMovements: [],
+      totalMovements: 0,
+      skippedReason: 'empty_parse',
+    };
+  }
   const newMovementCount = Math.max(0, currentCount - previousCount);
   let matchedMovements: ScanMovement[] = [];
 
@@ -345,113 +361,6 @@ async function persistScanMovements(
   };
 }
 
-async function scanSinglePjnCase(
-  monitor: Monitor,
-  tabId: number,
-  fromDate?: string
-): Promise<SingleScanResult> {
-  const caseUrl = getPjnCaseUrl(monitor);
-  if (!caseUrl) {
-    console.warn(
-      `[ProcuAsist] PJN monitor ${monitor.caseNumber} missing expediente URL, skipping`
-    );
-    return {
-      newMovements: 0,
-      matchedMovements: [],
-      totalMovements: 0,
-      skippedReason: 'missing_ids',
-    };
-  }
-
-  const opened = await navigateScwTab(tabId, caseUrl);
-  if (!opened) {
-    throw new Error('Legacy PJN scanner disabled');
-  }
-
-  const scanResults = await chrome.scripting.executeScript({
-    target: { tabId },
-    world: 'MAIN',
-    func: async (url: string) => {
-      try {
-        const resp = await fetch(url, {
-          credentials: 'include',
-          headers: { Accept: 'text/html' },
-        });
-        if (!resp.ok) return { error: `HTTP ${resp.status}` };
-
-        const text = await resp.text();
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(text, 'text/html');
-        const lower = text.toLowerCase();
-        const movements: Array<{ date: string; type: string; description: string }> = [];
-        const tables = doc.querySelectorAll('table');
-        let movTable: HTMLTableElement | null = null;
-
-        for (const table of tables) {
-          const headerText = Array.from(table.querySelectorAll('tr'))
-            .map((row) => row.textContent ?? '')
-            .join(' ')
-            .replace(/\s+/g, ' ');
-          if (
-            /oficina/i.test(headerText) &&
-            /fecha/i.test(headerText) &&
-            /descripci[oó]n\s*\/\s*detalle|descripcion\s*\/\s*detalle/i.test(headerText)
-          ) {
-            movTable = table;
-            break;
-          }
-        }
-
-        if (movTable) {
-          const rows = movTable.querySelectorAll('tbody tr, tr');
-          const datePattern = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
-
-          for (const row of Array.from(rows)) {
-            const cells = row.querySelectorAll('td');
-            if (cells.length < 4) continue;
-
-            const values = Array.from(cells).map((cell) =>
-              (cell.textContent ?? '').replace(/\s+/g, ' ').trim()
-            );
-            const date = values.find((value) => datePattern.test(value.substring(0, 10)))?.substring(0, 10) ?? '';
-            if (!date) continue;
-
-            const type = values[2] ?? '';
-            const description = values[3] ?? values.slice(2).join(' ');
-            movements.push({ date, type, description });
-          }
-        }
-
-        return { html: text, loginLike: lower.includes('login') && lower.includes('password'), movements };
-      } catch (e) {
-        return { error: String(e) };
-      }
-    },
-    args: [caseUrl],
-  });
-
-  const result = scanResults[0]?.result as
-    | {
-        html: string;
-        loginLike: boolean;
-        movements: Array<{ date: string; type: string; description: string }>;
-        error?: never;
-      }
-    | { error: string; html?: never; movements?: never; loginLike?: never }
-    | null;
-
-  if (!result || result.error || !result.html || !result.movements) {
-    throw new Error(result?.error ?? 'No result from PJN executeScript');
-  }
-
-  if (result.loginLike) {
-    await notifyNoSession('pjn');
-    throw new Error('session_expired');
-  }
-
-  return persistScanMovements(monitor, result.movements, fromDate);
-}
-
 async function scanSinglePjnCaseViaApi(
   monitor: Monitor,
   fromDate?: string
@@ -469,11 +378,15 @@ async function scanSinglePjnCaseViaApi(
       return persistScanMovements(monitor, movements, fromDate);
     }
 
+    if (feed.errorKind === 'no-session') {
+      // Tell the user why PJN monitoring is silently doing nothing.
+      await notifyNoSession('pjn');
+    }
     return {
       newMovements: 0,
       matchedMovements: [],
       totalMovements: 0,
-      skippedReason: feed.errorKind === 'no-session' ? 'missing_ids' : undefined,
+      skippedReason: feed.errorKind === 'no-session' ? 'no_session' : undefined,
     };
   }
 
@@ -485,130 +398,11 @@ async function scanSinglePjnCaseViaApi(
   return persistScanMovements(monitor, movements, fromDate);
 }
 
-async function scanSinglePjnCaseViaTab(
-  monitor: Monitor,
-  tabId: number,
-  fromDate?: string
-): Promise<SingleScanResult> {
-  const caseUrl = getPjnCaseUrl(monitor);
-  if (!caseUrl) {
-    console.warn(
-      `[ProcuAsist] PJN monitor ${monitor.caseNumber} missing expediente URL, skipping`
-    );
-    return {
-      newMovements: 0,
-      matchedMovements: [],
-      totalMovements: 0,
-      skippedReason: 'missing_ids',
-    };
-  }
-
-  const opened = await navigateScwTab(tabId, caseUrl);
-  if (!opened) {
-    throw new Error('Legacy PJN scanner disabled');
-  }
-
-  const scanResults = await chrome.scripting.executeScript({
-    target: { tabId },
-    world: 'MAIN',
-    func: async () => {
-      try {
-        const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-        const normalize = (value: string) => value.replace(/\s+/g, ' ').trim();
-
-        const findMovementTable = () => {
-          const tables = document.querySelectorAll('table');
-          for (const table of tables) {
-            const headerText = normalize(
-              Array.from(table.querySelectorAll('tr'))
-                .slice(0, 3)
-                .map((row) => row.textContent ?? '')
-                .join(' ')
-            );
-            if (
-              /oficina/i.test(headerText) &&
-              /fecha/i.test(headerText) &&
-              /descripci[oó]n\s*\/\s*detalle|descripcion\s*\/\s*detalle/i.test(headerText)
-            ) {
-              return table;
-            }
-          }
-          return null;
-        };
-
-        const parseMovements = () => {
-          const movements: Array<{ date: string; type: string; description: string }> = [];
-          const movTable = findMovementTable();
-          if (!movTable) return movements;
-
-          const rows = movTable.querySelectorAll('tbody tr, tr');
-          const datePattern = /^\d{1,2}\/\d{1,2}\/\d{4}/;
-
-          for (const row of Array.from(rows)) {
-            const cells = row.querySelectorAll('td');
-            if (cells.length < 4) continue;
-
-            const values = Array.from(cells).map((cell) =>
-              normalize(cell.textContent ?? '')
-            );
-            const dateIndex = values.findIndex((value) => datePattern.test(value));
-            const date = dateIndex >= 0 ? values[dateIndex].substring(0, 10) : '';
-            if (!date) continue;
-
-            const type = values[dateIndex + 1] ?? '';
-            const description = values[dateIndex + 2] ?? values.slice(dateIndex + 1).join(' ');
-            movements.push({ date, type, description });
-          }
-
-          return movements;
-        };
-
-        let movements = parseMovements();
-        for (let i = 0; movements.length === 0 && i < 20; i++) {
-          await sleep(250);
-          movements = parseMovements();
-        }
-
-        const html = document.documentElement?.innerText ?? document.body?.innerText ?? '';
-        const lower = html.toLowerCase();
-        const loginLike =
-          /login|iniciar sesi[oó]n|usuario|contrase(?:n|ñ)a|password/.test(lower) &&
-          !/datos generales|actuaciones|expediente/.test(lower);
-
-        return { html, loginLike, movements };
-      } catch (e) {
-        return { error: String(e) };
-      }
-    },
-  });
-
-  const result = scanResults[0]?.result as
-    | {
-        html: string;
-        loginLike: boolean;
-        movements: Array<{ date: string; type: string; description: string }>;
-        error?: never;
-      }
-    | { error: string; html?: never; movements?: never; loginLike?: never }
-    | null;
-
-  if (!result || result.error || !result.html || !result.movements) {
-    throw new Error(result?.error ?? 'No result from PJN tab scan');
-  }
-
-  if (result.loginLike) {
-    await notifyNoSession('pjn');
-    throw new Error('session_expired');
-  }
-
-  return persistScanMovements(monitor, result.movements, fromDate);
-}
-
 interface SingleScanResult {
   newMovements: number;
   matchedMovements: ScanMovement[];
   totalMovements: number;
-  skippedReason?: 'missing_ids';
+  skippedReason?: 'missing_ids' | 'no_session' | 'empty_parse';
 }
 
 type PjnEventFeedResult =
@@ -708,25 +502,6 @@ function getScanTabId(
   return null;
 }
 
-async function ensureOffscreen(): Promise<void> {
-  // Check if offscreen document already exists
-  const contexts = await chrome.runtime.getContexts({
-    contextTypes: ['OFFSCREEN_DOCUMENT' as chrome.runtime.ContextType],
-  });
-
-  if (contexts.length > 0) return;
-
-  try {
-    await chrome.offscreen.createDocument({
-      url: chrome.runtime.getURL('offscreen.html'),
-      reasons: ['DOM_PARSING' as chrome.offscreen.Reason],
-      justification: 'Parse MEV HTML for movement extraction',
-    });
-  } catch {
-    // May already exist (race condition), ignore
-  }
-}
-
 async function storeScanResult(
   result: ScanResult,
   fromDate: string | undefined,
@@ -757,14 +532,6 @@ function getMevCaseIds(
 
   if (!nidCausa || !pidJuzgado) return null;
   return { nidCausa, pidJuzgado };
-}
-
-function getPjnCaseUrl(_monitor: Monitor): string | null {
-  return null;
-}
-
-async function navigateScwTab(_tabId: number, _targetUrl: string): Promise<boolean> {
-  return false;
 }
 
 async function getCachedPjnEvents(): Promise<PjnEventFeedResult> {

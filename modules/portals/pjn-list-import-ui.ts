@@ -7,11 +7,13 @@
  */
 
 import { parseScwList, type PjnCaseRow, type PjnListMode } from './pjn-parser';
+import { collectScwListRows } from './pjn-list-collector';
 import { ICON_CHECK, ICON_DOWNLOAD, ICON_LOADER, ICON_X } from '@/modules/ui/icon-strings';
 import {
   createConfigActionButton,
   createPortalActionBar,
   createPortalActionButton,
+  createPortalModalButton,
   setPortalActionButtonState,
 } from '@/modules/ui/portal-action-bar';
 
@@ -33,11 +35,38 @@ export function mountPjnListImportButton(url: URL): void {
   });
 
   btn.addEventListener('click', async () => {
-    const parsed = parseScwList(document, new URL(window.location.href));
-    const rows = parsed.rows.filter(isImportableRow);
-    if (!rows.length) {
+    const mode = parseScwList(document, new URL(window.location.href)).mode;
+
+    // Collect ALL pages (not just the visible one) before importing.
+    setPortalActionButtonState(btn, ICON_LOADER, 'Recolectando', 'muted');
+    btn.disabled = true;
+
+    let allRows: PjnCaseRow[] = [];
+    try {
+      const collected = await collectScwListRows({ maxPages: 25 });
+      allRows = collected.rows.filter(isImportableRow);
+    } catch {
+      // Fall back to the visible page if pagination failed.
+      allRows = parseScwList(document, new URL(window.location.href)).rows.filter(
+        isImportableRow
+      );
+    }
+
+    if (!allRows.length) {
       setPortalActionButtonState(btn, ICON_X, 'Sin causas', 'warning');
-      resetImportButton(btn, parsed.mode, 2200);
+      resetImportButton(btn, mode, 2200);
+      return;
+    }
+
+    // Let the user pick which of ALL collected cases to import.
+    const selected = await showImportSelectionModal(allRows, mode);
+    if (!selected) {
+      resetImportButton(btn, mode, 0);
+      return;
+    }
+    if (!selected.length) {
+      setPortalActionButtonState(btn, ICON_X, 'Nada elegido', 'warning');
+      resetImportButton(btn, mode, 2200);
       return;
     }
 
@@ -47,9 +76,9 @@ export function mountPjnListImportButton(url: URL): void {
     try {
       const response = (await chrome.runtime.sendMessage({
         type: 'BULK_IMPORT',
-        source: `pjn-${parsed.mode}`,
+        source: `pjn-${mode}`,
         monitor: false,
-        cases: rows.map((row) => toImportCase(row, parsed.mode)),
+        cases: selected.map((row) => toImportCase(row, mode)),
       })) as {
         status?: string;
         imported?: number;
@@ -66,12 +95,12 @@ export function mountPjnListImportButton(url: URL): void {
           'success'
         );
         btn.title = `${imported} nuevas, ${existing} ya existentes`;
-        resetImportButton(btn, parsed.mode, 5000);
+        resetImportButton(btn, mode, 5000);
         return;
       }
-      showImportError(btn, parsed.mode);
+      showImportError(btn, mode);
     } catch {
-      showImportError(btn, parsed.mode);
+      showImportError(btn, mode);
     }
   });
 
@@ -81,6 +110,146 @@ export function mountPjnListImportButton(url: URL): void {
   } else {
     bar.appendChild(btn);
   }
+}
+
+const IMPORT_MODAL_ID = 'procu-asist-pjn-import-modal';
+
+/**
+ * Modal that lists every collected case (across all pages) with checkboxes,
+ * so the user can import all of them or pick a subset. Resolves with the
+ * selected rows, or null if cancelled.
+ */
+function showImportSelectionModal(
+  rows: PjnCaseRow[],
+  mode: PjnListMode
+): Promise<PjnCaseRow[] | null> {
+  return new Promise((resolve) => {
+    document.getElementById(IMPORT_MODAL_ID)?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = IMPORT_MODAL_ID;
+    Object.assign(overlay.style, {
+      position: 'fixed', inset: '0', backgroundColor: 'rgba(0,0,0,0.5)',
+      zIndex: '2147483647', display: 'flex', alignItems: 'center',
+      justifyContent: 'center',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const modal = document.createElement('div');
+    Object.assign(modal.style, {
+      backgroundColor: 'white', borderRadius: '12px', padding: '20px',
+      maxWidth: '720px', width: '92%', maxHeight: '82vh', display: 'flex',
+      flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+      fontFamily: 'system-ui, sans-serif',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const title = document.createElement('h3');
+    title.textContent = `Importar ${scopeLabel(mode)} — ${rows.length} expedientes`;
+    Object.assign(title.style, { margin: '0 0 4px 0', color: '#1f2937', fontSize: '16px' });
+
+    const subtitle = document.createElement('p');
+    subtitle.textContent = 'Se recolectaron todas las páginas del listado. Elegí cuáles importar.';
+    Object.assign(subtitle.style, { margin: '0 0 12px 0', color: '#6b7280', fontSize: '12px' });
+
+    const topBar = document.createElement('div');
+    Object.assign(topBar.style, { display: 'flex', gap: '8px', marginBottom: '10px' });
+    const selectAllBtn = createPortalModalButton({ label: 'Seleccionar todos', variant: 'secondary' });
+    const deselectAllBtn = createPortalModalButton({ label: 'Ninguno', variant: 'secondary' });
+    topBar.appendChild(selectAllBtn);
+    topBar.appendChild(deselectAllBtn);
+
+    const list = document.createElement('div');
+    Object.assign(list.style, {
+      overflowY: 'auto', flex: '1', marginBottom: '12px',
+      border: '1px solid #e5e7eb', borderRadius: '8px',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const checkboxes: HTMLInputElement[] = [];
+
+    const importBtn = createPortalModalButton({ label: 'Importar', variant: 'primary' });
+    const updateCount = () => {
+      const count = checkboxes.filter((cb) => cb.checked).length;
+      importBtn.textContent = `Importar seleccionados (${count})`;
+      importBtn.disabled = count === 0;
+      importBtn.style.opacity = count === 0 ? '0.5' : '1';
+    };
+
+    rows.forEach((row, i) => {
+      const label = document.createElement('label');
+      Object.assign(label.style, {
+        display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px',
+        borderBottom: i < rows.length - 1 ? '1px solid #f3f4f6' : 'none',
+        cursor: 'pointer', fontSize: '12px', lineHeight: '1.4',
+      } satisfies Partial<CSSStyleDeclaration>);
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = true;
+      cb.style.flexShrink = '0';
+      cb.addEventListener('change', updateCount);
+      checkboxes.push(cb);
+
+      const info = document.createElement('div');
+      info.style.flex = '1';
+      const exp = document.createElement('span');
+      exp.textContent = cleanText(row.expediente);
+      Object.assign(exp.style, { fontWeight: '600', color: '#1f2937', marginRight: '8px' });
+      const car = document.createElement('span');
+      car.textContent = cleanText(row.caratula);
+      car.style.color = '#374151';
+      info.appendChild(exp);
+      info.appendChild(car);
+
+      label.appendChild(cb);
+      label.appendChild(info);
+      list.appendChild(label);
+    });
+
+    selectAllBtn.addEventListener('click', () => {
+      checkboxes.forEach((cb) => { cb.checked = true; });
+      updateCount();
+    });
+    deselectAllBtn.addEventListener('click', () => {
+      checkboxes.forEach((cb) => { cb.checked = false; });
+      updateCount();
+    });
+
+    const bottomBar = document.createElement('div');
+    Object.assign(bottomBar.style, { display: 'flex', justifyContent: 'flex-end', gap: '8px' });
+    const cancelBtn = createPortalModalButton({ label: 'Cancelar', variant: 'secondary' });
+
+    const finish = (value: PjnCaseRow[] | null) => {
+      overlay.remove();
+      resolve(value);
+    };
+
+    cancelBtn.addEventListener('click', () => finish(null));
+    importBtn.addEventListener('click', () => {
+      finish(rows.filter((_, i) => checkboxes[i].checked));
+    });
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) finish(null);
+    });
+
+    bottomBar.appendChild(cancelBtn);
+    bottomBar.appendChild(importBtn);
+
+    modal.appendChild(title);
+    modal.appendChild(subtitle);
+    modal.appendChild(topBar);
+    modal.appendChild(list);
+    modal.appendChild(bottomBar);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    updateCount();
+  });
+}
+
+function scopeLabel(mode: PjnListMode): string {
+  if (mode === 'favoritos') return 'favoritos';
+  if (mode === 'relacionados-parte') return 'relacionados (parte)';
+  if (mode === 'relacionados-letrado') return 'relacionados (letrado)';
+  return 'listado PJN';
 }
 
 function ensurePjnActionBar(): HTMLDivElement {

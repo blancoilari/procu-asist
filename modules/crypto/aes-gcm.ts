@@ -30,7 +30,23 @@ export async function deriveKey(
     },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
-    false,
+    true, // extractable: required so the key can be persisted across SW restarts
+    ['encrypt', 'decrypt']
+  );
+}
+
+/** Export an AES-GCM key to a JWK object (key must be extractable). */
+export async function exportKeyToJwk(key: CryptoKey): Promise<JsonWebKey> {
+  return crypto.subtle.exportKey('jwk', key);
+}
+
+/** Re-import an AES-GCM key from a JWK object. */
+export async function importKeyFromJwk(jwk: JsonWebKey): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    'jwk',
+    jwk,
+    { name: 'AES-GCM' },
+    true,
     ['encrypt', 'decrypt']
   );
 }

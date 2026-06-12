@@ -29,7 +29,10 @@ import {
   collectAllActuaciones,
   type PjnCollectorResult,
 } from '@/modules/portals/pjn-actuaciones-collector';
-import { collectScwListRows } from '@/modules/portals/pjn-list-collector';
+import {
+  collectScwListRows,
+  findAndOpenCaseInList,
+} from '@/modules/portals/pjn-list-collector';
 import { mountPjnZipButton } from '@/modules/portals/pjn-zip-ui';
 import { mountPjnCaseActions } from '@/modules/portals/pjn-actions-ui';
 import { mountPjnListImportButton } from '@/modules/portals/pjn-list-import-ui';
@@ -147,6 +150,7 @@ function initScwDebug(): void {
   if (isScwListadoPage(url.pathname)) {
     mountPjnListImportButton(url);
     mountPjnBulkNoteButton(url);
+    void maybeOpenTargetCase();
     if (import.meta.env.DEV) initListMode(url);
     return;
   }
@@ -161,6 +165,38 @@ function initScwDebug(): void {
     // Panel debug M4 solo en dev.
     if (import.meta.env.DEV) initExpedienteMode(url);
     return;
+  }
+}
+
+// ────────────────────────────────────────────────────────
+// Abrir un expediente puntual desde el panel lateral
+// ────────────────────────────────────────────────────────
+
+/**
+ * When the side panel asks to open a specific PJN case, the background stores
+ * the target expediente and opens this listing. Here we consume that target
+ * and click the matching row's (fresh) detail link — SCW deep links expire,
+ * so we can't navigate to expediente.seam directly.
+ */
+async function maybeOpenTargetCase(): Promise<void> {
+  try {
+    const resp = (await chrome.runtime.sendMessage({
+      type: 'CONSUME_PJN_OPEN_TARGET',
+    })) as { success: boolean; target?: { caseNumber: string } } | undefined;
+
+    if (!resp?.success || !resp.target?.caseNumber) return;
+
+    const opened = await findAndOpenCaseInList(resp.target.caseNumber, {
+      maxPages: 15,
+    });
+    if (!opened) {
+      console.warn(
+        '[ProcuAsist PJN] No encontré el expediente en el listado:',
+        resp.target.caseNumber
+      );
+    }
+  } catch (err) {
+    console.debug('[ProcuAsist PJN] No pude abrir el expediente objetivo:', err);
   }
 }
 
