@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react';
 import { Scale } from 'lucide-react';
 import type { PortalId } from '@/modules/portals/types';
 import { MEV_DEPARTAMENTOS } from '@/modules/portals/mev-selectors';
+import { useDarkMode } from '@/modules/ui/use-dark-mode';
 
 type Page = 'credentials' | 'monitoring' | 'appearance';
 
 export default function App() {
+  // Apply dark mode to the options page itself
+  useDarkMode();
   const [activePage, setActivePage] = useState<Page>('credentials');
   const [lockStatus, setLockStatus] = useState<{
     pinConfigured: boolean;
@@ -105,13 +108,15 @@ function CredentialsPage({
         );
         setPin('');
         setConfirmPin('');
-        // Refresh status
-        window.location.reload();
+        // Refresh status after the user can read the success message —
+        // an immediate reload would wipe it before it ever renders.
+        setTimeout(() => window.location.reload(), 1200);
       } else {
         setPinError(
-          lockStatus?.pinConfigured
-            ? 'PIN incorrecto'
-            : 'Error al configurar PIN'
+          response?.error ??
+            (lockStatus?.pinConfigured
+              ? 'PIN incorrecto'
+              : 'Error al configurar PIN')
         );
       }
     });
@@ -190,11 +195,6 @@ function CredentialsPage({
             description="MEV - Mesa de Entradas Virtual - Provincia de Buenos Aires"
           />
           <MevDepartmentSelector />
-          <PortalCredentials
-            portal="eje"
-            label="JUSCABA"
-            description="JUSCABA - Poder Judicial de CABA"
-          />
           <PortalCredentials
             portal="pjn"
             label="PJN"
@@ -343,11 +343,11 @@ function MevDepartmentSelector() {
 
   const handleChange = (value: string) => {
     setDepto(value);
-    chrome.storage.local.get('tl_settings', (result) => {
-      const settings = (result.tl_settings ?? {}) as Record<string, unknown>;
-      chrome.storage.local.set({
-        tl_settings: { ...settings, mevDepartamento: value },
-      });
+    // Route through UPDATE_SETTINGS so the background merges with defaults
+    // and applies any side effects, instead of writing storage directly.
+    chrome.runtime.sendMessage({
+      type: 'UPDATE_SETTINGS',
+      settings: { mevDepartamento: value },
     });
   };
 
@@ -404,11 +404,9 @@ function AppearancePage() {
   const toggleDarkMode = () => {
     const newValue = !darkMode;
     setDarkMode(newValue);
-    chrome.storage.local.get('tl_settings', (result) => {
-      const settings = (result.tl_settings ?? {}) as Record<string, unknown>;
-      chrome.storage.local.set({
-        tl_settings: { ...settings, darkMode: newValue },
-      });
+    chrome.runtime.sendMessage({
+      type: 'UPDATE_SETTINGS',
+      settings: { darkMode: newValue },
     });
   };
 
@@ -419,7 +417,7 @@ function AppearancePage() {
         <div>
           <p className="text-sm font-medium">Dark Mode</p>
           <p className="text-xs text-text-secondary">
-            Tema oscuro para los portales judiciales (MEV, JUSCABA)
+            Tema oscuro para la interfaz de ProcuAsist (popup, panel y opciones)
           </p>
         </div>
         <button

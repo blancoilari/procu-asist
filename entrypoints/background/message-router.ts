@@ -8,13 +8,15 @@ import type { ProcuAsistMessage } from '@/modules/messages/types';
 import {
   setupPin,
   unlockWithPin,
-  lock,
-  isUnlocked,
+  forgetPersistedKey,
+  ensureKey,
   isPinSetup,
+  syncPersistedKeyWithSetting,
 } from '@/modules/crypto/key-manager';
 import {
   saveCredentials,
   getCredentials,
+  hasCredentials,
 } from '@/modules/storage/credential-store';
 import {
   addBookmark,
@@ -56,6 +58,7 @@ import {
   findScwTab,
 } from '@/modules/portals/pjn-downloader';
 import { generatePjnCaseZip } from '@/modules/pdf/pjn-zip-generator';
+import { PJN_SCW_BASE_URL, PJN_SCW_PATHS } from '@/modules/portals/pjn-selectors';
 
 export function setupMessageRouter() {
   chrome.runtime.onMessage.addListener(
@@ -80,6 +83,21 @@ async function handleMessage(
   switch (message.type) {
     // --- PIN Management ---
     case 'SETUP_PIN': {
+      // Guard: re-running setup derives a new key with a new salt, leaving
+      // already-saved credentials permanently undecryptable. Only refuse when
+      // there are credentials to protect — with none saved, re-keying is
+      // harmless and keeps a recovery path for a forgotten PIN.
+      if (await isPinSetup()) {
+        const portals: Array<'mev' | 'pjn' | 'eje'> = ['mev', 'pjn', 'eje'];
+        const saved = await Promise.all(portals.map(hasCredentials));
+        if (saved.some(Boolean)) {
+          return {
+            success: false,
+            error:
+              'Ya hay un PIN configurado y credenciales guardadas. Usá "Desbloquear" con tu PIN actual.',
+          };
+        }
+      }
       const success = await setupPin(message.pin);
       return { success };
     }
@@ -90,15 +108,16 @@ async function handleMessage(
     }
 
     case 'LOCK': {
-      lock();
+      await forgetPersistedKey();
       return { success: true };
     }
 
     case 'GET_LOCK_STATUS': {
       const pinConfigured = await isPinSetup();
+      const unlocked = !!(await ensureKey());
       return {
         pinConfigured,
-        unlocked: isUnlocked(),
+        unlocked,
       };
     }
 
@@ -119,8 +138,13 @@ async function handleMessage(
         }
         return { success: true, credentials: creds };
       } catch {
-        // Vault is locked — return gracefully instead of throwing
-        return { success: false, reason: 'vault_locked' };
+        // Distinguish a locked vault from a decryption failure (e.g. stale
+        // blob from an old key) so callers don't endlessly prompt for PIN.
+        const unlocked = !!(await ensureKey());
+        return {
+          success: false,
+          reason: unlocked ? 'decrypt_failed' : 'vault_locked',
+        };
       }
     }
 
@@ -140,8 +164,14 @@ async function handleMessage(
 
     // --- Side Panel ---
     case 'OPEN_SIDEPANEL': {
-      const windowId = _sender.tab?.windowId;
-      if (windowId) {
+      // sender.tab only exists for content-script senders; the popup has no
+      // tab, so fall back to the focused window or the button does nothing.
+      let windowId = _sender.tab?.windowId;
+      if (windowId === undefined) {
+        const win = await chrome.windows.getLastFocused();
+        windowId = win.id;
+      }
+      if (windowId !== undefined) {
         await chrome.sidePanel.open({ windowId });
       }
       return { status: 'ok' };
@@ -181,9 +211,12 @@ async function handleMessage(
     }
 
     case 'UPDATE_SETTINGS': {
-      const updated = await updateSettings(
-        message.settings as Parameters<typeof updateSettings>[0]
-      );
+      const partial = message.settings as Parameters<typeof updateSettings>[0];
+      const updated = await updateSettings(partial);
+      // Toggling persistUnlock has a side-effect on the persisted key blob.
+      if (partial && 'persistUnlock' in partial) {
+        await syncPersistedKeyWithSetting();
+      }
       return { success: true, settings: updated };
     }
 
@@ -216,19 +249,21 @@ async function handleMessage(
           return { success: false, error: 'No hay una pestaña de MEV abierta. Abrí MEV primero.' };
         }
 
-        const result = await generateCaseZip(message.caseData, mevTabId);
+        const format = message.format ?? 'zip';
+        const result = await generateCaseZip(
+          message.caseData,
+          mevTabId,
+          undefined,
+          format
+        );
 
         if (!result.success || !result.blob) {
-          return { success: false, error: result.error ?? 'Error al generar ZIP' };
+          return { success: false, error: result.error ?? 'Error al generar la descarga' };
         }
 
         // Convert Blob to base64 data URI for chrome.downloads
-        const arrayBuffer = await result.blob.arrayBuffer();
-        const uint8 = new Uint8Array(arrayBuffer);
-        let binary = '';
-        for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
-        const base64 = btoa(binary);
-        const dataUri = `data:application/zip;base64,${base64}`;
+        const mime = format === 'pdf' ? 'application/pdf' : 'application/zip';
+        const dataUri = await blobToDataUri(result.blob, mime);
 
         await chrome.downloads.download({
           url: dataUri,
@@ -356,6 +391,7 @@ async function handleMessage(
       let imported = 0;
       let existing = 0;
       let monitored = 0;
+      let failed = 0;
       for (const c of message.cases) {
         try {
           const richCaseObj = c;
@@ -402,11 +438,16 @@ async function handleMessage(
             });
             if (!wasMonitored) monitored++;
           }
-        } catch {
-          // Skip duplicates or errors, continue importing
+        } catch (err) {
+          // Skip the failing case but keep importing the rest.
+          failed++;
+          console.warn(
+            `[ProcuAsist] Bulk import failed for ${c?.caseNumber ?? '?'}:`,
+            err
+          );
         }
       }
-      return { status: 'ok', imported, existing, monitored };
+      return { status: 'ok', imported, existing, monitored, failed };
     }
 
     // --- PJN ZIP de expediente ---
@@ -420,20 +461,19 @@ async function handleMessage(
         };
       }
       try {
+        const pjnFormat = message.format ?? 'zip';
         const result = await generatePjnCaseZip({
           datosGenerales: message.datosGenerales,
           actuaciones: message.actuaciones,
           portalUrl: message.portalUrl,
           scwTabId,
+          format: pjnFormat,
         });
         if (!result.success || !result.blob) {
           return { success: false, error: result.error ?? 'Error desconocido' };
         }
-        const buf = await result.blob.arrayBuffer();
-        const bytes = new Uint8Array(buf);
-        let binary = '';
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        const dataUri = `data:application/zip;base64,${btoa(binary)}`;
+        const pjnMime = pjnFormat === 'pdf' ? 'application/pdf' : 'application/zip';
+        const dataUri = await blobToDataUri(result.blob, pjnMime);
         await chrome.downloads.download({
           url: dataUri,
           filename: result.filename!,
@@ -512,6 +552,37 @@ async function handleMessage(
       }
       console.groupEnd();
       return result;
+    }
+
+    // --- Open a PJN expediente from the side panel ---
+    case 'OPEN_PJN_CASE': {
+      const list = message.list ?? 'relacionados';
+      const path =
+        list === 'favoritos'
+          ? PJN_SCW_PATHS.favoritos
+          : PJN_SCW_PATHS.relacionados;
+      await chrome.storage.session.set({
+        pjn_open_target: {
+          caseNumber: message.caseNumber,
+          list,
+          ts: Date.now(),
+        },
+      });
+      await chrome.tabs.create({ url: `${PJN_SCW_BASE_URL}${path}` });
+      return { success: true };
+    }
+
+    case 'CONSUME_PJN_OPEN_TARGET': {
+      const stored = await chrome.storage.session.get('pjn_open_target');
+      const target = stored.pjn_open_target as
+        | { caseNumber: string; list: string; ts: number }
+        | undefined;
+      // Ignore stale targets (e.g. a tab opened long ago / unrelated nav).
+      if (!target || Date.now() - target.ts > 180_000) {
+        return { success: false };
+      }
+      await chrome.storage.session.remove('pjn_open_target');
+      return { success: true, target };
     }
 
     default:
@@ -951,6 +1022,21 @@ function normalizeWhitespace(value: string): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Convert a Blob to a base64 data URI in 32 KB chunks. A byte-by-byte
+ * `binary += String.fromCharCode(...)` loop is O(n²) on string reallocations
+ * and can freeze the service worker for multi-MB ZIPs/PDFs.
+ */
+async function blobToDataUri(blob: Blob, mime: string): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const CHUNK = 0x8000;
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    parts.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
+  }
+  return `data:${mime};base64,${btoa(parts.join(''))}`;
 }
 
 const MATCH_STOPWORDS = new Set([

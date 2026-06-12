@@ -71,12 +71,15 @@ export async function downloadPjnPdf(
             resp.headers.get('content-disposition') ?? '';
           const buffer = await resp.arrayBuffer();
           const bytes = new Uint8Array(buffer);
-          let binary = '';
-          for (let i = 0; i < bytes.length; i++) {
-            binary += String.fromCharCode(bytes[i]);
+          // Conversión por bloques: el loop byte a byte es O(n²) por la
+          // reasignación de strings y congela la pestaña con PDFs grandes.
+          const CHUNK = 0x8000;
+          const parts: string[] = [];
+          for (let i = 0; i < bytes.length; i += CHUNK) {
+            parts.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
           }
           return {
-            base64: btoa(binary),
+            base64: btoa(parts.join('')),
             mimeType: contentType,
             sizeBytes: buffer.byteLength,
             contentDisposition,

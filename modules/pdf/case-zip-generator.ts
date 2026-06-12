@@ -18,6 +18,7 @@ import {
   fetchMevPageContent,
   downloadMevAttachment,
 } from './attachment-downloader';
+import { mergePdfParts, type MergedPdfPart } from './merged-pdf-generator';
 import { MEV_BASE_URL } from '@/modules/portals/mev-selectors';
 
 export interface ZipMovement {
@@ -75,10 +76,13 @@ export interface ZipGenerationResult {
 export async function generateCaseZip(
   data: ZipCaseData,
   mevTabId: number,
-  onProgress?: ZipProgressCallback
+  onProgress?: ZipProgressCallback,
+  format: 'zip' | 'pdf' = 'zip'
 ): Promise<ZipGenerationResult> {
   const zip = new JSZip();
   const safeNumber = data.caseNumber.replace(/[^a-zA-Z0-9-]/g, '_');
+  const mergeParts: MergedPdfPart[] = [];
+  let resumenBytes: Uint8Array | null = null;
 
   // ── 1. Create main folder ──────────────────────────────
   const expedienteFolder = zip.folder(`${safeNumber}_expte_completo`);
@@ -118,6 +122,9 @@ export async function generateCaseZip(
     };
   }
   expedienteFolder.file('resumen.pdf', pdfBlob);
+  if (format === 'pdf') {
+    resumenBytes = new Uint8Array(await pdfBlob.arrayBuffer());
+  }
 
   // ── 3. Collect movements with documents, sorted ascending (oldest first) ──
   const movementsWithDocs = data.movements
@@ -151,7 +158,10 @@ export async function generateCaseZip(
       total
     );
 
-    const baseFilename = buildFilename(mov.date, mov.description, mov.fojas);
+    // Numbered prefix (001_, 002_…): keeps the documented oldest-first order
+    // and guarantees uniqueness — two movements with the same date and
+    // description would otherwise silently overwrite each other in the ZIP.
+    const baseFilename = `${String(docNum).padStart(3, '0')}_${buildFilename(mov.date, mov.description, mov.fojas)}`;
 
     // Fetch the proveido content (text + adjunto URLs), parsed inside the MEV tab
     const pageResult = await fetchMevPageContent(mevTabId, url);
@@ -192,6 +202,13 @@ export async function generateCaseZip(
         datosPresentacion: parsed.datosPresentacion,
       });
       expedienteFolder.file(`${baseFilename}.pdf`, proveidoPdfBlob);
+      if (format === 'pdf') {
+        mergeParts.push({
+          label: baseFilename,
+          base64: await blobToBase64(proveidoPdfBlob),
+          mimeType: 'application/pdf',
+        });
+      }
       proveidosDownloaded++;
     } catch (err) {
       proveidosFailed++;
@@ -239,6 +256,13 @@ export async function generateCaseZip(
           const att = adjResult.attachment;
           const ext = getExtensionFromMime(att.mimeType);
           expedienteFolder.file(`${adjName}${ext}`, att.base64, { base64: true });
+          if (format === 'pdf') {
+            mergeParts.push({
+              label: `${adjName}${ext}`,
+              base64: att.base64,
+              mimeType: att.mimeType,
+            });
+          }
           adjuntosDownloaded++;
         } else {
           adjuntosFailed++;
@@ -283,6 +307,56 @@ export async function generateCaseZip(
       verLines.push('');
     }
     expedienteFolder.file('_verificacion.txt', verLines.join('\n'));
+
+    // In single-PDF mode the .txt files never reach the user — append the
+    // same report as a final page so failed downloads are visible.
+    if (format === 'pdf') {
+      try {
+        const verBlob = generateTextReportPdf(
+          `Verificación de descarga — ${data.caseNumber}`,
+          verLines
+        );
+        mergeParts.push({
+          label: '_verificacion',
+          base64: await blobToBase64(verBlob),
+          mimeType: 'application/pdf',
+        });
+      } catch (err) {
+        console.warn('[ProcuAsist] No se pudo agregar la página de verificación:', err);
+      }
+    }
+  }
+
+  const stats = {
+    totalMovements: data.movements.length,
+    proveidosDownloaded,
+    proveidosFailed,
+    adjuntosDownloaded,
+    adjuntosFailed,
+    allSuccessful,
+    failedItems,
+  };
+
+  // ── 6a. Single merged PDF (todo unido) ───────────────────
+  if (format === 'pdf') {
+    onProgress?.('Armando PDF único...', total, total);
+    if (!resumenBytes) {
+      return { success: false, error: 'No se pudo generar el resumen para el PDF.' };
+    }
+    try {
+      const { blob } = await mergePdfParts(resumenBytes, mergeParts);
+      return {
+        success: true,
+        blob,
+        filename: `expediente_${safeNumber}.pdf`,
+        stats,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: `Error armando PDF único: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
   }
 
   // ── 6. Generate final ZIP ────────────────────────────────
@@ -306,16 +380,52 @@ export async function generateCaseZip(
     success: true,
     blob: zipBlob,
     filename: `expediente_${safeNumber}.zip`,
-    stats: {
-      totalMovements: data.movements.length,
-      proveidosDownloaded,
-      proveidosFailed,
-      adjuntosDownloaded,
-      adjuntosFailed,
-      allSuccessful,
-      failedItems,
-    },
+    stats,
   };
+}
+
+/** Convert a Blob to a base64 string (no data: prefix), for PDF merging. */
+async function blobToBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const CHUNK = 0x8000;
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    parts.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
+  }
+  return btoa(parts.join(''));
+}
+
+/** Render a plain-text report (e.g. the verification log) as a simple PDF. */
+function generateTextReportPdf(title: string, lines: string[]): Blob {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const ML = 15;
+  const CW = 210 - ML * 2;
+  const PH = 297;
+  const MB = 15;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(220, 38, 38);
+  doc.text(sanitizeForPdf(title), ML, 18);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(30, 30, 30);
+
+  let y = 28;
+  for (const rawLine of lines) {
+    const wrapped = doc.splitTextToSize(sanitizeForPdf(rawLine) || ' ', CW) as string[];
+    for (const line of wrapped) {
+      if (y + 4 > PH - MB) {
+        doc.addPage();
+        y = 18;
+      }
+      doc.text(line, ML, y);
+      y += 4;
+    }
+  }
+
+  return doc.output('blob');
 }
 
 // ── Proveido PDF Generator ───────────────────────────────
@@ -648,13 +758,16 @@ function generateProveidoPdf(input: ProveidoPdfInput): Blob {
   const sanitizedContent = sanitizeForPdf(input.content);
   const paragraphs = sanitizedContent.split('\n').filter((l) => l.trim().length > 0);
 
+  // Render line by line: a paragraph taller than one page would otherwise be
+  // drawn past the bottom margin and silently lost.
   for (const para of paragraphs) {
     const lines = doc.splitTextToSize(para.trim(), CW) as string[];
-    const blockH = lines.length * 4;
-
-    y = ensureSpace(blockH, y);
-    doc.text(lines, ML, y);
-    y += blockH + 2;
+    for (const line of lines) {
+      y = ensureSpace(4, y);
+      doc.text(line, ML, y);
+      y += 4;
+    }
+    y += 2;
   }
 
   // ── 9. Source URL footer note ──

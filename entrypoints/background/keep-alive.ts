@@ -25,6 +25,7 @@ export async function keepAlive(portal: PortalId): Promise<void> {
 
   if (portal === 'mev' && settings?.keepAliveMev === false) return;
   if (portal === 'eje' && settings?.keepAliveEje === false) return;
+  if (portal === 'pjn' && settings?.keepAlivePjn === false) return;
 
   // Find open tabs matching the portal
   const tabs = await chrome.tabs.query({ url: PORTAL_TAB_PATTERNS[portal] });

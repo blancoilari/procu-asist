@@ -74,9 +74,65 @@ function detectPortalFromKeycloakUrl(): PortalId {
   return 'eje';
 }
 
+const KC_ATTEMPTS_KEY = 'procu_asist_kc_login_attempts';
+const KC_MAX_AUTO_LOGIN_ATTEMPTS = 2;
+const KC_ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * Auto-login retry guard. Wrong saved credentials would otherwise loop
+ * (submit → Keycloak re-renders login with error → script re-runs → submit…)
+ * against sso.pjn.gov.ar, risking an account lockout.
+ */
+function canAttemptKeycloakLogin(): boolean {
+  try {
+    const raw = sessionStorage.getItem(KC_ATTEMPTS_KEY);
+    if (!raw) return true;
+    const data = JSON.parse(raw) as { count: number; firstAt: number };
+    if (Date.now() - data.firstAt > KC_ATTEMPT_WINDOW_MS) return true;
+    return data.count < KC_MAX_AUTO_LOGIN_ATTEMPTS;
+  } catch {
+    return true;
+  }
+}
+
+function recordKeycloakLoginAttempt(): void {
+  try {
+    const now = Date.now();
+    const raw = sessionStorage.getItem(KC_ATTEMPTS_KEY);
+    let data = { count: 0, firstAt: now };
+    if (raw) {
+      const parsed = JSON.parse(raw) as { count: number; firstAt: number };
+      if (now - parsed.firstAt <= KC_ATTEMPT_WINDOW_MS) data = parsed;
+    }
+    data.count += 1;
+    sessionStorage.setItem(KC_ATTEMPTS_KEY, JSON.stringify(data));
+  } catch {
+    // sessionStorage unavailable — nothing to record
+  }
+}
+
 async function handleKeycloakLogin(doc: Document) {
   const portal = detectPortalFromKeycloakUrl();
   console.debug(`[ProcuAsist] Keycloak login page detected (portal=${portal})`);
+
+  // Keycloak re-renders the login page with an error message after a failed
+  // attempt — retrying the same saved credentials would loop.
+  const loginError = doc.querySelector(
+    '#input-error, .kc-feedback-text, .alert-error, .pf-c-alert__title'
+  );
+  if (loginError?.textContent?.trim()) {
+    console.warn(
+      `[ProcuAsist] Keycloak shows a login error ("${loginError.textContent.trim().slice(0, 80)}") — skipping auto-login`
+    );
+    return;
+  }
+
+  if (!canAttemptKeycloakLogin()) {
+    console.warn(
+      '[ProcuAsist] Auto-login attempt limit reached for Keycloak — log in manually'
+    );
+    return;
+  }
 
   const response = await chrome.runtime.sendMessage({
     type: 'GET_CREDENTIALS',
@@ -109,6 +165,7 @@ async function handleKeycloakLogin(doc: Document) {
   // Submit after short delay. Keycloak themes vary (JUSCABA usa el theme
   // estándar con #kc-login; PJN tiene theme custom). Probamos cascada.
   setTimeout(() => {
+    recordKeycloakLoginAttempt();
     const form = usernameInput.closest('form') as HTMLFormElement | null;
 
     const standardBtn = doc.querySelector('#kc-login') as HTMLElement | null;
@@ -371,15 +428,10 @@ function interceptApiCalls() {
 // ────────────────────────────────────────────────────────
 
 function startSessionMonitor() {
-  // EJE is an SPA — intercept fetch 401 responses
-  const originalFetch = window.fetch;
-  const wrappedFetch = window.fetch;
-
-  // Only wrap if not already wrapped by interceptApiCalls
-  if (wrappedFetch === originalFetch) return;
-
-  // The fetch interceptor in interceptApiCalls already handles this implicitly
-  // But we also add a dedicated 401 check
+  // EJE is an SPA — intercept fetch 401 responses.
+  // (Note: this only sees fetches made in the content-script world; the
+  // Angular app's own calls run in the page's MAIN world. Kept as best-effort
+  // while the EJE portal stays hidden from the UI.)
   const sessionCheckFetch = window.fetch;
   window.fetch = async function (...args) {
     const response = await sessionCheckFetch.apply(this, args);

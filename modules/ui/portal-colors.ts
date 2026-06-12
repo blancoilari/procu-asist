@@ -50,9 +50,6 @@ export const PORTAL_COLORS: Record<PortalId, PortalColor> = {
   },
 };
 
-/** Same navy as MEV (SCBA family) for the Notificaciones portal. */
-export const SCBA_NOTIF_COLOR: PortalColor = PORTAL_COLORS.mev;
-
 /** ProcuAsist brand color — used in the extension's own UI, not inside portals. */
 export const BRAND_PRIMARY = '#2563eb';
 export const BRAND_PRIMARY_HOVER = '#1d4ed8';

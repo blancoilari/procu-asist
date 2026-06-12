@@ -170,8 +170,18 @@ export default function App() {
           <hr className="border-border" />
 
           <button
-            onClick={() => {
-              chrome.runtime.sendMessage({ type: 'OPEN_SIDEPANEL' });
+            onClick={async () => {
+              // Open directly from the popup: sidePanel.open() requires a
+              // user gesture, and messages from the popup have no sender.tab
+              // for the background to resolve a window from.
+              try {
+                const win = await chrome.windows.getCurrent();
+                if (win.id !== undefined) {
+                  await chrome.sidePanel.open({ windowId: win.id });
+                }
+              } catch {
+                chrome.runtime.sendMessage({ type: 'OPEN_SIDEPANEL' });
+              }
               window.close();
             }}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
@@ -246,7 +256,7 @@ function SessionStatus() {
   const [mevStatus, setMevStatus] = useState<'checking' | 'active' | 'none'>(
     'checking'
   );
-  const [ejeStatus, setEjeStatus] = useState<'checking' | 'active' | 'none'>(
+  const [pjnStatus, setPjnStatus] = useState<'checking' | 'active' | 'none'>(
     'checking'
   );
 
@@ -258,15 +268,15 @@ function SessionStatus() {
       .catch(() => setMevStatus('none'));
 
     chrome.runtime
-      .sendMessage({ type: 'GET_CREDENTIALS', portal: 'eje' })
-      .then((r) => setEjeStatus(r?.success ? 'active' : 'none'))
-      .catch(() => setEjeStatus('none'));
+      .sendMessage({ type: 'GET_CREDENTIALS', portal: 'pjn' })
+      .then((r) => setPjnStatus(r?.success ? 'active' : 'none'))
+      .catch(() => setPjnStatus('none'));
   }, []);
 
   return (
     <div className="flex flex-col gap-2">
       <PortalRow label="MEV" status={mevStatus} />
-      <PortalRow label="JUSCABA" status={ejeStatus} />
+      <PortalRow label="PJN" status={pjnStatus} />
     </div>
   );
 }

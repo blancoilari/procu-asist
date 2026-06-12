@@ -5,14 +5,8 @@
  */
 
 import type { PortalId } from '@/modules/portals/types';
-import { isUnlocked } from '@/modules/crypto/key-manager';
+import { ensureKey } from '@/modules/crypto/key-manager';
 import { getCredentials } from '@/modules/storage/credential-store';
-
-/** Pending reconnection requests (portal -> returnUrl) */
-const pendingReconnects = new Map<
-  string,
-  { returnUrl: string; tabId: number }
->();
 
 export async function handleSessionExpired(
   portal: PortalId,
@@ -31,10 +25,12 @@ export async function handleSessionExpired(
     return;
   }
 
-  // Check if vault is unlocked (PIN was entered this session)
-  if (!isUnlocked()) {
+  // Restore the vault key (survives SW restarts). Only null if the user
+  // never set up / unlocked the vault.
+  const key = await ensureKey();
+  if (!key) {
     console.debug(
-      '[ProcuAsist] Vault is locked — skipping auto-reconnect silently.'
+      '[ProcuAsist] Vault never unlocked — skipping auto-reconnect silently.'
     );
     // Don't throw, don't notify — the session monitor will retry later
     return;
@@ -51,11 +47,8 @@ export async function handleSessionExpired(
       return;
     }
 
-    // Store the returnUrl so the content script can navigate back after re-login
-    // The content script handles the actual form filling via GET_CREDENTIALS message
-    // The returnUrl is stored in sessionStorage by the content script itself
-    pendingReconnects.set(portal, { returnUrl, tabId });
-
+    // The content script handles the actual form filling via GET_CREDENTIALS;
+    // the returnUrl is stored in sessionStorage by the content script itself.
     console.debug(
       `[ProcuAsist] Credentials available for ${portal}, content script will handle re-login`
     );
@@ -74,14 +67,3 @@ function sendExpiryNotification(portal: PortalId) {
   });
 }
 
-/** Get pending reconnect info for a portal */
-export function getPendingReconnect(
-  portal: PortalId
-): { returnUrl: string; tabId: number } | undefined {
-  return pendingReconnects.get(portal);
-}
-
-/** Clear pending reconnect after successful login */
-export function clearPendingReconnect(portal: PortalId): void {
-  pendingReconnects.delete(portal);
-}

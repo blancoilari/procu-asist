@@ -14,7 +14,6 @@ export default defineConfig({
       'sidePanel',
       'activeTab',
       'scripting',
-      'offscreen',
       'tabs',
       'downloads',
       'webRequest',

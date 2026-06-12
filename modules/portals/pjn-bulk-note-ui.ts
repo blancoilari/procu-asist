@@ -260,11 +260,19 @@ function renderBulkNoteModal(candidates: NoteCandidate[], pagesVisited: number):
   copyBtn.textContent = 'Copiar detalle';
   Object.assign(copyBtn.style, buttonStyle('primary'));
   copyBtn.addEventListener('click', () => {
-    void navigator.clipboard.writeText(buildDetailText(candidates, selected));
-    copyBtn.textContent = 'Copiado';
-    window.setTimeout(() => {
-      copyBtn.textContent = 'Copiar detalle';
-    }, 1600);
+    navigator.clipboard
+      .writeText(buildDetailText(candidates, selected))
+      .then(() => {
+        copyBtn.textContent = 'Copiado';
+      })
+      .catch(() => {
+        copyBtn.textContent = 'No se pudo copiar';
+      })
+      .finally(() => {
+        window.setTimeout(() => {
+          copyBtn.textContent = 'Copiar detalle';
+        }, 1600);
+      });
   });
 
   footer.appendChild(note);

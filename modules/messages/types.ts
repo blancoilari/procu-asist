@@ -10,7 +10,6 @@ export type ProcuAsistMessage =
   | DownloadAttachmentMessage
   | GetCredentialsMessage
   | BulkImportMessage
-  | ParseCaseHtmlMessage
   | SetupPinMessage
   | UnlockPinMessage
   | LockMessage
@@ -36,7 +35,9 @@ export type ProcuAsistMessage =
   | RunScanSinceMessage
   | PjnGetEventsDebugMessage
   | PjnDownloadPdfMessage
-  | PjnGenerateZipMessage;
+  | PjnGenerateZipMessage
+  | OpenPjnCaseMessage
+  | ConsumePjnOpenTargetMessage;
 
 export interface SetupPinMessage {
   type: 'SETUP_PIN';
@@ -85,6 +86,8 @@ export interface OpenSidePanelMessage {
 
 export interface GenerateZipMessage {
   type: 'GENERATE_ZIP';
+  /** 'zip' (un PDF por paso) o 'pdf' (todo unido en un solo PDF). */
+  format?: 'zip' | 'pdf';
   caseData: {
     caseNumber: string;
     title: string;
@@ -121,12 +124,6 @@ export interface BulkImportMessage {
   cases: Array<Partial<Case> & { caseNumber: string; title: string }>;
   source: string;
   monitor?: boolean;
-}
-
-export interface ParseCaseHtmlMessage {
-  type: 'PARSE_CASE_HTML';
-  html: string;
-  portal: PortalId;
 }
 
 export interface SearchResultsMessage {
@@ -249,6 +246,8 @@ export interface PjnDownloadPdfMessage {
 
 export interface PjnGenerateZipMessage {
   type: 'PJN_GENERATE_ZIP';
+  /** 'zip' (un PDF por actuación) o 'pdf' (todo unido en un solo PDF). */
+  format?: 'zip' | 'pdf';
   /** Actuaciones seleccionadas (selección efectiva del modal). */
   actuaciones: Array<{
     fecha: string;
@@ -271,6 +270,21 @@ export interface PjnGenerateZipMessage {
   } | null;
   /** URL de la pestaña scw desde la que se disparó la descarga. */
   portalUrl: string;
+}
+
+/** Open a PJN case from the side panel. Because SCW deep links (cid) expire,
+ * the background stores the target expediente and opens the listing; the PJN
+ * content script then finds the row and clicks its fresh detail link. */
+export interface OpenPjnCaseMessage {
+  type: 'OPEN_PJN_CASE';
+  caseNumber: string;
+  /** Which SCW list to search in. Defaults to 'relacionados'. */
+  list?: 'relacionados' | 'favoritos';
+}
+
+/** Content-script request to read & clear the pending PJN open target. */
+export interface ConsumePjnOpenTargetMessage {
+  type: 'CONSUME_PJN_OPEN_TARGET';
 }
 
 /** Response types for type safety */

@@ -22,6 +22,7 @@
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import { downloadPjnPdf } from '@/modules/portals/pjn-downloader';
+import { mergePdfParts, type MergedPdfPart } from './merged-pdf-generator';
 import type {
   PjnActuacion,
   PjnDatosGenerales,
@@ -34,6 +35,8 @@ export interface PjnZipInput {
   portalUrl: string;
   /** tabId de scw para heredar cookies en los fetch de viewer.seam. */
   scwTabId: number;
+  /** 'zip' (un PDF por actuación) o 'pdf' (todo unido en un solo PDF). */
+  format?: 'zip' | 'pdf';
 }
 
 export interface PjnZipFailedItem {
@@ -72,6 +75,7 @@ export async function generatePjnCaseZip(
   onProgress?: PjnZipProgress
 ): Promise<PjnZipResult> {
   const { datosGenerales, actuaciones, portalUrl, scwTabId } = input;
+  const format = input.format ?? 'zip';
 
   if (actuaciones.length === 0) {
     return { success: false, error: 'No hay actuaciones seleccionadas.' };
@@ -96,6 +100,7 @@ export async function generatePjnCaseZip(
 
   // ── 1. Resumen PDF ───────────────────────────────────────
   onProgress?.('Generando resumen…', 0, ordered.length + 1);
+  let resumenBytes: Uint8Array | null = null;
   try {
     const resumenBlob = generateResumenPdf({
       datosGenerales,
@@ -103,6 +108,9 @@ export async function generatePjnCaseZip(
       portalUrl,
     });
     folder.file('resumen.pdf', resumenBlob);
+    if (format === 'pdf') {
+      resumenBytes = new Uint8Array(await resumenBlob.arrayBuffer());
+    }
   } catch (err) {
     return {
       success: false,
@@ -111,6 +119,7 @@ export async function generatePjnCaseZip(
   }
 
   // ── 2. Descargar cada PDF (en serie, con delay entre request) ─
+  const mergeParts: MergedPdfPart[] = [];
   const failedItems: PjnZipFailedItem[] = [];
   let docsDescargados = 0;
   let docsFallidos = 0;
@@ -147,6 +156,13 @@ export async function generatePjnCaseZip(
       const result = await downloadPjnPdf(scwTabId, doc.href, suggested);
       if (result.success) {
         folder.file(suggested, result.base64, { base64: true });
+        if (format === 'pdf') {
+          mergeParts.push({
+            label: suggested.replace(/\.pdf$/i, ''),
+            base64: result.base64,
+            mimeType: result.mimeType || 'application/pdf',
+          });
+        }
         docsDescargados++;
       } else {
         docsFallidos++;
@@ -195,6 +211,56 @@ export async function generatePjnCaseZip(
       lines.push('');
     }
     folder.file('_verificacion.txt', lines.join('\n'));
+
+    // En modo PDF único los .txt nunca llegan al usuario — agregar el mismo
+    // informe como página final para que los fallos queden a la vista.
+    if (format === 'pdf') {
+      try {
+        const verBlob = generateTextReportPdf(
+          `Verificación de descarga — ${claveExpediente}`,
+          lines
+        );
+        mergeParts.push({
+          label: '_verificacion',
+          base64: await blobToBase64(verBlob),
+          mimeType: 'application/pdf',
+        });
+      } catch (err) {
+        console.warn('[ProcuAsist PJN] No se pudo agregar la página de verificación:', err);
+      }
+    }
+  }
+
+  const stats = {
+    totalActuaciones: ordered.length,
+    actuacionesConDoc,
+    docsDescargados,
+    docsFallidos,
+    allSuccessful,
+    failedItems,
+  };
+
+  // ── 4a. PDF único (todo unido) ───────────────────────────
+  if (format === 'pdf') {
+    onProgress?.('Armando PDF único…', ordered.length, ordered.length + 1);
+    if (!resumenBytes) {
+      return { success: false, error: 'No se pudo generar el resumen para el PDF.' };
+    }
+    try {
+      const { blob } = await mergePdfParts(resumenBytes, mergeParts);
+      onProgress?.('Listo', ordered.length + 1, ordered.length + 1);
+      return {
+        success: true,
+        blob,
+        filename: `${safeKey}_expte_completo.pdf`,
+        stats,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: `Error armando PDF único: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
   }
 
   // ── 4. Generar ZIP ────────────────────────────────────────
@@ -219,14 +285,7 @@ export async function generatePjnCaseZip(
     success: true,
     blob,
     filename: `${safeKey}_expte_completo.zip`,
-    stats: {
-      totalActuaciones: ordered.length,
-      actuacionesConDoc,
-      docsDescargados,
-      docsFallidos,
-      allSuccessful,
-      failedItems,
-    },
+    stats,
   };
 }
 
@@ -498,4 +557,48 @@ function sanitize(text: string): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Convierte un Blob a base64 (sin prefijo data:), en bloques de 32 KB. */
+async function blobToBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const CHUNK = 0x8000;
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    parts.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
+  }
+  return btoa(parts.join(''));
+}
+
+/** Renderiza un informe de texto plano (la verificación) como PDF simple. */
+function generateTextReportPdf(title: string, lines: string[]): Blob {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const ML = 15;
+  const CW = 210 - ML * 2;
+  const PH = 297;
+  const MB = 15;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(220, 38, 38);
+  doc.text(sanitize(title), ML, 18);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(30, 30, 30);
+
+  let y = 28;
+  for (const rawLine of lines) {
+    const wrapped = doc.splitTextToSize(sanitize(rawLine) || ' ', CW) as string[];
+    for (const line of wrapped) {
+      if (y + 4 > PH - MB) {
+        doc.addPage();
+        y = 18;
+      }
+      doc.text(line, ML, y);
+      y += 4;
+    }
+  }
+
+  return doc.output('blob');
 }

@@ -50,8 +50,8 @@ export function mountPjnZipButton(): void {
   const btn = createPortalActionButton({
     id: BUTTON_ID,
     icon: ICON_PACKAGE,
-    label: 'ZIP',
-    title: 'Descargar actuaciones del expediente como ZIP',
+    label: 'Descargar',
+    title: 'Descargar actuaciones del expediente (ZIP o un PDF único)',
     variant: 'primary',
   });
 
@@ -149,8 +149,8 @@ function openZipModal(btn: HTMLButtonElement): void {
     justifyContent: 'space-between',
   } satisfies Partial<CSSStyleDeclaration>);
   const title = document.createElement('div');
-  title.innerHTML = `<strong style="font-size:15px">Descargar ZIP — PJN</strong>
-    <div style="font-size:12px; opacity:0.85; margin-top:2px">Elegí las actuaciones a incluir</div>`;
+  title.innerHTML = `<strong style="font-size:15px">Descargar expediente — PJN</strong>
+    <div style="font-size:12px; opacity:0.85; margin-top:2px">Elegí las actuaciones y luego ZIP o un PDF único</div>`;
   const closeBtn = document.createElement('button');
   closeBtn.innerHTML = ICON_X;
   Object.assign(closeBtn.style, {
@@ -294,7 +294,7 @@ async function runCollectorAndRender(
       marginBottom: '12px',
     } satisfies Partial<CSSStyleDeclaration>);
     banner.innerHTML = `<strong>Este expediente tiene actuaciones históricas adicionales.</strong><br>
-      Para incluirlas, cerrá este diálogo, clickeá "Ver históricas" abajo a la derecha de la página, y volvé a abrir "Descargar ZIP" desde ahí.`;
+      Para incluirlas, cerrá este diálogo, clickeá "Ver históricas" abajo a la derecha de la página, y volvé a abrir "Descargar" desde ahí.`;
     body.insertBefore(banner, body.firstChild);
   }
   renderFooter(footerInfo, footerButtons, state, result, originalBtn, close);
@@ -579,12 +579,19 @@ function renderFooter(
   cancelBtn.addEventListener('click', close);
 
   const continueBtn = createPortalModalButton({
-    label: 'Descargar ZIP',
-    title: 'Generar el ZIP con las actuaciones seleccionadas',
+    label: 'ZIP',
+    title: 'Generar un ZIP con un PDF por actuación',
+    variant: 'secondary',
+  });
+
+  const pdfBtn = createPortalModalButton({
+    label: 'Un PDF',
+    title: 'Generar un único PDF con todo el expediente',
     variant: 'primary',
   });
 
-  continueBtn.addEventListener('click', async () => {
+  const runDownload = async (format: 'zip' | 'pdf') => {
+    const fmtLabel = format === 'pdf' ? 'PDF' : 'ZIP';
     const picked = getEffectiveSelection(state).map((i) => state.all[i]);
     if (picked.length === 0) {
       info.innerHTML = `<span style="color:#b91c1c; font-weight:600;">
@@ -600,18 +607,21 @@ function renderFooter(
     }
 
     // UI: disable buttons, show progress
+    const activeBtn = format === 'pdf' ? pdfBtn : continueBtn;
     continueBtn.disabled = true;
-    continueBtn.textContent = 'Generando ZIP…';
-    continueBtn.style.opacity = '0.7';
+    pdfBtn.disabled = true;
     cancelBtn.disabled = true;
+    activeBtn.textContent = `Generando ${fmtLabel}…`;
+    activeBtn.style.opacity = '0.7';
     info.innerHTML = `<span style="color:${FAB_COLOR}; font-weight:600;">
-      Descargando ${withDocs} PDFs y empaquetando… Esto puede tardar.
+      Descargando ${withDocs} PDFs y armando ${fmtLabel}… Esto puede tardar.
     </span>`;
     originalBtn.innerHTML = iconLabel(ICON_PACKAGE, 'Generando…');
 
     try {
       const response = (await chrome.runtime.sendMessage({
         type: 'PJN_GENERATE_ZIP',
+        format,
         actuaciones: picked.map((a) => ({
           fecha: a.fecha,
           tipo: a.tipo,
@@ -639,30 +649,37 @@ function renderFooter(
       if (response?.success) {
         const s = response.stats;
         const msg = s
-          ? `ZIP listo: ${s.docsDescargados} PDFs descargados${s.docsFallidos > 0 ? `, ${s.docsFallidos} fallaron (ver _verificacion.txt)` : ''}.`
-          : 'ZIP generado.';
+          ? `${fmtLabel} listo: ${s.docsDescargados} PDFs descargados${s.docsFallidos > 0 ? `, ${s.docsFallidos} fallaron${format === 'zip' ? ' (ver _verificacion.txt)' : ''}` : ''}.`
+          : `${fmtLabel} generado.`;
         info.innerHTML = `<span style="color:#15803d; font-weight:600;">✓ ${escapeHtml(msg)}</span>`;
-        originalBtn.innerHTML = iconLabel(ICON_PACKAGE, 'ZIP listo');
+        originalBtn.innerHTML = iconLabel(ICON_PACKAGE, `${fmtLabel} listo`);
         setTimeout(() => {
-          originalBtn.innerHTML = iconLabel(ICON_PACKAGE, 'Descargar ZIP');
+          originalBtn.innerHTML = iconLabel(ICON_PACKAGE, 'Descargar');
         }, 6000);
       } else {
         info.innerHTML = `<span style="color:#b91c1c; font-weight:600;">✗ ${escapeHtml(response?.error ?? 'Error desconocido')}</span>`;
-        originalBtn.innerHTML = iconLabel(ICON_PACKAGE, 'Descargar ZIP');
+        originalBtn.innerHTML = iconLabel(ICON_PACKAGE, 'Descargar');
       }
     } catch (err) {
       info.innerHTML = `<span style="color:#b91c1c; font-weight:600;">✗ ${escapeHtml(err instanceof Error ? err.message : String(err))}</span>`;
-      originalBtn.innerHTML = iconLabel(ICON_PACKAGE, 'Descargar ZIP');
+      originalBtn.innerHTML = iconLabel(ICON_PACKAGE, 'Descargar');
     } finally {
       continueBtn.disabled = false;
-      continueBtn.textContent = 'Descargar ZIP';
+      pdfBtn.disabled = false;
+      continueBtn.textContent = 'ZIP';
+      pdfBtn.textContent = 'Un PDF';
       continueBtn.style.opacity = '1';
+      pdfBtn.style.opacity = '1';
       cancelBtn.disabled = false;
     }
-  });
+  };
+
+  continueBtn.addEventListener('click', () => void runDownload('zip'));
+  pdfBtn.addEventListener('click', () => void runDownload('pdf'));
 
   buttons.appendChild(cancelBtn);
   buttons.appendChild(continueBtn);
+  buttons.appendChild(pdfBtn);
 }
 
 function updateFooterCount(

@@ -7,7 +7,7 @@
  * portalpjn.pjn.gov.ar.
  */
 
-import { getToken, clearToken } from './pjn-token-store';
+import { restoreToken, clearToken } from './pjn-token-store';
 
 const API_BASE = 'https://api.pjn.gov.ar';
 
@@ -77,7 +77,9 @@ export async function getEvents(
 }
 
 async function fetchWithAuth<T>(url: string): Promise<PjnApiResult<T>> {
-  const token = getToken();
+  // restoreToken also checks the storage.session mirror, so a token captured
+  // before a service-worker restart can still be used while it's valid.
+  const token = await restoreToken();
   if (!token) {
     return {
       ok: false,

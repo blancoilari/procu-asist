@@ -1,30 +1,113 @@
 /**
- * Manages the CryptoKey lifecycle for the current browser session.
- * The derived key lives only in memory and is lost when the
- * service worker restarts (MV3 behavior).
+ * Manages the CryptoKey lifecycle.
+ *
+ * The derived key lives in memory and is lost when the MV3 service worker
+ * restarts (~30s of inactivity). To keep auto-login working without
+ * re-prompting for the PIN, the key is also persisted to chrome.storage.local
+ * and lazily restored via {@link ensureKey} after a restart.
+ *
+ * Security note: persisting the key next to the encrypted credentials means
+ * anyone with access to the unlocked device/profile could decrypt them. This
+ * is a deliberate convenience-over-security choice. A manual sign-out
+ * ({@link forgetPersistedKey}) removes the persisted key.
  */
 
-import { deriveKey, encrypt, decrypt, generateSalt } from './aes-gcm';
+import {
+  deriveKey,
+  encrypt,
+  decrypt,
+  generateSalt,
+  exportKeyToJwk,
+  importKeyFromJwk,
+} from './aes-gcm';
 
 const STORAGE_KEY_SALT = 'tl_master_salt';
 const STORAGE_KEY_TEST = 'tl_pin_test';
+const STORAGE_KEY_PERSISTED = 'tl_persisted_key';
+const STORAGE_KEY_SETTINGS = 'tl_settings';
 const TEST_PLAINTEXT = 'procu-asist-pin-ok';
 
 let currentKey: CryptoKey | null = null;
 
-/** Check if the vault is currently unlocked */
-export function isUnlocked(): boolean {
-  return currentKey !== null;
+/**
+ * Read the `persistUnlock` setting directly (avoids a circular import on the
+ * settings-store module). Defaults to `false` so the safe behavior wins when
+ * the setting is absent.
+ */
+async function isPersistUnlockEnabled(): Promise<boolean> {
+  const stored = await chrome.storage.local.get(STORAGE_KEY_SETTINGS);
+  const settings = stored[STORAGE_KEY_SETTINGS] as
+    | Record<string, unknown>
+    | undefined;
+  return settings?.persistUnlock === true;
 }
 
-/** Get the current in-memory CryptoKey (null if locked) */
-export function getKey(): CryptoKey | null {
-  return currentKey;
+/**
+ * Resolve the vault key, restoring it from persistent storage if the service
+ * worker was restarted and the user opted into persistent unlock. Returns
+ * null if the vault was never unlocked or the persistence setting is off.
+ */
+export async function ensureKey(): Promise<CryptoKey | null> {
+  if (currentKey) return currentKey;
+  if (!(await isPersistUnlockEnabled())) return null;
+
+  const stored = await chrome.storage.local.get(STORAGE_KEY_PERSISTED);
+  const jwk = stored[STORAGE_KEY_PERSISTED] as JsonWebKey | undefined;
+  if (!jwk) return null;
+
+  try {
+    currentKey = await importKeyFromJwk(jwk);
+    return currentKey;
+  } catch (err) {
+    console.warn('[ProcuAsist] Could not restore persisted vault key:', err);
+    return null;
+  }
 }
 
-/** Clear the key from memory (lock) */
-export function lock(): void {
+/**
+ * Persist the key so it survives service-worker restarts — but only if the
+ * user opted in via the `persistUnlock` setting. When the setting is off,
+ * any pre-existing blob is removed so we don't leak the key on disk.
+ */
+async function persistKey(key: CryptoKey): Promise<void> {
+  if (!(await isPersistUnlockEnabled())) {
+    await chrome.storage.local.remove(STORAGE_KEY_PERSISTED);
+    return;
+  }
+  try {
+    const jwk = await exportKeyToJwk(key);
+    await chrome.storage.local.set({ [STORAGE_KEY_PERSISTED]: jwk });
+  } catch (err) {
+    console.warn('[ProcuAsist] Could not persist vault key:', err);
+  }
+}
+
+/**
+ * Reconcile the persisted-key blob with the current `persistUnlock` setting.
+ * Called after the user toggles the setting in the side panel.
+ *  - Setting ON  + key in memory → write the blob.
+ *  - Setting OFF                  → remove any existing blob (the in-memory
+ *                                   key is preserved for this session).
+ */
+export async function syncPersistedKeyWithSetting(): Promise<void> {
+  const enabled = await isPersistUnlockEnabled();
+  if (enabled) {
+    if (!currentKey) return;
+    try {
+      const jwk = await exportKeyToJwk(currentKey);
+      await chrome.storage.local.set({ [STORAGE_KEY_PERSISTED]: jwk });
+    } catch (err) {
+      console.warn('[ProcuAsist] Could not persist vault key:', err);
+    }
+  } else {
+    await chrome.storage.local.remove(STORAGE_KEY_PERSISTED);
+  }
+}
+
+/** Full sign-out: clear memory and remove the persisted key. */
+export async function forgetPersistedKey(): Promise<void> {
   currentKey = null;
+  await chrome.storage.local.remove(STORAGE_KEY_PERSISTED);
 }
 
 /**
@@ -44,6 +127,7 @@ export async function setupPin(pin: string): Promise<boolean> {
   });
 
   currentKey = key;
+  await persistKey(key);
   return true;
 }
 
@@ -70,6 +154,7 @@ export async function unlockWithPin(pin: string): Promise<boolean> {
 
     if (decrypted === TEST_PLAINTEXT) {
       currentKey = key;
+      await persistKey(key);
       return true;
     }
   } catch {
