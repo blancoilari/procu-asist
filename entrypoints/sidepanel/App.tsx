@@ -65,9 +65,19 @@ export default function App() {
       chrome.runtime
         .sendMessage({ type: 'GET_ALERTS' })
         .then((r) => {
-          const resp = r as { success: boolean; unreadCount: number };
-          if (resp?.success) setUnreadCount(resp.unreadCount);
-        });
+          const resp = r as { success: boolean; alerts: MovementAlert[] };
+          if (resp?.success) {
+            // Contar EXPEDIENTES con novedades, no movimientos sueltos.
+            setUnreadCount(
+              new Set(
+                resp.alerts
+                  .filter((a) => !a.isRead)
+                  .map((a) => a.monitorId)
+              ).size
+            );
+          }
+        })
+        .catch(() => {});
     };
     fetchUnread();
 
@@ -1040,11 +1050,39 @@ function MonitorsTab({
   const filteredMonitorIds = new Set(filteredMonitors.map((monitor) => monitor.id));
   const scopedAlerts = alerts.filter((alert) => filteredMonitorIds.has(alert.monitorId));
   const unreadScopedAlerts = scopedAlerts.filter((a) => !a.isRead);
+  // Las novedades se cuentan POR EXPEDIENTE, no por movimiento.
+  const unreadCaseCount = new Set(unreadScopedAlerts.map((a) => a.monitorId)).size;
   const filteredAlerts = alertsFromDate
     ? scopedAlerts
         .filter((a) => isDateOnOrAfter(a.movementDate, alertsFromDate))
         .sort(compareAlertsByMovementDateDesc)
     : scopedAlerts;
+
+  // Una tarjeta por causa: agrupa las alertas por monitor, ordenadas por la
+  // alerta más reciente de cada uno (las causas con no-leídas van primero).
+  const alertGroups: Array<{ monitor: Monitor | undefined; alerts: MovementAlert[] }> = [];
+  {
+    const byMonitor = new Map<string, MovementAlert[]>();
+    for (const alert of filteredAlerts) {
+      const group = byMonitor.get(alert.monitorId);
+      if (group) group.push(alert);
+      else byMonitor.set(alert.monitorId, [alert]);
+    }
+    for (const [monitorId, group] of byMonitor) {
+      alertGroups.push({
+        monitor: filteredMonitors.find((m) => m.id === monitorId),
+        alerts: group,
+      });
+    }
+    const latestOf = (group: MovementAlert[]) =>
+      Math.max(...group.map((a) => new Date(a.createdAt).getTime()));
+    alertGroups.sort((a, b) => {
+      const aUnread = a.alerts.some((x) => !x.isRead) ? 1 : 0;
+      const bUnread = b.alerts.some((x) => !x.isRead) ? 1 : 0;
+      if (aUnread !== bUnread) return bUnread - aUnread;
+      return latestOf(b.alerts) - latestOf(a.alerts);
+    });
+  }
 
   if (loading) {
     return (
@@ -1077,9 +1115,9 @@ function MonitorsTab({
           }`}
         >
           Alertas
-          {unreadScopedAlerts.length > 0 && (
+          {unreadCaseCount > 0 && (
             <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-              {unreadScopedAlerts.length}
+              {unreadCaseCount}
             </span>
           )}
         </button>
@@ -1211,11 +1249,12 @@ function MonitorsTab({
             </div>
           ) : (
             <ul className="divide-y divide-border">
-              {filteredAlerts.map((alert) => (
-                <AlertCard
-                  key={alert.id}
-                  alert={alert}
-                  monitors={filteredMonitors}
+              {alertGroups.map((group) => (
+                <CaseAlertCard
+                  key={group.monitor?.id ?? group.alerts[0].monitorId}
+                  monitor={group.monitor}
+                  alerts={group.alerts}
+                  onChanged={loadData}
                 />
               ))}
             </ul>
@@ -1279,8 +1318,8 @@ function MonitorCard({
             </span>
           )}
           {unread > 0 && (
-            <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-              {unread}
+            <span className="ml-auto flex items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
+              NOVEDAD
             </span>
           )}
         </div>
@@ -1371,45 +1410,66 @@ function MonitorCard({
 // Alert Card
 // ──────────────────────────────────────────────────────────
 
-function AlertCard({
-  alert,
-  monitors,
+/**
+ * Una tarjeta por EXPEDIENTE: muestra el último movimiento y un indicador de
+ * novedad, sin repetir la causa por cada movimiento. Click → abre la causa en
+ * el portal y marca todas sus alertas como leídas.
+ */
+function CaseAlertCard({
+  monitor,
+  alerts,
+  onChanged,
 }: {
-  alert: MovementAlert;
-  monitors: Monitor[];
+  monitor: Monitor | undefined;
+  alerts: MovementAlert[];
+  onChanged: () => void;
 }) {
-  const monitor = monitors.find((m) => m.id === alert.monitorId);
+  const unreadCount = alerts.filter((a) => !a.isRead).length;
+  const hasUnread = unreadCount > 0;
+  // La alerta con el movimiento más reciente representa a la causa.
+  const latest = alerts.reduce((best, a) =>
+    new Date(a.createdAt).getTime() > new Date(best.createdAt).getTime()
+      ? a
+      : best
+  );
 
-  const handleMarkRead = async () => {
+  const markCaseRead = async () => {
     await chrome.runtime.sendMessage({
-      type: 'MARK_ALERT_READ',
-      alertId: alert.id,
+      type: 'MARK_MONITOR_ALERTS_READ',
+      monitorId: latest.monitorId,
     });
+    onChanged();
   };
 
   const handleOpenCase = () => {
     if (monitor) {
       openPortalCase(monitor.portal, monitor.caseNumber, monitor.portalUrl);
     }
+    if (hasUnread) void markCaseRead();
   };
 
   return (
     <li
       className={`px-4 py-3 transition-colors ${
-        alert.isRead ? 'opacity-60' : 'bg-amber-50/50 dark:bg-amber-900/10'
+        hasUnread ? 'bg-amber-50/50 dark:bg-amber-900/10' : 'opacity-60'
       }`}
     >
       <button onClick={handleOpenCase} className="w-full text-left">
-        {/* Header: portal + case number + time */}
+        {/* Header: portal + case number + novelty badge */}
         <div className="mb-1 flex items-center justify-between gap-2">
           <span className="flex min-w-0 items-center gap-1.5">
             {monitor && <PortalBadge portal={monitor.portal} />}
             <span className="truncate text-xs font-semibold">
               {monitor?.caseNumber ?? 'Causa eliminada'}
             </span>
+            {hasUnread && (
+              <span className="shrink-0 rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                NOVEDAD
+              </span>
+            )}
           </span>
-          <span className="text-[10px] text-text-secondary">
-            {getRelativeTime(alert.createdAt)}
+          <span className="shrink-0 text-[10px] text-text-secondary">
+            {getRelativeTime(latest.createdAt)}
           </span>
         </div>
 
@@ -1418,31 +1478,31 @@ function AlertCard({
             {monitor.title}
           </p>
         )}
-        {monitor?.court && (
-          <p className="mb-1.5 truncate text-[10px] uppercase text-text-secondary">
-            {monitor.court}
-          </p>
-        )}
 
-        {/* Movement info */}
+        {/* Último movimiento (uno solo, aunque haya varios sin leer) */}
         <div className="mb-1 flex items-center gap-1.5">
           <span className="inline-flex items-center gap-1 text-xs">
-            <FileText size={12} /> {alert.movementDate}
+            <FileText size={12} /> Último: {latest.movementDate}
           </span>
-          {alert.movementType && (
+          {latest.movementType && (
             <span className="rounded bg-blue-100 px-1 py-0.5 text-[10px] text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-              {alert.movementType}
+              {latest.movementType}
             </span>
           )}
         </div>
         <p className="text-xs leading-snug text-text-secondary line-clamp-2">
-          {alert.movementDescription}
+          {latest.movementDescription}
         </p>
+        {alerts.length > 1 && (
+          <p className="mt-0.5 text-[10px] text-text-secondary/70">
+            {alerts.length} movimientos registrados — abrí la causa para ver todo
+          </p>
+        )}
       </button>
 
-      {!alert.isRead && (
+      {hasUnread && (
         <button
-          onClick={handleMarkRead}
+          onClick={() => void markCaseRead()}
           className="mt-1.5 text-[10px] text-primary hover:underline"
         >
           Marcar como leída
@@ -1585,6 +1645,12 @@ function SettingsTab() {
         description="Re-logueo automático cuando expira la sesión"
         checked={settings.autoReconnect}
         onChange={(v) => handleToggle('autoReconnect', v)}
+      />
+      <SettingToggle
+        label="Monitorear al guardar"
+        description="Al guardar un marcador, la causa se suma sola a la Procuración Automática"
+        checked={settings.autoMonitorOnBookmark}
+        onChange={(v) => handleToggle('autoMonitorOnBookmark', v)}
       />
       <SettingToggle
         label="Mantener sesión iniciada (no pedir PIN)"

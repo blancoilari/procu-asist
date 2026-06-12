@@ -30,6 +30,7 @@ export type ProcuAsistMessage =
   | GetAlertsMessage
   | MarkAlertReadMessage
   | MarkAllAlertsReadMessage
+  | MarkMonitorAlertsReadMessage
   | EnrichScbaMisCausasMessage
   | RunScanNowMessage
   | RunScanSinceMessage
@@ -215,6 +216,11 @@ export interface MarkAlertReadMessage {
 
 export interface MarkAllAlertsReadMessage {
   type: 'MARK_ALL_ALERTS_READ';
+}
+
+export interface MarkMonitorAlertsReadMessage {
+  type: 'MARK_MONITOR_ALERTS_READ';
+  monitorId: string;
 }
 
 export interface EnrichScbaMisCausasMessage {

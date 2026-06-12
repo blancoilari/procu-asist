@@ -50,6 +50,12 @@ interface MevSetImportSession {
   remainingValues: string[];
   startedAt: number;
   totalOrganisms: number;
+  /** Recorrido multi-departamento (opcional, sesiones viejas no lo tienen). */
+  remainingDeptValues?: string[];
+  totalDepts?: number;
+  deptsDone?: number;
+  /** Tras cambiar de departamento hay que re-leer los organismos del set. */
+  pendingOrganismRefresh?: boolean;
 }
 
 export default defineContentScript({
@@ -294,9 +300,11 @@ function handleResultsPage(doc: Document) {
       results,
     });
     injectResultsImportButton(results);
-    void continueSetImportIfActive(results);
-    void continuePageWalkIfActive(results);
   }
+  // Continuar recorridos activos AUNQUE esta página no tenga resultados:
+  // un organismo o página sin causas no debe frenar la sesión de importación.
+  void continueSetImportIfActive(results);
+  void continuePageWalkIfActive(results);
 }
 
 function injectResultsImportButton(results: MevSearchResult[]) {
@@ -371,7 +379,24 @@ async function startSetImportIfPossible(
   if (!select) return false;
 
   const options = getSetOptionValues(select);
-  if (options.length <= 1) return false;
+  const deptSelect = findSetDepartmentSelect(select);
+  const deptOptions = deptSelect ? getSetOptionValues(deptSelect) : [];
+  const multiOrganism = options.length > 1;
+  const multiDept = deptOptions.length > 1;
+  if (!multiOrganism && !multiDept) return false;
+
+  // Si el set abarca varios departamentos judiciales, el usuario elige el
+  // alcance: solo el departamento actual o el set COMPLETO.
+  let includeAllDepts = false;
+  if (multiDept) {
+    const choice = await showSetScopeChoiceModal(deptOptions.length);
+    if (choice === 'cancel') {
+      setPortalActionButtonState(btn, ICON_DOWNLOAD, 'Importar set', 'secondary');
+      btn.disabled = false;
+      return true;
+    }
+    includeAllDepts = choice === 'all';
+  }
 
   const currentValue = select.value;
   const remainingValues = options
@@ -384,13 +409,24 @@ async function startSetImportIfPossible(
     startedAt: Date.now(),
     totalOrganisms: options.length,
   };
+  if (includeAllDepts && deptSelect) {
+    session.remainingDeptValues = deptOptions
+      .map((option) => option.value)
+      .filter((value) => value !== deptSelect.value);
+    session.totalDepts = deptOptions.length;
+    session.deptsDone = 0;
+  }
 
   sessionStorage.setItem(MEV_SET_IMPORT_SESSION_KEY, JSON.stringify(session));
 
-  setPortalActionButtonState(btn, ICON_LOADER, 'Set 1/' + options.length, 'muted');
+  setPortalActionButtonState(btn, ICON_LOADER, 'Importando set', 'muted');
   btn.disabled = true;
 
   if (!goToNextSetOrganism(session)) {
+    // Sin más organismos en este departamento: saltar de departamento si
+    // corresponde; si no, cerrar con lo visible.
+    if (includeAllDepts && goToNextSetDepartment(session)) return true;
+
     sessionStorage.removeItem(MEV_SET_IMPORT_SESSION_KEY);
     const response = await bulkImportMevResults(results);
     setPortalActionButtonState(btn, ICON_CHECK, `Importadas ${response.imported}`, 'success');
@@ -400,15 +436,157 @@ async function startSetImportIfPossible(
   return true;
 }
 
+/**
+ * Selector de "Departamento Judicial" en la página del set (distinto del de
+ * organismos). Heurística por texto del contexto / name / id.
+ */
+function findSetDepartmentSelect(
+  exclude: HTMLSelectElement | null
+): HTMLSelectElement | null {
+  const selects = Array.from(document.querySelectorAll('select')) as HTMLSelectElement[];
+  for (const select of selects) {
+    if (select === exclude) continue;
+    const context = [
+      select.parentElement?.textContent ?? '',
+      select.getAttribute('name') ?? '',
+      select.id,
+    ].join(' ');
+    if (/departamento/i.test(context)) return select;
+  }
+  return null;
+}
+
+/**
+ * Pasa al siguiente departamento judicial del set: cambia el select, deja
+ * que el onchange del portal recargue (o consulta a mano a los 800 ms) y
+ * marca la sesión para re-leer los organismos en la próxima carga.
+ */
+function goToNextSetDepartment(session: MevSetImportSession): boolean {
+  const deptSelect = findSetDepartmentSelect(findSetOrganismSelect());
+  const nextDept = session.remainingDeptValues?.shift();
+  if (!deptSelect || !nextDept) return false;
+
+  deptSelect.value = nextDept;
+  if (deptSelect.value !== nextDept) return false; // opción inexistente
+
+  session.deptsDone = (session.deptsDone ?? 0) + 1;
+  session.pendingOrganismRefresh = true;
+  session.remainingValues = [];
+  sessionStorage.setItem(MEV_SET_IMPORT_SESSION_KEY, JSON.stringify(session));
+
+  deptSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+  // Si el onchange del portal no navegó solo, consultamos manualmente.
+  window.setTimeout(() => {
+    findConsultarControl()?.click();
+  }, 800);
+
+  return true;
+}
+
+/** Modal chico para elegir el alcance de la importación del set. */
+function showSetScopeChoiceModal(
+  deptCount: number
+): Promise<'current' | 'all' | 'cancel'> {
+  return new Promise((resolve) => {
+    document.getElementById('procu-asist-set-scope-modal')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'procu-asist-set-scope-modal';
+    Object.assign(overlay.style, {
+      position: 'fixed', inset: '0', backgroundColor: 'rgba(0,0,0,0.5)',
+      zIndex: '9999999', display: 'flex', alignItems: 'center',
+      justifyContent: 'center',
+    });
+
+    const modal = document.createElement('div');
+    Object.assign(modal.style, {
+      backgroundColor: 'white', borderRadius: '12px', padding: '20px',
+      maxWidth: '420px', width: '92%', display: 'flex',
+      flexDirection: 'column', gap: '12px',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+      fontFamily: 'system-ui, sans-serif',
+    });
+
+    const title = document.createElement('h3');
+    title.textContent = 'Importar set de búsqueda';
+    Object.assign(title.style, { margin: '0', color: '#1f2937', fontSize: '15px' });
+
+    const text = document.createElement('p');
+    text.textContent = `Este set abarca ${deptCount} departamentos judiciales. ¿Querés importar solo el departamento actual o recorrer el set completo? (Recorrer todos puede tardar varios minutos.)`;
+    Object.assign(text.style, { margin: '0', color: '#6b7280', fontSize: '12px', lineHeight: '1.5' });
+
+    const buttons = document.createElement('div');
+    Object.assign(buttons.style, {
+      display: 'flex', flexDirection: 'column', gap: '8px',
+    });
+
+    const finish = (value: 'current' | 'all' | 'cancel') => {
+      overlay.remove();
+      resolve(value);
+    };
+
+    const allBtn = createPortalModalButton({
+      label: `Todos los departamentos (${deptCount})`,
+      variant: 'primary',
+    });
+    allBtn.addEventListener('click', () => finish('all'));
+
+    const currentBtn = createPortalModalButton({
+      label: 'Solo este departamento',
+      variant: 'secondary',
+    });
+    currentBtn.addEventListener('click', () => finish('current'));
+
+    const cancelBtn = createPortalModalButton({
+      label: 'Cancelar',
+      variant: 'secondary',
+    });
+    cancelBtn.addEventListener('click', () => finish('cancel'));
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) finish('cancel');
+    });
+
+    buttons.appendChild(allBtn);
+    buttons.appendChild(currentBtn);
+    buttons.appendChild(cancelBtn);
+    modal.appendChild(title);
+    modal.appendChild(text);
+    modal.appendChild(buttons);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+  });
+}
+
 async function continueSetImportIfActive(results: MevSearchResult[]) {
   const session = readSetImportSession();
   if (!session) return;
 
   session.collected = mergeMevSearchResults(session.collected, results);
 
+  // Recién cambiamos de departamento: re-leer los organismos de ESTE depto.
+  if (session.pendingOrganismRefresh) {
+    session.pendingOrganismRefresh = false;
+    const select = findSetOrganismSelect();
+    if (select) {
+      const options = getSetOptionValues(select);
+      session.totalOrganisms = options.length;
+      session.remainingValues = options
+        .map((option) => option.value)
+        .filter((value) => value !== select.value);
+    } else {
+      session.remainingValues = [];
+    }
+  }
+
+  const deptInfo =
+    session.totalDepts && session.totalDepts > 1
+      ? ` — depto ${(session.deptsDone ?? 0) + 1}/${session.totalDepts}`
+      : '';
   const currentStep = session.totalOrganisms - session.remainingValues.length;
   showSetImportStatus(
-    `Importando set completo (${currentStep}/${session.totalOrganisms})...`
+    `Importando set (organismo ${currentStep}/${session.totalOrganisms}${deptInfo}, ${session.collected.length} causas)...`
   );
 
   if (session.remainingValues.length > 0) {
@@ -418,6 +596,12 @@ async function continueSetImportIfActive(results: MevSearchResult[]) {
       if (latestSession) goToNextSetOrganism(latestSession);
     }, 450);
     return;
+  }
+
+  // Organismos agotados en este departamento: ¿quedan departamentos del set?
+  if (session.remainingDeptValues && session.remainingDeptValues.length > 0) {
+    if (goToNextSetDepartment(session)) return;
+    // Si el salto de departamento falla, cerramos con lo recolectado.
   }
 
   sessionStorage.removeItem(MEV_SET_IMPORT_SESSION_KEY);
@@ -584,13 +768,7 @@ function goToNextSetOrganism(session: MevSetImportSession): boolean {
   select.dispatchEvent(new Event('change', { bubbles: true }));
   sessionStorage.setItem(MEV_SET_IMPORT_SESSION_KEY, JSON.stringify(session));
 
-  const consultar = Array.from(
-    document.querySelectorAll('input, button')
-  ).find((el) => {
-    const input = el as HTMLInputElement | HTMLButtonElement;
-    return /consultar/i.test(input.value || input.textContent || '');
-  }) as HTMLInputElement | HTMLButtonElement | undefined;
-
+  const consultar = findConsultarControl();
   if (consultar) {
     consultar.click();
     return true;
@@ -604,6 +782,17 @@ function goToNextSetOrganism(session: MevSetImportSession): boolean {
   }
 
   return false;
+}
+
+function findConsultarControl(): HTMLElement | null {
+  const candidates = Array.from(document.querySelectorAll('input, button'));
+  for (const el of candidates) {
+    const input = el as HTMLInputElement | HTMLButtonElement;
+    if (/consultar/i.test(input.value || input.textContent || '')) {
+      return el as HTMLElement;
+    }
+  }
+  return null;
 }
 
 function findSetOrganismSelect(): HTMLSelectElement | null {

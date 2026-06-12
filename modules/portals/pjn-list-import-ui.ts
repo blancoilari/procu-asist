@@ -1,9 +1,9 @@
 /**
  * Import button for PJN SCW listing pages.
  *
- * This intentionally imports rows as local ProcuAsist bookmarks only. PJN
- * monitoring still needs its own scanner, so bulk-monitoring is left for the
- * next PJN hardening step.
+ * Imports rows as bookmarks AND adds them to monitoring (the PJN scanner
+ * matches monitors against the API event feed by expediente/carátula, so no
+ * extra metadata is needed).
  */
 
 import { parseScwList, type PjnCaseRow, type PjnListMode } from './pjn-parser';
@@ -42,11 +42,14 @@ export function mountPjnListImportButton(url: URL): void {
     btn.disabled = true;
 
     let allRows: PjnCaseRow[] = [];
+    let pagesVisited = 1;
     try {
       const collected = await collectScwListRows({ maxPages: 25 });
       allRows = collected.rows.filter(isImportableRow);
-    } catch {
+      pagesVisited = collected.pagesVisited;
+    } catch (err) {
       // Fall back to the visible page if pagination failed.
+      console.warn('[ProcuAsist PJN] Recolección multi-página falló:', err);
       allRows = parseScwList(document, new URL(window.location.href)).rows.filter(
         isImportableRow
       );
@@ -59,7 +62,7 @@ export function mountPjnListImportButton(url: URL): void {
     }
 
     // Let the user pick which of ALL collected cases to import.
-    const selected = await showImportSelectionModal(allRows, mode);
+    const selected = await showImportSelectionModal(allRows, mode, pagesVisited);
     if (!selected) {
       resetImportButton(btn, mode, 0);
       return;
@@ -77,7 +80,7 @@ export function mountPjnListImportButton(url: URL): void {
       const response = (await chrome.runtime.sendMessage({
         type: 'BULK_IMPORT',
         source: `pjn-${mode}`,
-        monitor: false,
+        monitor: true,
         cases: selected.map((row) => toImportCase(row, mode)),
       })) as {
         status?: string;
@@ -121,7 +124,8 @@ const IMPORT_MODAL_ID = 'procu-asist-pjn-import-modal';
  */
 function showImportSelectionModal(
   rows: PjnCaseRow[],
-  mode: PjnListMode
+  mode: PjnListMode,
+  pagesVisited: number
 ): Promise<PjnCaseRow[] | null> {
   return new Promise((resolve) => {
     document.getElementById(IMPORT_MODAL_ID)?.remove();
@@ -147,7 +151,7 @@ function showImportSelectionModal(
     Object.assign(title.style, { margin: '0 0 4px 0', color: '#1f2937', fontSize: '16px' });
 
     const subtitle = document.createElement('p');
-    subtitle.textContent = 'Se recolectaron todas las páginas del listado. Elegí cuáles importar.';
+    subtitle.textContent = `Se recolectaron ${pagesVisited} página(s) del listado. Las causas importadas también se agregan al monitoreo. Elegí cuáles importar.`;
     Object.assign(subtitle.style, { margin: '0 0 12px 0', color: '#6b7280', fontSize: '12px' });
 
     const topBar = document.createElement('div');
