@@ -18,6 +18,9 @@ import {
   Coffee,
   Mail,
   Bug,
+  CalendarClock,
+  Download,
+  Upload,
 } from 'lucide-react';
 import type {
   Bookmark,
@@ -34,9 +37,11 @@ import { isPjnNoteDay } from '@/modules/portals/pjn-note-days';
 import { DONATE_URL } from '@/modules/tier/limits';
 import { useDarkMode } from '@/modules/ui/use-dark-mode';
 import Onboarding, { isOnboardingDone } from '@/modules/ui/Onboarding';
+import PlazosTab from '@/modules/ui/PlazosTab';
+import { exportBackup, importBackup } from '@/modules/storage/backup';
 import { isDateOnOrAfter, parseDateOnly } from '@/modules/utils/date';
 
-type Tab = 'bookmarks' | 'monitors' | 'settings';
+type Tab = 'bookmarks' | 'monitors' | 'plazos' | 'settings';
 type PortalFilter = 'all' | PortalId;
 
 export default function App() {
@@ -115,41 +120,46 @@ export default function App() {
 
       {/* Tab Navigation */}
       <nav className="flex border-b border-border">
-        {(['bookmarks', 'monitors', 'settings'] as Tab[]).map((tab) => (
+        {(['bookmarks', 'monitors', 'plazos', 'settings'] as Tab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`relative flex-1 py-2 text-center text-sm font-medium transition-colors ${
+            className={`relative flex-1 py-2 text-center text-xs font-medium transition-colors ${
               activeTab === tab
                 ? 'border-b-2 border-primary text-primary'
                 : 'text-text-secondary hover:text-text'
             }`}
           >
             {tab === 'bookmarks' && (
-              <span className="inline-flex items-center gap-1.5">
-                <Star size={14} /> Marcadores
+              <span className="inline-flex items-center gap-1">
+                <Star size={13} /> Marcadores
               </span>
             )}
             {tab === 'monitors' && (
-              <span className="inline-flex items-center gap-1.5">
-                <Eye size={14} /> Monitoreo
+              <span className="inline-flex items-center gap-1">
+                <Eye size={13} /> Monitoreo
                 {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                  <span className="absolute -top-0.5 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
               </span>
             )}
+            {tab === 'plazos' && (
+              <span className="inline-flex items-center gap-1">
+                <CalendarClock size={13} /> Plazos
+              </span>
+            )}
             {tab === 'settings' && (
-              <span className="inline-flex items-center gap-1.5">
-                <SettingsIcon size={14} /> Ajustes
+              <span className="inline-flex items-center gap-1">
+                <SettingsIcon size={13} /> Ajustes
               </span>
             )}
           </button>
         ))}
       </nav>
 
-      {activeTab !== 'settings' && (
+      {(activeTab === 'bookmarks' || activeTab === 'monitors') && (
         <PortalFilterBar value={portalFilter} onChange={setPortalFilter} />
       )}
 
@@ -161,6 +171,7 @@ export default function App() {
         {activeTab === 'monitors' && (
           <MonitorsTab search={search} portalFilter={portalFilter} />
         )}
+        {activeTab === 'plazos' && <PlazosTab />}
         {activeTab === 'settings' && <SettingsTab />}
       </main>
     </div>
@@ -1584,6 +1595,14 @@ function SettingsTab() {
 
       <hr className="my-2 border-border" />
 
+      {/* Backup / restore */}
+      <h3 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-text-secondary">
+        Datos
+      </h3>
+      <DataBackupSection />
+
+      <hr className="my-2 border-border" />
+
       <button
         onClick={() => chrome.runtime.openOptionsPage()}
         className="rounded-lg bg-bg-secondary px-4 py-2.5 text-sm text-text-secondary hover:bg-border transition-colors"
@@ -1642,6 +1661,96 @@ function SettingsTab() {
       <p className="mt-1 text-center text-[10px] text-text-secondary/50">
         ProcuAsist v{chrome.runtime.getManifest().version}
       </p>
+    </div>
+  );
+}
+
+function DataBackupSection() {
+  const [message, setMessage] = useState('');
+  const [isError, setIsError] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = async () => {
+    try {
+      const payload = await exportBackup();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `procuasist-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      setIsError(false);
+      setMessage(
+        `Backup descargado: ${payload.bookmarks.length} marcadores, ${payload.monitors.length} monitores, ${payload.deadlines.length} plazos.`
+      );
+    } catch (err) {
+      console.error('[ProcuAsist] Backup export error:', err);
+      setIsError(true);
+      setMessage('No se pudo exportar el backup.');
+    }
+  };
+
+  const handleImportFile = async (file: File) => {
+    try {
+      const text = await file.text();
+      const summary = await importBackup(JSON.parse(text));
+      setIsError(false);
+      setMessage(
+        `Importados: ${summary.bookmarks} marcadores, ${summary.monitors} monitores, ${summary.alerts} alertas, ${summary.deadlines} plazos.`
+      );
+    } catch (err) {
+      console.error('[ProcuAsist] Backup import error:', err);
+      setIsError(true);
+      setMessage(
+        err instanceof Error ? err.message : 'No se pudo importar el archivo.'
+      );
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="px-1 text-[10px] leading-relaxed text-text-secondary">
+        Exportá tus marcadores, monitores, alertas y plazos a un archivo JSON
+        para resguardarlos o pasarlos a otra computadora. Las credenciales y
+        el PIN nunca se incluyen. Importar agrega sin borrar lo existente.
+      </p>
+
+      {message && (
+        <p
+          className={`px-1 text-xs ${isError ? 'text-danger' : 'text-success'}`}
+        >
+          {message}
+        </p>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => void handleExport()}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-bg-secondary px-3 py-2 text-xs text-text-secondary hover:bg-border transition-colors"
+        >
+          <Download size={13} /> Exportar datos
+        </button>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-bg-secondary px-3 py-2 text-xs text-text-secondary hover:bg-border transition-colors"
+        >
+          <Upload size={13} /> Importar datos
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void handleImportFile(file);
+            e.target.value = '';
+          }}
+        />
+      </div>
     </div>
   );
 }

@@ -305,7 +305,6 @@ async function persistScanMovements(
       skippedReason: 'empty_parse',
     };
   }
-  const newMovementCount = Math.max(0, currentCount - previousCount);
   let matchedMovements: ScanMovement[] = [];
 
   if (fromDate) {
@@ -332,11 +331,30 @@ async function persistScanMovements(
     }
   }
 
-  // Detect new movements
-  if (!fromDate && newMovementCount > 0 && previousCount > 0) {
-    // Get the new movements (they appear at the top/beginning of the list in MEV)
-    const newMovements = movements.slice(0, newMovementCount);
+  // Detect new movements — primarily BY DATE (movements dated after the
+  // last known movement), which survives pagination windows and partial
+  // parses far better than comparing totals. The count diff remains as a
+  // fallback for movements added later on the same day.
+  const lastKnownTs = parseDateTimeValue(monitor.lastKnownMovementDate ?? '');
+  const baselineEstablished = previousCount > 0 || lastKnownTs > 0;
 
+  let newMovements: typeof movements = [];
+  if (baselineEstablished) {
+    if (lastKnownTs > 0) {
+      newMovements = movements.filter(
+        (mov) => parseDateTimeValue(mov.date) > lastKnownTs
+      );
+    }
+    if (newMovements.length === 0 && currentCount > previousCount) {
+      // Same-day additions: lists are newest-first, take the difference.
+      newMovements = movements.slice(0, currentCount - previousCount);
+    }
+  }
+  const detectedNewCount = newMovements.length;
+
+  if (!fromDate && detectedNewCount > 0) {
+    // createAlert dedups by monitor + date + description, so re-detections
+    // (e.g. via the count fallback) never produce duplicate alerts.
     for (const mov of newMovements) {
       await createAlert(
         monitor.id,
@@ -347,15 +365,24 @@ async function persistScanMovements(
     }
 
     // Send Chrome notification
-    await sendMovementNotification(monitor, newMovementCount, newMovements[0]);
+    await sendMovementNotification(monitor, detectedNewCount, newMovements[0]);
   }
 
-  // Update monitor scan data
-  const latestDate = movements[0]?.date ?? monitor.lastKnownMovementDate ?? '';
+  // Update monitor scan data — track the LATEST date seen (by value, not by
+  // position) so an out-of-order list can't regress the baseline.
+  let latestDate = monitor.lastKnownMovementDate ?? '';
+  let latestTs = parseDateTimeValue(latestDate);
+  for (const mov of movements) {
+    const ts = parseDateTimeValue(mov.date);
+    if (ts > latestTs) {
+      latestTs = ts;
+      latestDate = mov.date;
+    }
+  }
   await updateMonitorScan(monitor.id, latestDate, currentCount);
 
   return {
-    newMovements: fromDate ? matchedMovements.length : newMovementCount,
+    newMovements: fromDate ? matchedMovements.length : detectedNewCount,
     matchedMovements,
     totalMovements: currentCount,
   };

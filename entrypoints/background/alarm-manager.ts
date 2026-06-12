@@ -6,12 +6,14 @@
 
 import { keepAlive } from './keep-alive';
 import { scanMonitoredCases } from './case-monitor';
+import { checkDeadlines } from './deadline-watcher';
 
 export const ALARMS = {
   KEEPALIVE_MEV: 'tl-keepalive-mev',
   KEEPALIVE_EJE: 'tl-keepalive-eje',
   KEEPALIVE_PJN: 'tl-keepalive-pjn',
   MONITOR_SCAN: 'tl-monitor-scan',
+  DEADLINE_CHECK: 'tl-deadline-check',
 } as const;
 
 export function setupAlarms() {
@@ -43,6 +45,15 @@ async function createAlarms() {
     });
   }
 
+  // Chequeo de plazos/vencimientos cada 6 horas (mismo guard que arriba).
+  const deadlineAlarm = await chrome.alarms.get(ALARMS.DEADLINE_CHECK);
+  if (!deadlineAlarm) {
+    chrome.alarms.create(ALARMS.DEADLINE_CHECK, {
+      delayInMinutes: 3,
+      periodInMinutes: 360,
+    });
+  }
+
   console.debug('[ProcuAsist] Alarms registered');
 }
 
@@ -60,6 +71,9 @@ async function handleAlarm(alarm: chrome.alarms.Alarm) {
         break;
       case ALARMS.MONITOR_SCAN:
         await scanMonitoredCases();
+        break;
+      case ALARMS.DEADLINE_CHECK:
+        await checkDeadlines();
         break;
     }
   } catch (err) {
