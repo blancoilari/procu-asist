@@ -4,7 +4,10 @@ ProcuAsist es una herramienta hecha por un abogado de la matricula, para colegas
 
 Este roadmap marca prioridades, no promesas cerradas. El orden puede cambiar segun estabilidad de los portales judiciales, feedback de usuarios y disponibilidad de prueba con casos reales.
 
-## Version actual: v0.6.1
+## Version actual
+
+- Publicada en Chrome Web Store: **v0.6.7** (actualizada el 2026-05-28).
+- En este repositorio: **v0.7.0**, pendiente de publicacion en la Store.
 
 Lo que ya existe:
 
@@ -15,6 +18,13 @@ Lo que ya existe:
 - **JUSCABA / EJE**: auto-login y extraccion basica de causas.
 - **Credenciales locales**: cifrado AES-GCM protegido por PIN.
 - **Modelo local-first**: los datos se guardan en el navegador; no hay backend obligatorio.
+
+Nuevo en la v0.7.0 (en repo, pendiente de publicacion):
+
+- **Causas unificadas**: guardar una causa es monitorearla; una sola pestana "Causas" con alertas agrupadas por expediente.
+- **Plazos**: calculadora de plazos procesales en dias habiles, lista de vencimientos con avisos y export a calendario (.ics).
+- **Backup local**: exportar e importar datos a JSON desde Ajustes (sin credenciales ni PIN).
+- **Importacion completa**: sets MEV multi-departamento y listados PJN multi-pagina.
 
 ## Prioridad inmediata: ProcuAsist gratis estable
 
