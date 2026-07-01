@@ -2,6 +2,46 @@
 
 Todos los cambios notables del proyecto se documentan en este archivo.
 
+## [0.7.0] - 2026-06-12
+
+(en repo, pendiente de publicacion en Chrome Web Store)
+
+Consolida las versiones internas 0.6.7, 0.6.8 y 0.6.9. La 0.6.7 se publico en la Store como snapshot el 2026-05-28; la 0.6.8, la 0.6.9 y la 0.7.0 no se publicaron.
+
+### Causas unificadas: marcador = monitoreo (0.7.0)
+
+- Una sola pestana "Causas" reemplaza a Marcadores y Monitoreo, con sub-vistas Causas (lista unificada) y Alertas (agrupadas por causa).
+- Tarjeta de causa unificada: badge NOVEDAD, estado de avisos (activos, pausados o "sin escaneo" para causas MEV sin IDs internos), ultimo movimiento y un solo menu (abrir, copiar caratula, pausar/reanudar avisos, eliminar causa).
+- Guardar una causa siempre la monitorea; se quito el toggle "Monitorear al guardar" agregado en 0.6.9, que nunca llego a publicarse. La pausa por causa sigue disponible.
+- Eliminar una causa borra marcador, monitor y alertas en cascada.
+- Conciliacion al iniciar: los marcadores existentes ganan su monitor y los monitores huerfanos su marcador, para que los datos previos converjan solos al modelo unificado.
+- Onboarding actualizado ("guardar = monitorear").
+
+### Importacion completa y alertas por causa (0.6.9)
+
+- Importacion de sets MEV que abarcan varios departamentos judiciales: dialogo para elegir "solo este departamento" o "todos", con recorrido departamento por departamento y organismo por organismo, sin trabarse en organismos o paginas sin resultados.
+- Guardar un marcador agrega la causa al monitoreo; la importacion masiva tambien monitorea causas PJN, no solo MEV.
+- Alertas agrupadas por expediente: una tarjeta por causa con su ultimo movimiento y badge NOVEDAD; click abre la causa y la marca leida completa. Todos los contadores cuentan expedientes con novedades, no movimientos sueltos.
+- Importacion PJN multi-pagina arreglada: soporte del paginador RichFaces del SCW (botones como celdas con onclick, distincion entre "siguiente" y "ultima pagina", espera de re-render ampliada) y el modal informa cuantas paginas recolecto.
+
+### Plazos, backup y monitoreo por fecha (0.6.8)
+
+- Nueva pestana "Plazos" en el sidepanel: calculadora de plazos procesales en dias habiles judiciales (fines de semana, feriados nacionales 2026-2027 y ferias o dias inhabiles personalizables), plazo de gracia informado, lista de vencimientos con badges de urgencia y alarma de fondo que notifica 3 dias antes, el dia del vencimiento y al vencer.
+- Export a calendario: boton "Exportar a calendario (.ics)" con los plazos pendientes como eventos de dia completo y alarma un dia antes.
+- Backup y restauracion: exportar e importar marcadores, monitores, alertas, plazos y preferencias a JSON desde Ajustes. El material sensible (credenciales y PIN) nunca se incluye; importar es merge.
+- Monitoreo por fecha: los movimientos nuevos se detectan por fecha posterior a la ultima conocida (con fallback por conteo para altas del mismo dia) en vez de comparar totales.
+- Paginacion MEV: "Importar" en resultados recorre todas las paginas (hasta 15) antes del modal de seleccion.
+- Descargas PJN: timeout de 45 segundos por documento y boton "Cancelar descarga" activo durante la generacion.
+
+### Base 0.6.7 y correcciones de auditoria (snapshot publicado en la Store el 2026-05-28)
+
+- Login persistente gateado por toggle, el monitoreo PJN abre el expediente, descarga en PDF unico, "importar todos" y EJE oculto de la UI.
+- La alarma de escaneo ya no se reinicia en cada arranque del navegador; token PJN espejado en storage.session (sobrevive reinicios del service worker); baseline de movimientos protegido contra parseos vacios.
+- Auto-login con limite de reintentos en MEV y en Keycloak/SSO PJN; configurar el PIN no re-clavea el vault si ya hay credenciales guardadas.
+- PDFs: parrafos multi-pagina, box de metadata sin solapamientos y pagina de verificacion de errores en el modo "Un PDF" (MEV y PJN); conversiones base64 por bloques para no congelar el service worker.
+- Boton "Abrir Panel Lateral" del popup funcionando, dark mode en opciones, spinners sin colgarse y ZIP MEV con nombres numerados sin colisiones.
+- Codigo muerto eliminado: scanners PJN legacy, documento offscreen y su permiso, y helpers sin uso.
+
 ## [0.6.3] - 2026-05-08
 
 ### Ajuste validado de notas PJN
