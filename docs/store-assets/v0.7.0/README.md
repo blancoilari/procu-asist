@@ -22,6 +22,7 @@ completamente ficticios, elegidos solo para ilustrar la interfaz.
 | `02-alertas-por-expediente.png` | Sub-vista Alertas, novedades agrupadas por expediente | Alertas de novedades agrupadas por expediente |
 | `03-plazos.png` | Pestaña Plazos, calculadora + lista de vencimientos | Calculá plazos procesales y no pierdas un vencimiento |
 | `04-importar-todo.png` | Asistente Importar todo (overlay) | Traé todas tus causas de MEV y PJN de una vez |
+| `05-descargar-expediente.png` | Diálogo Descargar expediente PJN (ZIP o PDF único) | Descargá el expediente completo en un ZIP o un PDF, con un click |
 
 ## Fidelidad visual
 
@@ -42,6 +43,12 @@ La maqueta sigue la UI real de la extensión:
 - Calculadora y lista de vencimientos de `modules/ui/PlazosTab.tsx`, con los
   badges de urgencia (rojo HOY, ámbar para <= 3 días, gris para el resto) y el
   botón Exportar a calendario (.ics).
+- Diálogo Descargar expediente de `modules/portals/pjn-zip-ui.ts`: header azul,
+  aviso amarillo de actuaciones históricas, barra de categorías con contadores,
+  toolbar de selección (pills con borde), tabla Fecha/Tipo/Descripción/Fs./Doc.
+  con clip en las que tienen documento, y footer con Cancelar / ZIP / Un PDF.
+  El header y los botones usan el azul de marca `#2563eb` (en el código el FAB
+  es `#2a5d9f`; acá se unifica con la paleta del resto de las capturas).
 - Logo de balanza reproducido a partir de `public/icon/logo.svg`.
 
 ## Cómo se regeneran

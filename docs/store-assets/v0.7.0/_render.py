@@ -18,6 +18,7 @@ PAGES = [
     "02-alertas-por-expediente",
     "03-plazos",
     "04-importar-todo",
+    "05-descargar-expediente",
 ]
 
 W, H = 1280, 800
