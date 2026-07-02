@@ -8,6 +8,13 @@ Todos los cambios notables del proyecto se documentan en este archivo.
 
 Consolida las versiones internas 0.6.7, 0.6.8 y 0.6.9. La 0.6.7 se publico en la Store como snapshot el 2026-05-28; la 0.6.8, la 0.6.9 y la 0.7.0 no se publicaron.
 
+### Importar todo, escaneo por sets y restablecer PIN (0.7.0)
+
+- Asistente "Importar todo" en la vista Causas: detecta que portales tienen sesion activa, estima los listados PJN (relacionados y favoritos) por paginador y enumera los sets de busqueda MEV (los sets se cuentan al importar). Checkboxes por fuente, ejecucion con progreso por fuente, boton cancelar que corta limpio y resumen final (importadas, duplicadas salteadas, errores). La recoleccion PJN usa un tope de paginas elevado con pausas de cortesia entre paginas; los sets MEV se recorren con el flujo multi-departamento existente.
+- Umbral anti-ruido configurable en Ajustes (`Umbral de pausa al importar en masa`, default 50): si una corrida del asistente importa mas causas nuevas que el umbral, entran guardadas con avisos pausados y el usuario activa el monitoreo solo de las que le interesan. La consecuencia se muestra en el propio asistente antes de ejecutar.
+- Escaneo rapido MEV por novedades de set (beta, activable en Ajustes, default activo): el escaneo automatico consulta la busqueda "novedades de set por fecha" de la MEV en una sola pasada y solo re-lee las causas que se movieron; las causas que no estan en ningun set siguen con el escaneo causa por causa. Ante cualquier falla cae solo al escaneo completo; ademas hay un barrido completo diario de respaldo y el boton "Escanear ahora" siempre revisa todo.
+- Restablecer PIN: nuevo flujo en Configuracion avanzada > Credenciales con doble confirmacion. Borra el PIN y las credenciales guardadas (sin el PIN viejo son indescifrables: con AES-GCM no hay recuperacion posible) y deja la extension lista para configurar un PIN nuevo. Marcadores, monitores, alertas y plazos no se tocan.
+
 ### Causas unificadas: marcador = monitoreo (0.7.0)
 
 - Una sola pestana "Causas" reemplaza a Marcadores y Monitoreo, con sub-vistas Causas (lista unificada) y Alertas (agrupadas por causa).
