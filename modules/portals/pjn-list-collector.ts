@@ -376,9 +376,14 @@ function collectNumericPagingItems(): NumericPagingItem[] {
   for (const container of document.querySelectorAll<HTMLElement>(
     PAGING_CONTAINER_SELECTOR
   )) {
-    for (const el of container.querySelectorAll<HTMLElement>(
-      'a, button, td, span, div, li'
-    )) {
+    // El contenedor matcheado tambien es candidato: en RichFaces 3 el numero
+    // es el <td class="rich-datascr-*"> MISMO (texto directo, sin hijos), y
+    // querySelectorAll solo mira descendientes.
+    const candidates: HTMLElement[] = [
+      container,
+      ...container.querySelectorAll<HTMLElement>('a, button, td, span, div, li'),
+    ];
+    for (const el of candidates) {
       if (seen.has(el)) continue;
       // Los wrappers con varios hijos concatenan digitos ("1" + "2" = "12"):
       // no son un numero de pagina, se descartan.
