@@ -65,7 +65,7 @@ async function openBulkNotePreview(btn: HTMLButtonElement): Promise<void> {
       getPjnBookmarks(),
     ]);
     const candidates = buildNoteCandidates(collected.rows, bookmarks);
-    renderBulkNoteModal(candidates, collected.pagesVisited);
+    renderBulkNoteModal(candidates, collected.pagesVisited, collected.truncated);
     setPortalActionButtonState(btn, ICON_FILE_PEN, 'Dejar notas', 'primary');
   } catch (err) {
     console.error('[ProcuAsist PJN] bulk note preview error:', err);
@@ -112,7 +112,11 @@ function buildNoteCandidates(
   });
 }
 
-function renderBulkNoteModal(candidates: NoteCandidate[], pagesVisited: number): void {
+function renderBulkNoteModal(
+  candidates: NoteCandidate[],
+  pagesVisited: number,
+  truncated: boolean
+): void {
   document.getElementById(MODAL_ID)?.remove();
 
   const selected = new Set(
@@ -156,7 +160,7 @@ function renderBulkNoteModal(candidates: NoteCandidate[], pagesVisited: number):
     justifyContent: 'space-between',
     gap: '16px',
   } satisfies Partial<CSSStyleDeclaration>);
-  header.innerHTML = `<div><strong style="font-size:15px">Dejar notas PJN</strong><div style="font-size:12px;color:#6b7280;margin-top:3px">Relacionados como letrado guardados en marcadores. Paginas revisadas: ${pagesVisited}.</div></div>`;
+  header.innerHTML = `<div><strong style="font-size:15px">Dejar notas PJN</strong><div style="font-size:12px;color:#6b7280;margin-top:3px">Relacionados como letrado guardados en marcadores. Paginas revisadas: ${pagesVisited}${truncated ? ' (tope alcanzado, puede haber mas)' : ''}.</div></div>`;
 
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';

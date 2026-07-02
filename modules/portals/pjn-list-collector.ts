@@ -4,6 +4,8 @@ export interface PjnCollectedListRows {
   ok: true;
   rows: ReturnType<typeof parseScwList>['rows'];
   pagesVisited: number;
+  /** true si se corto por el tope de paginas y quedaban mas por recorrer. */
+  truncated: boolean;
 }
 
 export async function collectScwListRows(
@@ -13,6 +15,7 @@ export async function collectScwListRows(
   const seen = new Set<string>();
   const rows: ReturnType<typeof parseScwList>['rows'] = [];
   let pagesVisited = 0;
+  let truncated = false;
 
   for (let page = 0; page < maxPages; page++) {
     const parsed = parseScwList(document, new URL(window.location.href));
@@ -32,6 +35,13 @@ export async function collectScwListRows(
     const next = findNextListPageControl();
     if (!next) break;
 
+    // Quedan paginas pero llegamos al tope: avisamos que el resultado esta
+    // incompleto en vez de cortar en silencio (y no clickeamos de mas).
+    if (page === maxPages - 1) {
+      truncated = true;
+      break;
+    }
+
     const before = listSignature();
     next.click();
     // El re-render AJAX del SCW puede ser lento: 6s antes de dar por
@@ -41,13 +51,15 @@ export async function collectScwListRows(
   }
 
   console.debug(
-    `[ProcuAsist PJN] Listado recolectado: ${rows.length} filas en ${pagesVisited} página(s)`
+    `[ProcuAsist PJN] Listado recolectado: ${rows.length} filas en ${pagesVisited} página(s)` +
+      (truncated ? ' (cortado por tope de páginas, puede haber más)' : '')
   );
 
   return {
     ok: true,
     rows,
     pagesVisited,
+    truncated,
   };
 }
 
@@ -249,7 +261,18 @@ function normalizeExpedienteKey(value: string): string {
   return cleaned.replace(/[^A-Z0-9/]/g, '');
 }
 
+/**
+ * Control compartido de "pagina siguiente" para todos los flujos que paginan
+ * el listado SCW (recoleccion, findAndOpenCaseInList y notas masivas).
+ * Primero busca la flecha "siguiente" clasica; si el paginador solo muestra
+ * NUMEROS de pagina (pasa en scw.pjn.gov.ar segun la vista), cae al fallback
+ * por links numerados. Si tampoco hay, devuelve null y la paginacion termina.
+ */
 function findNextListPageControl(): HTMLElement | null {
+  return findNextArrowControl() ?? findNumberedNextPageControl();
+}
+
+function findNextArrowControl(): HTMLElement | null {
   // RichFaces (JSF) renders the datascroller's page buttons as <td>/<div>/
   // <span> with inline onclick — NOT as real links or buttons — so the
   // selector must include those. Class names cover RichFaces 3 (SCW/Seam)
@@ -284,6 +307,155 @@ function findNextListPageControl(): HTMLElement | null {
   }
 
   return null;
+}
+
+/**
+ * Fallback de paginacion por links NUMERADOS.
+ *
+ * Algunas vistas del SCW muestran la paginacion solo con numeros (1 2 3 ...),
+ * sin flecha "siguiente"; sin este fallback la recoleccion cortaba en la
+ * pagina 1 y el usuario veia que "importa de a 15". La estrategia replica la
+ * solucion server-side de Estudio_OS: (a) detectar el numero de pagina ACTIVA
+ * (elemento marcado como activo/current, o el unico numero NO clickeable) y
+ * (b) clickear el control cuyo texto compacto es EXACTAMENTE el numero
+ * siguiente (activa + 1). Cubre Bootstrap (ul.pagination li a) y RichFaces
+ * (td/span/div con onclick, clases rich-datascr-* y rf-ds-*).
+ *
+ * Casos que NO deben matchear, documentados aca porque el repo no tiene
+ * infraestructura de tests DOM (no hay vitest) y no vale la pena inventarla
+ * para un helper solo:
+ * - '»»' / '>>' (saltar a la ULTIMA pagina): quedan afuera porque su texto
+ *   compacto no es un numero pelado (/^\d+$/).
+ * - Numeros dentro de otros textos ("Pagina 2 de 8", "15 resultados"): se
+ *   exige igualdad exacta del texto compacto con el numero buscado.
+ * - Estar parado en la ultima pagina (no existe activa + 1 clickeable):
+ *   devuelve null y la recoleccion termina como corresponde.
+ * - Paginador ausente o con un solo numero: devuelve null.
+ */
+function findNumberedNextPageControl(): HTMLElement | null {
+  const items = collectNumericPagingItems();
+  if (items.length < 2) return null;
+
+  const active = findActivePageNumber(items);
+  if (active === null) return null;
+
+  const wanted = active + 1;
+  for (const item of items) {
+    if (item.value === wanted && item.clickable) return item.el;
+  }
+  return null;
+}
+
+interface NumericPagingItem {
+  el: HTMLElement;
+  value: number;
+  clickable: boolean;
+  active: boolean;
+}
+
+// Contenedores tipicos de paginacion: Bootstrap, RichFaces 3 (rich-datascr-*),
+// RichFaces 4 (rf-ds-*) y variantes genericas de paginadores JSF.
+const PAGING_CONTAINER_SELECTOR = [
+  'ul.pagination',
+  '.pagination',
+  '[class*="datascr"]',
+  '[class*="rf-ds"]',
+  '[class*="paginator"]',
+  '[class*="pager"]',
+].join(', ');
+
+/**
+ * Junta los elementos de paginacion cuyo texto compacto es un numero pelado,
+ * SOLO dentro de contenedores de paginacion (para no confundir numeros de
+ * celdas del listado con numeros de pagina).
+ */
+function collectNumericPagingItems(): NumericPagingItem[] {
+  const items: NumericPagingItem[] = [];
+  const seen = new Set<HTMLElement>();
+
+  for (const container of document.querySelectorAll<HTMLElement>(
+    PAGING_CONTAINER_SELECTOR
+  )) {
+    for (const el of container.querySelectorAll<HTMLElement>(
+      'a, button, td, span, div, li'
+    )) {
+      if (seen.has(el)) continue;
+      // Los wrappers con varios hijos concatenan digitos ("1" + "2" = "12"):
+      // no son un numero de pagina, se descartan.
+      if (el.childElementCount > 1) continue;
+
+      const compact = compactPagingLabel(el);
+      if (!/^\d{1,4}$/.test(compact)) continue;
+
+      // Nos quedamos con el elemento MAS INTERNO que porta el numero, para
+      // no contar dos veces el <li> y su <a>.
+      const inner = el.querySelector<HTMLElement>('a, button, td, span, div');
+      if (inner && compactPagingLabel(inner) === compact) continue;
+
+      if (!isVisibleElement(el) || isDisabledElement(el)) continue;
+
+      seen.add(el);
+      items.push({
+        el,
+        value: Number(compact),
+        clickable: isClickablePagingControl(el),
+        active: isActivePagingControl(el),
+      });
+    }
+  }
+
+  return items;
+}
+
+/**
+ * Numero de la pagina activa, o null si no se puede determinar sin
+ * ambiguedad (mejor no paginar a ciegas que clickear cualquier cosa).
+ */
+function findActivePageNumber(items: NumericPagingItem[]): number | null {
+  // 1. Marcado explicito de "pagina actual" (clase active/current, etc.).
+  const marked = items.filter((item) => item.active);
+  if (marked.length === 1) return marked[0].value;
+  if (marked.length > 1) return null;
+
+  // 2. Heuristica: la pagina activa suele ser el UNICO numero no clickeable
+  //    del paginador (los demas son links).
+  const inert = items.filter((item) => !item.clickable);
+  if (inert.length === 1) return inert[0].value;
+  return null;
+}
+
+function isClickablePagingControl(el: HTMLElement): boolean {
+  if (el.hasAttribute('onclick')) return true;
+  if (el instanceof HTMLButtonElement) return !el.disabled;
+  if (el instanceof HTMLAnchorElement) {
+    // JSF suele renderizar href="#" + onclick; un <a> sin href ni onclick
+    // no es un control, es tipografia.
+    return el.hasAttribute('href');
+  }
+  if (el instanceof HTMLInputElement) {
+    return (el.type === 'button' || el.type === 'submit') && !el.disabled;
+  }
+  return false;
+}
+
+function isActivePagingControl(el: HTMLElement): boolean {
+  const ACTIVE_RE =
+    /\b(active|current|rich-datascr-act|rf-ds-act|rf-ds-cur|ui-state-active)\b/;
+  // Se mira el elemento y su item contenedor inmediato (li o td), NO
+  // ancestros arbitrarios: un panel con clase "active" mas arriba marcaria
+  // como activos a TODOS los numeros.
+  const scopes = [el, el.closest<HTMLElement>('li, td')];
+  for (const scope of scopes) {
+    if (!scope) continue;
+    if (ACTIVE_RE.test(scope.className)) return true;
+    const aria = scope.getAttribute('aria-current');
+    if (aria === 'page' || aria === 'true') return true;
+  }
+  return false;
+}
+
+function compactPagingLabel(el: HTMLElement): string {
+  return normalizeForPaging(el.textContent).replace(/\s+/g, '');
 }
 
 function waitForListSignatureChange(
