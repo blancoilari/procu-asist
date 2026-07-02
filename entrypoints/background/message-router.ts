@@ -435,8 +435,10 @@ async function handleMessage(
 
     // --- Scan ---
     case 'RUN_SCAN_NOW': {
-      // Run scan in background, don't block the message response
-      scanMonitoredCases().catch((err) =>
+      // Run scan in background, don't block the message response.
+      // El escaneo manual es siempre exhaustivo (sin prefiltro por sets):
+      // si el usuario duda del modo rápido, este botón re-lee todo.
+      scanMonitoredCases({ thorough: true }).catch((err) =>
         console.error('[ProcuAsist] Manual scan error:', err)
       );
       return { success: true, status: 'scan_started' };

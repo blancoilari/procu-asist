@@ -22,8 +22,10 @@ import { getEvents, type PjnEvent } from '@/modules/portals/pjn-api-client';
 import {
   getActiveMonitors,
   updateMonitorScan,
+  touchMonitorScans,
   createAlert,
 } from '@/modules/storage/monitor-store';
+import { getSettings } from '@/modules/storage/settings-store';
 import { isDateOnOrAfter } from '@/modules/utils/date';
 
 /** How many cases to scan per batch (to avoid overloading) */
@@ -32,6 +34,18 @@ const BATCH_SIZE = 5;
 const FETCH_DELAY = 2000;
 const PJN_EVENT_PAGES_TO_SCAN = 5;
 const PJN_EVENT_PAGE_SIZE = 100;
+
+// ── Escaneo rápido MEV por novedades de set (beta) ──────────────────────
+/** Mínimo de monitores MEV escaneables para que el prefiltro valga la pena. */
+const MIN_MONITORS_FOR_SET_SCAN = 4;
+/** Barrido completo de respaldo: como máximo cada 24 h se escanea todo
+ *  causa por causa aunque el prefiltro esté activo, para acotar a un día el
+ *  daño de una falla silenciosa de la búsqueda de novedades. */
+const FULL_MEV_SWEEP_INTERVAL_MS = 24 * 3600_000;
+const LAST_FULL_MEV_SCAN_KEY = 'tl_last_full_mev_scan';
+/** Ventana de la búsqueda de novedades (días hacia atrás). Solapa a
+ *  propósito con escaneos previos: las alertas dedupen por fecha+texto. */
+const SET_NOVEDADES_WINDOW_DAYS = 5;
 
 let pjnEventsCache:
   | { timestamp: number; result: PjnEventFeedResult }
@@ -67,11 +81,40 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
     await notifyNoSession('mev');
   }
 
+  // ── Prefiltro por novedades de set (beta) ──
+  // Solo para escaneos automáticos (ni "desde fecha" ni el manual, que es
+  // siempre exhaustivo), con suficientes monitores MEV escaneables y sin
+  // barrido completo pendiente. Si el prefiltro falla por CUALQUIER motivo
+  // devuelve null y todo sigue por el camino actual, causa por causa.
+  let setPrefilter: MevSetPrefilterResult | null = null;
+  const mevEligibleCount = monitors.filter(
+    (m) => m.portal === 'mev' && getMevCaseIds(m)
+  ).length;
+  if (
+    mevTabId &&
+    !options.fromDate &&
+    !options.thorough &&
+    mevEligibleCount >= MIN_MONITORS_FOR_SET_SCAN
+  ) {
+    try {
+      const settings = await getSettings();
+      if (settings.mevScanBySets && !(await isFullMevSweepDue())) {
+        setPrefilter = await tryMevSetNovedadesPrefilter(mevTabId);
+      }
+    } catch (err) {
+      console.warn('[ProcuAsist] Prefiltro de sets MEV falló, escaneo completo:', err);
+      setPrefilter = null;
+    }
+  }
+
   let totalNew = 0;
   let totalErrors = 0;
+  let mevErrors = 0;
   let totalParsedMovements = 0;
   let missingIds = 0;
   let missingTabs = 0;
+  let skippedBySet = 0;
+  const touchedMonitorIds: string[] = [];
   const matchedMovements: ScanMovement[] = [];
 
   // Process in batches
@@ -79,6 +122,7 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
     const batch = monitors.slice(i, i + BATCH_SIZE);
 
     for (const monitor of batch) {
+      let fetched = false;
       try {
         const tabId = getScanTabId(monitor, { mevTabId, pjnTabId });
         if (!tabId && monitor.portal !== 'pjn') {
@@ -86,6 +130,24 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
           continue;
         }
 
+        // Salteo por prefiltro: la causa está CONFIRMADA en un set (apareció
+        // en el listado del set) y la búsqueda de novedades no la trajo →
+        // sin movimientos en la ventana; se anota el escaneo sin re-leerla.
+        // Las causas no confirmadas en ningún set siguen el camino actual.
+        if (monitor.portal === 'mev' && setPrefilter) {
+          const nid = getMevCaseIds(monitor)?.nidCausa;
+          if (
+            nid &&
+            setPrefilter.memberNids.has(nid) &&
+            !setPrefilter.novedadNids.has(nid)
+          ) {
+            touchedMonitorIds.push(monitor.id);
+            skippedBySet++;
+            continue;
+          }
+        }
+
+        fetched = true;
         const scan = await scanSingleCase(monitor, tabId, options.fromDate);
         totalNew += scan.newMovements;
         totalParsedMovements += scan.totalMovements;
@@ -93,17 +155,28 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
         matchedMovements.push(...scan.matchedMovements);
       } catch (err) {
         totalErrors++;
+        if (monitor.portal === 'mev') mevErrors++;
         console.error(
           `[ProcuAsist] Error scanning ${monitor.caseNumber}:`,
           err
         );
       }
 
-      // Delay between fetches to be gentle on the portal
-      if (i + batch.indexOf(monitor) < monitors.length - 1) {
+      // Delay between fetches to be gentle on the portal (skipped cases
+      // didn't touch the portal, so no delay needed)
+      if (fetched && i + batch.indexOf(monitor) < monitors.length - 1) {
         await delay(FETCH_DELAY);
       }
     }
+  }
+
+  await touchMonitorScans(touchedMonitorIds);
+
+  // Registrar el barrido completo SOLO si el prefiltro no intervino y todos
+  // los monitores MEV se escanearon sin errores: es lo que acota a 24 h el
+  // riesgo de una búsqueda de novedades que falle en silencio.
+  if (!setPrefilter && mevTabId && mevEligibleCount > 0 && mevErrors === 0) {
+    await chrome.storage.local.set({ [LAST_FULL_MEV_SCAN_KEY]: Date.now() });
   }
 
   const result: ScanResult = {
@@ -114,12 +187,14 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
     parsedMovements: totalParsedMovements,
     missingIds,
     missingTabs,
+    skippedBySet: skippedBySet || undefined,
     skippedReason:
       missingTabs === monitors.length ? 'no_tab' : undefined,
   };
 
   console.debug(
-    `[ProcuAsist] Scan complete: ${result.scanned} cases, ${result.newMovements} new movements, ${result.errors} errors`
+    `[ProcuAsist] Scan complete: ${result.scanned} cases, ${result.newMovements} new movements, ${result.errors} errors` +
+      (skippedBySet ? `, ${skippedBySet} resueltas por novedades de set` : '')
   );
 
   await storeScanResult(result, options.fromDate, matchedMovements);
@@ -130,6 +205,10 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
 export interface ScanOptions {
   /** When present, creates alerts for all matching movements on/after this date. */
   fromDate?: string;
+  /** Escaneo exhaustivo causa por causa, sin prefiltro por novedades de set.
+   *  Lo usa el botón "Escanear ahora": si el usuario duda del modo rápido,
+   *  el escaneo manual siempre re-lee todo. */
+  thorough?: boolean;
 }
 
 export interface ScanResult {
@@ -140,6 +219,8 @@ export interface ScanResult {
   parsedMovements?: number;
   missingIds?: number;
   missingTabs?: number;
+  /** Causas MEV resueltas por la búsqueda de novedades de set (sin re-leer). */
+  skippedBySet?: number;
   skippedReason?: string;
 }
 
@@ -152,6 +233,244 @@ export interface ScanMovement {
   movementDate: string;
   movementType?: string;
   movementDescription: string;
+}
+
+// ────────────────────────────────────────────────────────
+// Prefiltro MEV por novedades de set (beta)
+// ────────────────────────────────────────────────────────
+
+interface MevSetPrefilterResult {
+  /** nidCausa que aparecieron en la búsqueda de novedades (se movieron). */
+  novedadNids: Set<string>;
+  /** nidCausa confirmados como miembros de algún set (primera página del
+   *  listado de cada set; los que no aparecen se escanean igual). */
+  memberNids: Set<string>;
+  sets: number;
+}
+
+async function isFullMevSweepDue(): Promise<boolean> {
+  const stored = await chrome.storage.local.get(LAST_FULL_MEV_SCAN_KEY);
+  const last = stored[LAST_FULL_MEV_SCAN_KEY] as number | undefined;
+  return !last || Date.now() - last > FULL_MEV_SWEEP_INTERVAL_MS;
+}
+
+/**
+ * Ejecuta, DENTRO de la pestaña MEV (con la sesión del usuario), la búsqueda
+ * "novedades de set por fecha" de busqueda.asp y el listado de cada set.
+ *
+ * Mecánica del form documentada en el conector server-side hermano
+ * (Estudio_OS/vigia/lib/mev-conector.mjs): hidden OpcionBusqueda donde
+ * 3 = set y 4 = novedades de set, radios xSb / xNs, campo `busca` con el
+ * término, rango Desde/Hasta y Referer de busqueda.asp (acá el fetch es
+ * same-origin desde la propia página, con `referrer` explícito).
+ *
+ * Incertidumbre asumida: qué espera exactamente `busca` para novedades no
+ * está confirmado contra el portal vivo (se manda la fecha Desde, más el
+ * rango Desde/Hasta). Por eso el diseño es a prueba de fallas: cualquier
+ * anomalía (login, form de vuelta, error HTTP, parseo raro, cero sets)
+ * devuelve null y el escaneo sigue causa por causa como siempre; además el
+ * barrido completo diario y el escaneo manual exhaustivo acotan el daño de
+ * un falso "sin novedades".
+ */
+async function tryMevSetNovedadesPrefilter(
+  tabId: number
+): Promise<MevSetPrefilterResult | null> {
+  try {
+    const hasta = formatDdMmYyyy(new Date());
+    const desde = formatDdMmYyyy(
+      new Date(Date.now() - SET_NOVEDADES_WINDOW_DAYS * 86_400_000)
+    );
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: async (
+        baseUrl: string,
+        busquedaPath: string,
+        desdeStr: string,
+        hastaStr: string
+      ) => {
+        try {
+          const decode = (buffer: ArrayBuffer) =>
+            new TextDecoder('windows-1252').decode(buffer);
+          const isLogin = (html: string) => {
+            const low = html.toLowerCase();
+            return (
+              low.includes('ingrese los datos del usuario') ||
+              (low.includes('name="usuario"') && low.includes('name="clave"'))
+            );
+          };
+
+          const busquedaUrl = new URL(busquedaPath, baseUrl).href;
+          const formResp = await fetch(busquedaUrl, {
+            credentials: 'include',
+            headers: { Accept: 'text/html' },
+          });
+          if (!formResp.ok) return { error: `HTTP ${formResp.status}` };
+          const formHtml = decode(await formResp.arrayBuffer());
+          if (isLogin(formHtml)) return { error: 'session_expired' };
+
+          const parser = new DOMParser();
+          const formDoc = parser.parseFromString(formHtml, 'text/html');
+          const setSelect = formDoc.querySelector(
+            "select[name='Set']"
+          ) as HTMLSelectElement | null;
+          const sets = setSelect
+            ? Array.from(setSelect.options)
+                .map((option) => option.value)
+                .filter(Boolean)
+            : [];
+          if (!sets.length) return { sets: 0, novedadNids: [], memberNids: [] };
+
+          const form =
+            setSelect?.closest('form') ?? formDoc.querySelector('form');
+          if (!form) return { error: 'form_not_found' };
+          const action = new URL(
+            form.getAttribute('action') || 'Busqueda.asp',
+            busquedaUrl
+          ).href;
+
+          // Hidden inputs y selects del form, como el conector de referencia
+          // (los submit/reset/button/radio se pisan a mano por búsqueda).
+          const baseFields: Record<string, string> = {};
+          for (const input of form.querySelectorAll('input')) {
+            const name = input.getAttribute('name');
+            if (!name) continue;
+            const type = (input.getAttribute('type') || 'text').toLowerCase();
+            if (['submit', 'reset', 'button', 'radio'].includes(type)) continue;
+            baseFields[name] = input.getAttribute('value') ?? '';
+          }
+          for (const select of form.querySelectorAll('select')) {
+            const name = select.getAttribute('name');
+            if (name) baseFields[name] = '';
+          }
+
+          const post = async (fields: Record<string, string>) => {
+            const params = new URLSearchParams();
+            for (const [key, value] of Object.entries(fields)) {
+              params.set(key, value);
+            }
+            const resp = await fetch(action, {
+              method: 'POST',
+              credentials: 'include',
+              referrer: busquedaUrl,
+              headers: {
+                Accept: 'text/html',
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: params,
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const html = decode(await resp.arrayBuffer());
+            if (isLogin(html)) throw new Error('session_expired');
+            // Si el servidor devolvió el form de búsqueda en vez de
+            // resultados, la consulta no funcionó: mejor abortar todo el
+            // prefiltro que interpretar "cero resultados".
+            if (html.includes('name="OpcionBusqueda"')) {
+              throw new Error('search_bounced_to_form');
+            }
+            return html;
+          };
+
+          const extractNids = (html: string): string[] => {
+            const doc = parser.parseFromString(html, 'text/html');
+            const nids: string[] = [];
+            for (const link of doc.querySelectorAll(
+              "a[href*='procesales.asp?nidCausa=']"
+            )) {
+              const href = link.getAttribute('href') || '';
+              const match = href.match(/[?&]nidCausa=([^&]+)/i);
+              if (match?.[1]) nids.push(decodeURIComponent(match[1]).trim());
+            }
+            return nids;
+          };
+
+          const delayMs = (ms: number) =>
+            new Promise((resolve) => setTimeout(resolve, ms));
+
+          const novedadNids: string[] = [];
+          const memberNids: string[] = [];
+
+          for (const setId of sets) {
+            // Novedades del set en la ventana de fechas (OpcionBusqueda=4).
+            const novHtml = await post({
+              ...baseFields,
+              radio: 'xNs',
+              OpcionBusqueda: '4',
+              Set: setId,
+              busca: desdeStr,
+              Desde: desdeStr,
+              Hasta: hastaStr,
+            });
+            novedadNids.push(...extractNids(novHtml));
+            await delayMs(600);
+
+            // Membresía: primera página del listado del set (OpcionBusqueda=3).
+            const memberHtml = await post({
+              ...baseFields,
+              radio: 'xSb',
+              OpcionBusqueda: '3',
+              Set: setId,
+              busca: setId,
+              Desde: baseFields.Desde || '01/01/2000',
+              Hasta: baseFields.Hasta || '31/12/2030',
+            });
+            memberNids.push(...extractNids(memberHtml));
+            await delayMs(600);
+          }
+
+          return { sets: sets.length, novedadNids, memberNids };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+      args: [MEV_BASE_URL, MEV_URLS.busqueda, desde, hasta],
+    });
+
+    const result = results[0]?.result as
+      | { sets: number; novedadNids: string[]; memberNids: string[]; error?: never }
+      | { error: string; sets?: never }
+      | null;
+
+    if (!result || result.error) {
+      console.warn(
+        '[ProcuAsist] Prefiltro de sets MEV no disponible:',
+        result?.error ?? 'sin respuesta'
+      );
+      return null;
+    }
+    if (!result.sets) {
+      console.debug('[ProcuAsist] Sin sets MEV: escaneo causa por causa.');
+      return null;
+    }
+    // Sin membresía confirmada no hay a quién saltear: no vale la pena.
+    if (!result.memberNids?.length) {
+      console.debug('[ProcuAsist] Sets MEV sin causas listadas: escaneo completo.');
+      return null;
+    }
+
+    console.debug(
+      `[ProcuAsist] Prefiltro de sets MEV: ${result.sets} set(s), ` +
+        `${result.memberNids.length} miembros, ${result.novedadNids.length} novedades (${desde} a ${hasta})`
+    );
+
+    return {
+      novedadNids: new Set(result.novedadNids),
+      memberNids: new Set(result.memberNids),
+      sets: result.sets,
+    };
+  } catch (err) {
+    console.warn('[ProcuAsist] Prefiltro de sets MEV falló:', err);
+    return null;
+  }
+}
+
+function formatDdMmYyyy(date: Date): string {
+  return [
+    String(date.getDate()).padStart(2, '0'),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getFullYear()),
+  ].join('/');
 }
 
 // ────────────────────────────────────────────────────────

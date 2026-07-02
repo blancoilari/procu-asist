@@ -1438,6 +1438,12 @@ function SettingsTab() {
       <h3 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-text-secondary">
         Monitoreo e importación
       </h3>
+      <SettingToggle
+        label="Escaneo rápido por novedades de set (beta)"
+        description="En MEV consulta las novedades de tus sets en una sola búsqueda y solo revisa causa por causa lo que se movió. Ante cualquier falla vuelve solo al escaneo completo. El botón Escanear ahora siempre revisa todo."
+        checked={settings.mevScanBySets}
+        onChange={(v) => handleToggle('mevScanBySets', v)}
+      />
       <NumberSetting
         label="Umbral de pausa al importar en masa"
         description="Si importás más causas que este número con el asistente Importar todo, entran con los avisos pausados y activás el monitoreo solo en las que te interesan. Un umbral muy alto puede volver lento el escaneo y llenar el panel de alertas irrelevantes."
