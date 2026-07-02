@@ -373,7 +373,7 @@ function findNumberedNextPageControl(): HTMLElement | null {
 
   const wanted = active + 1;
   for (const item of items) {
-    if (item.value === wanted && item.clickable) return item.el;
+    if (item.value === wanted && item.clickTarget) return item.clickTarget;
   }
   return null;
 }
@@ -383,6 +383,11 @@ interface NumericPagingItem {
   value: number;
   clickable: boolean;
   active: boolean;
+  /** Elemento que hay que clickear para ir a esa pagina: el propio numero si
+   *  es clickeable, o el ancestro clickeable (el <a> que lo envuelve). El SCW
+   *  renderiza <li><a href="#" onclick="RichFaces.ajax(...)"><span>2</span></a>:
+   *  el numero vive en el span interno (inerte) y el click va en el <a>. */
+  clickTarget: HTMLElement | null;
 }
 
 // Contenedores tipicos de paginacion: Bootstrap, RichFaces 3 (rich-datascr-*),
@@ -431,17 +436,46 @@ function collectNumericPagingItems(): NumericPagingItem[] {
 
       if (!isVisibleElement(el) || isDisabledElement(el)) continue;
 
+      // El numero suele vivir en un <span> inerte dentro de un <a>/<button>
+      // clickeable; el click va en ese ancestro, no en el span. Si el propio
+      // elemento es clickeable, se usa el; si no, se busca el ancestro
+      // clickeable dentro del contenedor de paginacion.
+      const clickTarget = isClickablePagingControl(el)
+        ? el
+        : findClickableAncestor(el, container);
+
       seen.add(el);
       items.push({
         el,
         value: Number(compact),
-        clickable: isClickablePagingControl(el),
+        clickable: !!clickTarget,
         active: isActivePagingControl(el),
+        clickTarget,
       });
     }
   }
 
   return items;
+}
+
+/**
+ * Ancestro clickeable del numero de pagina, sin salir del contenedor de
+ * paginacion. Cubre el patron del SCW (<a href="#" onclick="RichFaces.ajax">)
+ * y variantes con <button> o cualquier elemento con onclick.
+ */
+function findClickableAncestor(
+  el: HTMLElement,
+  container: HTMLElement
+): HTMLElement | null {
+  let current: HTMLElement | null = el.parentElement;
+  while (current && current !== container.parentElement) {
+    if (isClickablePagingControl(current) && !isDisabledElement(current)) {
+      return current;
+    }
+    if (current === container) break;
+    current = current.parentElement;
+  }
+  return null;
 }
 
 /**

@@ -48,7 +48,11 @@ export const DEFAULT_SETTINGS: ProcuAsistSettings = {
   persistUnlock: false, // safe default: do not persist the key across restarts
   mevDepartamento: 'aa', // "TODOS los Deptos" by default
   importAllPauseThreshold: 50,
-  mevScanBySets: true,
+  // Escaneo rapido por novedades de set: OFF por defecto. Depende del form de
+  // busqueda de la MEV (novedades por fecha), que no esta verificado a fondo
+  // en vivo; el escaneo causa por causa (default) es confiable. Se puede
+  // activar como beta desde Ajustes.
+  mevScanBySets: false,
 };
 
 export async function getSettings(): Promise<ProcuAsistSettings> {
