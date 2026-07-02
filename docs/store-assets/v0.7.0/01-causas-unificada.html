@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="_shared.css">
+<title>ProcuAsist v0.7.0 - Causas</title>
+</head>
+<body>
+<div class="stage">
+  <div class="caption">
+    <h2>Todas tus causas en una sola lista, guardadas y monitoreadas</h2>
+  </div>
+
+  <div class="panel">
+    <!-- Header -->
+    <header class="pa-header">
+      <div class="pa-logo">
+        <svg width="24" height="24" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="lg1" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#2563eb"/>
+              <stop offset="100%" stop-color="#1d4ed8"/>
+            </linearGradient>
+          </defs>
+          <rect width="128" height="128" rx="28" fill="url(#lg1)"/>
+          <g stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <line x1="64" y1="30" x2="64" y2="96"/>
+            <line x1="46" y1="100" x2="82" y2="100"/>
+            <line x1="32" y1="44" x2="96" y2="44"/>
+            <line x1="36" y1="44" x2="28" y2="64"/>
+            <line x1="36" y1="44" x2="44" y2="64"/>
+            <line x1="92" y1="44" x2="84" y2="64"/>
+            <line x1="92" y1="44" x2="100" y2="64"/>
+          </g>
+          <g fill="white">
+            <path d="M24 64 L48 64 A12 12 0 0 1 24 64 Z"/>
+            <path d="M80 64 L104 64 A12 12 0 0 1 80 64 Z"/>
+          </g>
+          <circle cx="64" cy="30" r="3.5" fill="white"/>
+        </svg>
+        ProcuAsist
+      </div>
+      <span class="pa-version">v0.7.0</span>
+    </header>
+
+    <!-- Search -->
+    <div class="pa-search">
+      <input type="text" placeholder="Buscar por número, carátula o juzgado..." readonly>
+    </div>
+
+    <!-- Tabs -->
+    <nav class="pa-tabs">
+      <div class="pa-tab active">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        Causas
+      </div>
+      <div class="pa-tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h6"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><circle cx="18" cy="18" r="3"/><path d="M18 16.5v1.5l1 1"/></svg>
+        Plazos
+      </div>
+      <div class="pa-tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        Ajustes
+      </div>
+    </nav>
+
+    <!-- Portal filter -->
+    <div class="pa-filter">
+      <div class="pa-filter-inner">
+        <div class="pa-seg active">Todos</div>
+        <div class="pa-seg">MEV</div>
+        <div class="pa-seg">PJN</div>
+      </div>
+    </div>
+
+    <!-- Sub-nav -->
+    <div class="pa-subnav">
+      <div class="pa-subtab active">Causas (23)</div>
+      <div class="pa-subtab">Alertas</div>
+    </div>
+
+    <!-- Action bar -->
+    <div class="pa-actionbar">
+      <span class="pa-lastscan">Último: hace 10m (23 causas)</span>
+      <div class="pa-actions">
+        <button class="pa-btn pa-btn-secondary">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Importar todo
+        </button>
+        <button class="pa-btn pa-btn-primary">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+          Escanear ahora
+        </button>
+      </div>
+    </div>
+
+    <!-- Case list -->
+    <ul class="case-list">
+      <!-- Con novedad -->
+      <li class="case-card has-novedad">
+        <div class="cc-top">
+          <span class="portal-badge pjn">PJN</span>
+          <span class="cc-number">CIV 012345/2024</span>
+          <span class="novedad cc-novedad-right">NOVEDAD</span>
+        </div>
+        <p class="cc-title">PEREZ, JUAN CARLOS C/ GOMEZ, MARIA S/ DAÑOS Y PERJUICIOS</p>
+        <div class="cc-bottom">
+          <span class="cc-court">JUZGADO NACIONAL EN LO CIVIL N° 45</span>
+          <span>Esc. hace 10m</span>
+        </div>
+        <div class="cc-mov">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>Último mov: 30/06/2026</span>
+          <span>(14 totales)</span>
+        </div>
+      </li>
+
+      <li class="case-card">
+        <div class="cc-top">
+          <span class="portal-badge mev">MEV</span>
+          <span class="cc-number">LP 004567/2023</span>
+        </div>
+        <p class="cc-title">RODRIGUEZ, ANA S/ SUCESION AB INTESTATO</p>
+        <div class="cc-bottom">
+          <span class="cc-court">JUZGADO CIVIL Y COMERCIAL N° 5</span>
+          <span>Esc. hace 12m</span>
+        </div>
+        <div class="cc-mov">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>Último mov: 26/06/2026</span>
+          <span>(9 totales)</span>
+        </div>
+      </li>
+
+      <li class="case-card">
+        <div class="cc-top">
+          <span class="portal-badge pjn">PJN</span>
+          <span class="cc-number">COM 008912/2023</span>
+        </div>
+        <p class="cc-title">EMPRESA CONSTRUCTORA DEL SUR S.A. C/ MUNICIPALIDAD S/ CONTENCIOSO</p>
+        <div class="cc-bottom">
+          <span class="cc-court">JUZGADO NACIONAL EN LO COMERCIAL N° 12</span>
+          <span>Esc. hace 12m</span>
+        </div>
+        <div class="cc-mov">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>Último mov: 24/06/2026</span>
+          <span>(31 totales)</span>
+        </div>
+      </li>
+
+      <li class="case-card">
+        <div class="cc-top">
+          <span class="portal-badge mev">MEV</span>
+          <span class="cc-number">MP 015678/2025</span>
+        </div>
+        <p class="cc-title">MARTINEZ, LAURA C/ ASEGURADORA GENERAL S.A. S/ CUMPLIMIENTO DE CONTRATO</p>
+        <div class="cc-bottom">
+          <span class="cc-court">JUZGADO CIVIL Y COMERCIAL N° 9</span>
+          <span>Esc. hace 12m</span>
+        </div>
+        <div class="cc-mov">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>Último mov: 19/06/2026</span>
+          <span>(7 totales)</span>
+        </div>
+      </li>
+
+      <li class="case-card">
+        <div class="cc-top">
+          <span class="portal-badge pjn">PJN</span>
+          <span class="cc-number">CNT 006734/2025</span>
+        </div>
+        <p class="cc-title">FERNANDEZ, ROBERTO C/ LOGISTICA DEL PLATA S.R.L. S/ DESPIDO</p>
+        <div class="cc-bottom">
+          <span class="cc-court">JUZGADO NACIONAL DEL TRABAJO N° 3</span>
+          <span>Esc. hace 12m</span>
+        </div>
+        <div class="cc-mov">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>Último mov: 17/06/2026</span>
+          <span>(22 totales)</span>
+        </div>
+      </li>
+
+      <li class="case-card">
+        <div class="cc-top">
+          <span class="portal-badge mev">MEV</span>
+          <span class="cc-number">SM 002145/2024</span>
+        </div>
+        <p class="cc-title">GARCIA, MONICA BEATRIZ C/ SANTINI, PABLO S/ ALIMENTOS</p>
+        <div class="cc-bottom">
+          <span class="cc-court">JUZGADO DE FAMILIA N° 2</span>
+          <span>Esc. hace 12m</span>
+        </div>
+        <div class="cc-mov">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>Último mov: 13/06/2026</span>
+          <span>(5 totales)</span>
+        </div>
+      </li>
+    </ul>
+
+    <div class="pa-footer">23 causas</div>
+  </div>
+</div>
+</body>
+</html>
