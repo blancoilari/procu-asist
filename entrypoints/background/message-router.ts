@@ -11,12 +11,14 @@ import {
   forgetPersistedKey,
   ensureKey,
   isPinSetup,
+  resetVault,
   syncPersistedKeyWithSetting,
 } from '@/modules/crypto/key-manager';
 import {
   saveCredentials,
   getCredentials,
   hasCredentials,
+  deleteCredentials,
 } from '@/modules/storage/credential-store';
 import {
   addBookmark,
@@ -109,6 +111,17 @@ async function handleMessage(
     case 'UNLOCK_PIN': {
       const success = await unlockWithPin(message.pin);
       return { success };
+    }
+
+    case 'RESET_PIN': {
+      // Restablecer PIN olvidado: NO hay recuperación con AES-GCM. Se borran
+      // las credenciales cifradas (indescifrables sin el PIN viejo) y el
+      // material del vault; la extensión queda lista para un PIN nuevo.
+      // Marcadores, monitores, alertas y plazos no se tocan.
+      const portals: Array<'mev' | 'pjn' | 'eje'> = ['mev', 'pjn', 'eje'];
+      await Promise.all(portals.map(deleteCredentials));
+      await resetVault();
+      return { success: true };
     }
 
     case 'LOCK': {

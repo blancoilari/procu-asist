@@ -169,3 +169,21 @@ export async function isPinSetup(): Promise<boolean> {
   const stored = await chrome.storage.local.get([STORAGE_KEY_SALT]);
   return !!stored[STORAGE_KEY_SALT];
 }
+
+/**
+ * Restablecimiento del PIN para quien lo olvidó. Con AES-GCM no hay
+ * recuperación posible: sin el PIN no se puede derivar la clave, así que el
+ * único camino honesto es borrar el material del vault (salt, valor de
+ * prueba y clave persistida) y dejar la extensión lista para configurar un
+ * PIN nuevo. Las credenciales cifradas quedan indescifrables para siempre:
+ * el caller debe borrarlas también (ver RESET_PIN en message-router).
+ * Marcadores, monitores, alertas y plazos NO se tocan.
+ */
+export async function resetVault(): Promise<void> {
+  currentKey = null;
+  await chrome.storage.local.remove([
+    STORAGE_KEY_SALT,
+    STORAGE_KEY_TEST,
+    STORAGE_KEY_PERSISTED,
+  ]);
+}

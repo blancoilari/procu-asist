@@ -12,6 +12,7 @@ export type ProcuAsistMessage =
   | BulkImportMessage
   | SetupPinMessage
   | UnlockPinMessage
+  | ResetPinMessage
   | LockMessage
   | GetLockStatusMessage
   | SaveCredentialsMessage
@@ -49,6 +50,15 @@ export interface SetupPinMessage {
 export interface UnlockPinMessage {
   type: 'UNLOCK_PIN';
   pin: string;
+}
+
+/**
+ * Restablecer el PIN olvidado: borra el material del vault Y las credenciales
+ * guardadas de todos los portales (sin el PIN viejo son indescifrables).
+ * No toca marcadores, monitores, alertas ni plazos.
+ */
+export interface ResetPinMessage {
+  type: 'RESET_PIN';
 }
 
 export interface LockMessage {
