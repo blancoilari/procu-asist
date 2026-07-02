@@ -175,6 +175,31 @@ export async function toggleMonitor(
   return monitor;
 }
 
+/**
+ * Actualiza SOLO lastScanAt de un lote de monitores, en una escritura.
+ * Lo usa el escaneo por novedades de set: la causa fue verificada vía la
+ * búsqueda del set (sin re-leer su ficha), así que el baseline de
+ * movimientos (fecha y conteo) queda intacto a propósito: si la búsqueda
+ * de novedades fallara en silencio, cualquier movimiento pendiente se
+ * detecta igual en el próximo escaneo individual.
+ */
+export async function touchMonitorScans(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const idSet = new Set(ids);
+  const monitors = await getMonitors();
+  const now = new Date().toISOString();
+  let changed = false;
+  for (const monitor of monitors) {
+    if (idSet.has(monitor.id)) {
+      monitor.lastScanAt = now;
+      changed = true;
+    }
+  }
+  if (changed) {
+    await chrome.storage.local.set({ [MONITORS_KEY]: monitors });
+  }
+}
+
 /** Update last scan info for a monitor */
 export async function updateMonitorScan(
   id: string,

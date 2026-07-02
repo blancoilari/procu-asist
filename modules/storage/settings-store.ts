@@ -27,6 +27,14 @@ export interface ProcuAsistSettings {
    * Por debajo del umbral, monitoreo activo normal.
    */
   importAllPauseThreshold: number;
+  /**
+   * Escaneo rápido MEV por novedades de set (beta): en vez de recorrer
+   * causa por causa, consulta la búsqueda "novedades de set" de la MEV y
+   * solo re-lee las causas que se movieron. Ante CUALQUIER falla cae solo
+   * al escaneo completo; además hay un barrido completo diario de respaldo
+   * y el escaneo manual ("Escanear ahora") siempre revisa causa por causa.
+   */
+  mevScanBySets: boolean;
 }
 
 const STORAGE_KEY = 'tl_settings';
@@ -40,6 +48,7 @@ export const DEFAULT_SETTINGS: ProcuAsistSettings = {
   persistUnlock: false, // safe default: do not persist the key across restarts
   mevDepartamento: 'aa', // "TODOS los Deptos" by default
   importAllPauseThreshold: 50,
+  mevScanBySets: true,
 };
 
 export async function getSettings(): Promise<ProcuAsistSettings> {
