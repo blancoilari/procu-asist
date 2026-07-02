@@ -294,9 +294,18 @@ export default function ImportAllWizard({
                 )}
               </div>
 
-              {/* Consecuencia anti-ruido, clara ANTES de ejecutar */}
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-900/15">
-                <p className="flex items-start gap-1.5 text-[11px] leading-snug text-amber-800 dark:text-amber-200">
+              {/* Consecuencia anti-ruido, clara ANTES de ejecutar.
+                  Colores explícitos (no clases amber con variante dark) para
+                  garantizar el contraste en ambos modos: el par bg/texto de
+                  Tailwind se desincronizaba y el aviso quedaba ilegible. */}
+              <div
+                className="rounded-lg border px-3 py-2"
+                style={{ backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }}
+              >
+                <p
+                  className="flex items-start gap-1.5 text-[11px] font-medium leading-snug"
+                  style={{ color: '#7C2D12' }}
+                >
                   <AlertTriangle size={13} className="mt-0.5 shrink-0" />
                   <span>
                     {knownTotal > pauseThreshold ? (
