@@ -310,13 +310,13 @@ export async function startImportAllRun(
 
   const sources: ImportAllSourceProgress[] = [];
   if (selection.pjnRelacionados) {
-    sources.push(emptySource('pjn-relacionados', 'PJN — Relacionados'));
+    sources.push(emptySource('pjn-relacionados', 'PJN: Relacionados'));
   }
   if (selection.pjnFavoritos) {
-    sources.push(emptySource('pjn-favoritos', 'PJN — Favoritos'));
+    sources.push(emptySource('pjn-favoritos', 'PJN: Favoritos'));
   }
   for (const set of selection.mevSets) {
-    sources.push(emptySource(`mev-set-${set.id}`, `MEV — Set "${set.nombre}"`));
+    sources.push(emptySource(`mev-set-${set.id}`, `MEV: set "${set.nombre}"`));
   }
   if (!sources.length) {
     return { success: false, error: 'No hay fuentes seleccionadas.' };
