@@ -1347,6 +1347,13 @@ function EmptyMonitors({ hasSearch }: { hasSearch: boolean }) {
           ? 'Intentá con otro término de búsqueda o filtro.'
           : 'Navegá a una causa en MEV o PJN y hacé clic en "Guardar": queda guardada y monitoreada automáticamente.'}
       </p>
+      {!hasSearch && (
+        <p className="mt-1 text-xs leading-relaxed text-text-secondary/80">
+          O usá <strong>Importar todo</strong> para traerlas en bloque. Antes,
+          creá tu PIN y cargá tus credenciales en Ajustes, e ingresá a MEV o PJN
+          en una pestaña.
+        </p>
+      )}
     </div>
   );
 }
