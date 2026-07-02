@@ -744,200 +744,213 @@ function CasesTab({
   }
 
   return (
-    <div className="flex flex-col">
-      {/* Sub-navigation: Monitors vs Alerts */}
-      <div className="flex border-b border-border">
-        <button
-          onClick={() => setView('monitors')}
-          className={`flex-1 py-2 text-center text-xs font-medium transition-colors ${
-            view === 'monitors'
-              ? 'border-b-2 border-primary text-primary'
-              : 'text-text-secondary hover:text-text'
-          }`}
-        >
-          Causas ({filteredCases.length})
-        </button>
-        <button
-          onClick={() => setView('alerts')}
-          className={`relative flex-1 py-2 text-center text-xs font-medium transition-colors ${
-            view === 'alerts'
-              ? 'border-b-2 border-primary text-primary'
-              : 'text-text-secondary hover:text-text'
-          }`}
-        >
-          Alertas
-          {unreadCaseCount > 0 && (
-            <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-              {unreadCaseCount}
-            </span>
-          )}
-        </button>
-      </div>
+    <div className="flex h-full flex-col">
+      {/* Bloque superior fijo: las sub-pestañas y las barras de acción de
+          cada sub-vista quedan siempre a la vista; solo scrollea la lista
+          de tarjetas de abajo. */}
+      <div className="shrink-0 bg-bg">
+        {/* Sub-navigation: Monitors vs Alerts */}
+        <div className="flex border-b border-border">
+          <button
+            onClick={() => setView('monitors')}
+            className={`flex-1 py-2 text-center text-xs font-medium transition-colors ${
+              view === 'monitors'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-text-secondary hover:text-text'
+            }`}
+          >
+            Causas ({filteredCases.length})
+          </button>
+          <button
+            onClick={() => setView('alerts')}
+            className={`relative flex-1 py-2 text-center text-xs font-medium transition-colors ${
+              view === 'alerts'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-text-secondary hover:text-text'
+            }`}
+          >
+            Alertas
+            {unreadCaseCount > 0 && (
+              <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                {unreadCaseCount}
+              </span>
+            )}
+          </button>
+        </div>
 
-      {view === 'monitors' ? (
-        <>
-          {/* Quick-add banner when on a case page */}
-          {lastDetected && (
-            <QuickAddBanner caseData={lastDetected} onAdd={handleAddCurrent} />
-          )}
+        {view === 'monitors' ? (
+          <>
+            {/* Quick-add banner when on a case page */}
+            {lastDetected && (
+              <QuickAddBanner
+                caseData={lastDetected}
+                onAdd={handleAddCurrent}
+              />
+            )}
 
-          {isPjnNoteDay() &&
-            filteredBookmarks.some((bookmark) => bookmark.portal === 'pjn') && (
-            <PjnBookmarkNotePrep bookmarks={filteredBookmarks} />
-          )}
+            {isPjnNoteDay() &&
+              filteredBookmarks.some(
+                (bookmark) => bookmark.portal === 'pjn'
+              ) && <PjnBookmarkNotePrep bookmarks={filteredBookmarks} />}
 
-          {/* Scan button */}
-          {filteredCases.length > 0 && (
-            <div className="flex items-center justify-between border-b border-border px-4 py-2">
-              <LastScanInfo />
+            {/* Scan button */}
+            {filteredCases.length > 0 && (
+              <div className="flex items-center justify-between border-b border-border px-4 py-2">
+                <LastScanInfo />
+                <button
+                  onClick={handleScanNow}
+                  disabled={scanning}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                >
+                  {scanning ? (
+                    <>
+                      <Hourglass size={12} /> Escaneando...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={12} /> Escanear ahora
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Alerts view: filtro por fecha y acciones */}
+            <div className="space-y-2 border-b border-border px-4 py-2">
+              <label className="flex items-center gap-2 text-xs text-text-secondary">
+                <span className="shrink-0 font-medium text-text">Desde</span>
+                <input
+                  type="date"
+                  value={alertsFromDate}
+                  onChange={(e) => setAlertsFromDate(e.target.value)}
+                  className="min-w-0 flex-1 rounded-md border border-border bg-bg-secondary px-2 py-1 text-xs text-text outline-none focus:border-primary"
+                />
+                {alertsFromDate && (
+                  <button
+                    type="button"
+                    onClick={() => setAlertsFromDate('')}
+                    className="text-[11px] font-medium text-primary hover:underline"
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </label>
               <button
-                onClick={handleScanNow}
-                disabled={scanning}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                type="button"
+                onClick={handleScanSince}
+                disabled={!alertsFromDate || scanningSince}
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {scanning ? (
+                {scanningSince ? (
                   <>
-                    <Hourglass size={12} /> Escaneando...
+                    <Hourglass size={12} /> Buscando movimientos...
                   </>
                 ) : (
                   <>
-                    <RefreshCw size={12} /> Escanear ahora
+                    <RefreshCw size={12} /> Buscar movimientos desde esa fecha
                   </>
                 )}
               </button>
+              <p className="text-[10px] leading-snug text-text-secondary">
+                Filtra alertas existentes o actualiza el listado recorriendo tus
+                causas monitoreadas.
+              </p>
+              {sinceScanMessage && (
+                <p className="rounded-md bg-bg-secondary px-2 py-1 text-[10px] leading-snug text-text-secondary">
+                  {sinceScanMessage}
+                </p>
+              )}
             </div>
-          )}
 
-          {/* Unified cases list */}
-          {filteredCases.length === 0 ? (
-            <EmptyMonitors hasSearch={!!search || portalFilter !== 'all'} />
-          ) : (
-            <ul className="divide-y divide-border">
-              {filteredCases.map((entry) => (
-                <CaseCard
-                  key={`${entry.portal}-${entry.caseNumber}`}
-                  entry={entry}
-                  unread={
-                    entry.monitor
-                      ? alerts.filter(
-                          (a) =>
-                            a.monitorId === entry.monitor?.id && !a.isRead
-                        ).length
-                      : 0
-                  }
-                  onToggleAvisos={handleToggleAvisos}
-                  onRemove={handleRemove}
-                  onOpen={handleOpenCase}
-                />
-              ))}
-            </ul>
-          )}
-
-          {/* Count footer */}
-          {filteredCases.length > 0 && (
-            <div className="border-t border-border px-4 py-2 text-center text-xs text-text-secondary">
-              {filteredCases.length} causa
-              {filteredCases.length !== 1 ? 's' : ''}
-              {search || portalFilter !== 'all' ? ' encontradas' : ''}
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          {/* Alerts view */}
-          <div className="space-y-2 border-b border-border px-4 py-2">
-            <label className="flex items-center gap-2 text-xs text-text-secondary">
-              <span className="shrink-0 font-medium text-text">Desde</span>
-              <input
-                type="date"
-                value={alertsFromDate}
-                onChange={(e) => setAlertsFromDate(e.target.value)}
-                className="min-w-0 flex-1 rounded-md border border-border bg-bg-secondary px-2 py-1 text-xs text-text outline-none focus:border-primary"
-              />
-              {alertsFromDate && (
+            {unreadScopedAlerts.length > 0 && (
+              <div className="flex justify-end border-b border-border px-4 py-2">
                 <button
-                  type="button"
-                  onClick={() => setAlertsFromDate('')}
-                  className="text-[11px] font-medium text-primary hover:underline"
+                  onClick={handleMarkAllRead}
+                  className="text-xs text-primary hover:underline"
                 >
-                  Limpiar
+                  Marcar todas como leídas
                 </button>
-              )}
-            </label>
-            <button
-              type="button"
-              onClick={handleScanSince}
-              disabled={!alertsFromDate || scanningSince}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {scanningSince ? (
-                <>
-                  <Hourglass size={12} /> Buscando movimientos...
-                </>
-              ) : (
-                <>
-                  <RefreshCw size={12} /> Buscar movimientos desde esa fecha
-                </>
-              )}
-            </button>
-            <p className="text-[10px] leading-snug text-text-secondary">
-              Filtra alertas existentes o actualiza el listado recorriendo tus
-              causas monitoreadas.
-            </p>
-            {sinceScanMessage && (
-              <p className="rounded-md bg-bg-secondary px-2 py-1 text-[10px] leading-snug text-text-secondary">
-                {sinceScanMessage}
-              </p>
+              </div>
             )}
+          </>
+        )}
+      </div>
+
+      {/* Área scrolleable: solo las tarjetas */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {view === 'monitors' ? (
+          <>
+            {/* Unified cases list */}
+            {filteredCases.length === 0 ? (
+              <EmptyMonitors hasSearch={!!search || portalFilter !== 'all'} />
+            ) : (
+              <ul className="divide-y divide-border">
+                {filteredCases.map((entry) => (
+                  <CaseCard
+                    key={`${entry.portal}-${entry.caseNumber}`}
+                    entry={entry}
+                    unread={
+                      entry.monitor
+                        ? alerts.filter(
+                            (a) =>
+                              a.monitorId === entry.monitor?.id && !a.isRead
+                          ).length
+                        : 0
+                    }
+                    onToggleAvisos={handleToggleAvisos}
+                    onRemove={handleRemove}
+                    onOpen={handleOpenCase}
+                  />
+                ))}
+              </ul>
+            )}
+
+            {/* Count footer */}
+            {filteredCases.length > 0 && (
+              <div className="border-t border-border px-4 py-2 text-center text-xs text-text-secondary">
+                {filteredCases.length} causa
+                {filteredCases.length !== 1 ? 's' : ''}
+                {search || portalFilter !== 'all' ? ' encontradas' : ''}
+              </div>
+            )}
+          </>
+        ) : scopedAlerts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-text-secondary">
+            <div className="text-text-secondary/50">
+              <Bell size={40} />
+            </div>
+            <p className="text-sm font-medium">No hay alertas</p>
+            <p className="text-xs">
+              Las alertas aparecen cuando se detectan nuevos movimientos en
+              tus causas monitoreadas.
+            </p>
           </div>
-
-          {unreadScopedAlerts.length > 0 && (
-            <div className="flex justify-end border-b border-border px-4 py-2">
-              <button
-                onClick={handleMarkAllRead}
-                className="text-xs text-primary hover:underline"
-              >
-                Marcar todas como leídas
-              </button>
+        ) : filteredAlerts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-text-secondary">
+            <div className="text-text-secondary/50">
+              <Search size={40} />
             </div>
-          )}
-
-          {scopedAlerts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-text-secondary">
-              <div className="text-text-secondary/50">
-                <Bell size={40} />
-              </div>
-              <p className="text-sm font-medium">No hay alertas</p>
-              <p className="text-xs">
-                Las alertas aparecen cuando se detectan nuevos movimientos en
-                tus causas monitoreadas.
-              </p>
-            </div>
-          ) : filteredAlerts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-text-secondary">
-              <div className="text-text-secondary/50">
-                <Search size={40} />
-              </div>
-              <p className="text-sm font-medium">Sin movimientos desde esa fecha</p>
-              <p className="text-xs">
-                Probá con una fecha anterior o ejecutá un escaneo para actualizar
-                las causas monitoreadas.
-              </p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-border">
-              {alertGroups.map((group) => (
-                <CaseAlertCard
-                  key={group.monitor?.id ?? group.alerts[0].monitorId}
-                  monitor={group.monitor}
-                  alerts={group.alerts}
-                  onChanged={loadData}
-                />
-              ))}
-            </ul>
-          )}
-        </>
-      )}
+            <p className="text-sm font-medium">Sin movimientos desde esa fecha</p>
+            <p className="text-xs">
+              Probá con una fecha anterior o ejecutá un escaneo para actualizar
+              las causas monitoreadas.
+            </p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {alertGroups.map((group) => (
+              <CaseAlertCard
+                key={group.monitor?.id ?? group.alerts[0].monitorId}
+                monitor={group.monitor}
+                alerts={group.alerts}
+                onChanged={loadData}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

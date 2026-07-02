@@ -99,6 +99,7 @@ Objetivo: validar la migracion al modelo unificado y las funciones nuevas antes 
 | Backup y restauracion JSON | Implementada; pendiente QA manual |
 | Importacion sets MEV multi-departamento | Implementada; pendiente QA manual en MEV real |
 | Importacion PJN multi-pagina (paginador RichFaces y fallback por links numerados) | Implementada; pendiente QA manual en SCW real |
+| Encabezados fijos al scrollear en Causas y Alertas | Implementada; pendiente QA manual |
 | Monitoreo por fecha (no por conteo) | Implementada; pendiente QA manual |
 | Descargas PJN con timeout y cancelar | Implementada; pendiente QA manual |
 
@@ -125,6 +126,7 @@ Objetivo: validar la migracion al modelo unificado y las funciones nuevas antes 
 - [ ] La tarjeta muestra badge NOVEDAD, estado de avisos y ultimo movimiento.
 - [ ] El menu por causa: abrir, copiar caratula, pausar/reanudar avisos, eliminar.
 - [ ] Guardar una causa desde MEV o PJN la agrega monitoreada (sin toggle previo).
+- [ ] Al scrollear las listas de Causas y de Alertas, las sub-pestanas y las barras de accion (Escanear ahora; Desde fecha, Buscar movimientos y Marcar todas como leidas) quedan fijas arriba y solo scrollean las tarjetas; las vistas Plazos y Ajustes siguen scrolleando completas como antes.
 - [ ] Pausar avisos detiene las alertas de esa causa; reanudar las reactiva.
 - [ ] Eliminar una causa borra marcador, monitor y alertas en cascada.
 

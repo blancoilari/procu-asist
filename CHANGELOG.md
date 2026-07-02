@@ -17,6 +17,7 @@ Consolida las versiones internas 0.6.7, 0.6.8 y 0.6.9. La 0.6.7 se publico en la
 - Conciliacion al iniciar: los marcadores existentes ganan su monitor y los monitores huerfanos su marcador, para que los datos previos converjan solos al modelo unificado.
 - Onboarding actualizado ("guardar = monitorear").
 - Paginacion PJN por links numerados: cuando el paginador del SCW muestra solo numeros de pagina (sin flecha "siguiente"), la recoleccion detecta la pagina activa y avanza al numero siguiente; alcanza a la importacion de listados, la apertura de causas y las notas masivas, y los modales avisan si la recoleccion corto por el tope de paginas.
+- Encabezados fijos al scrollear en Causas y Alertas: las sub-pestanas y sus barras de accion quedan siempre visibles en el panel; solo scrollea la lista de tarjetas.
 
 ### Importacion completa y alertas por causa (0.6.9)
 
