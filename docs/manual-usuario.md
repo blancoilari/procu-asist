@@ -23,7 +23,7 @@
 
 Si nunca instalaste una extensión, pensala así: una extensión de Chrome no es un programa aparte que se abre por su cuenta, como Word o el sistema de gestión del estudio. Es un agregado que vive **adentro** del navegador Google Chrome y que aparece cada vez que vos ya estás navegando. No tiene un ícono propio en el escritorio de Windows ni en la barra de tareas: vive en Chrome, arriba a la derecha, al lado de donde escribís las direcciones web.
 
-ProcuAsist es una extensión gratuita para abogados que litigan en la Provincia de Buenos Aires (MEV/SCBA), en el Poder Judicial de la Nación (PJN) y, de forma básica, en la Justicia de CABA (JUSCABA/EJE). Automatiza tareas repetitivas: iniciar sesión, guardar causas, avisar cuando hay movimientos nuevos, descargar el expediente completo y calcular plazos procesales.
+ProcuAsist es una extensión gratuita para abogados que litigan en la Provincia de Buenos Aires (MEV/SCBA) y en el Poder Judicial de la Nación (PJN). Automatiza tareas repetitivas: iniciar sesión, guardar causas, avisar cuando hay movimientos nuevos, descargar el expediente completo y calcular plazos procesales.
 
 Está hecha por un abogado de la matrícula, para colegas. Es gratuita, sin fines de lucro y no requiere crear ninguna cuenta: todo lo que guardás queda en tu propia computadora.
 

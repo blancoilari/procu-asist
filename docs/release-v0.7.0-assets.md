@@ -36,7 +36,6 @@ QUE HACE
 PORTALES SOPORTADOS
 - MEV / SCBA: mev.scba.gov.ar
 - PJN: scw.pjn.gov.ar, portalpjn.pjn.gov.ar, api.pjn.gov.ar
-- JUSCABA / EJE: eje.jus.gov.ar, con funciones basicas
 
 SEGURIDAD Y PRIVACIDAD
 Las credenciales se cifran con AES-GCM y quedan guardadas en tu computadora. ProcuAsist no necesita servidores para funcionar en su version gratuita.
