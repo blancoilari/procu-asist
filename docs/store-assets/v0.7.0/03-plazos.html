@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="_shared.css">
+<style>
+  .pa-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 13px; }
+
+  /* Calculadora */
+  .calc {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px;
+  }
+  .calc h3 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .calc h3 svg { color: var(--primary); display: block; }
+  .field {
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .field .ph { color: #94a3b8; }
+  .field-row { display: flex; gap: 8px; }
+  .field-col { display: flex; flex-direction: column; gap: 3px; }
+  .field-col .flabel { font-size: 10px; color: var(--text-secondary); padding-left: 2px; }
+  .field-col.grow { flex: 1; }
+  .field-col.days { width: 64px; }
+  .field-col .field { margin-bottom: 0; }
+  .calc-result {
+    border-radius: 8px;
+    background: rgba(219, 234, 254, 0.6);
+    padding: 9px 12px;
+    font-size: 12px;
+    margin-top: 4px;
+    margin-bottom: 10px;
+  }
+  .calc-result strong { font-weight: 700; }
+  .calc-result .grace { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+  .calc-addbtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    border-radius: 8px;
+    background: var(--primary);
+    color: #fff;
+    padding: 9px 16px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .calc-addbtn svg { display: block; }
+
+  /* Lista de vencimientos */
+  .venc-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .venc-head h3 {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-secondary);
+  }
+  .venc-head .showdone {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .venc-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .venc-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+  }
+  .venc-main { min-width: 0; flex: 1; }
+  .venc-title { font-size: 13px; }
+  .venc-sub { font-size: 10px; color: var(--text-secondary); margin-top: 1px; }
+  .venc-badge {
+    flex-shrink: 0;
+    border-radius: 9999px;
+    padding: 2px 9px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .venc-badge.hoy { background: #fee2e2; color: #b91c1c; }
+  .venc-badge.soon { background: #fef3c7; color: #b45309; }
+  .venc-badge.far { background: var(--bg-secondary); color: var(--text-secondary); }
+  .venc-icon { flex-shrink: 0; color: var(--text-secondary); }
+  .venc-icon svg { display: block; }
+
+  .ics-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 8px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+  .ics-btn svg { display: block; }
+</style>
+<title>ProcuAsist v0.7.0 - Plazos</title>
+</head>
+<body>
+<div class="stage">
+  <div class="caption">
+    <h2>Calculá plazos procesales y no pierdas un vencimiento</h2>
+  </div>
+
+  <div class="panel">
+    <!-- Header -->
+    <header class="pa-header">
+      <div class="pa-logo">
+        <svg width="24" height="24" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="lg3" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#2563eb"/>
+              <stop offset="100%" stop-color="#1d4ed8"/>
+            </linearGradient>
+          </defs>
+          <rect width="128" height="128" rx="28" fill="url(#lg3)"/>
+          <g stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <line x1="64" y1="30" x2="64" y2="96"/>
+            <line x1="46" y1="100" x2="82" y2="100"/>
+            <line x1="32" y1="44" x2="96" y2="44"/>
+            <line x1="36" y1="44" x2="28" y2="64"/>
+            <line x1="36" y1="44" x2="44" y2="64"/>
+            <line x1="92" y1="44" x2="84" y2="64"/>
+            <line x1="92" y1="44" x2="100" y2="64"/>
+          </g>
+          <g fill="white">
+            <path d="M24 64 L48 64 A12 12 0 0 1 24 64 Z"/>
+            <path d="M80 64 L104 64 A12 12 0 0 1 80 64 Z"/>
+          </g>
+          <circle cx="64" cy="30" r="3.5" fill="white"/>
+        </svg>
+        ProcuAsist
+      </div>
+      <span class="pa-version">v0.7.0</span>
+    </header>
+
+    <!-- Search -->
+    <div class="pa-search">
+      <input type="text" placeholder="Buscar por número, carátula o juzgado..." readonly>
+    </div>
+
+    <!-- Tabs -->
+    <nav class="pa-tabs">
+      <div class="pa-tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        Causas
+      </div>
+      <div class="pa-tab active">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h6"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><circle cx="18" cy="18" r="3"/><path d="M18 16.5v1.5l1 1"/></svg>
+        Plazos
+      </div>
+      <div class="pa-tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        Ajustes
+      </div>
+    </nav>
+
+    <!-- Body: Plazos -->
+    <div class="pa-body">
+      <!-- Calculadora -->
+      <div class="calc">
+        <h3>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h6"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><circle cx="18" cy="18" r="3"/><path d="M18 16.5v1.5l1 1"/></svg>
+          Calcular plazo
+        </h3>
+        <div class="field"><span>Contestar traslado de excepciones</span></div>
+        <div class="field"><span class="ph">Expediente (opcional)</span></div>
+        <div class="field-row" style="margin-bottom:8px;">
+          <div class="field-col grow">
+            <span class="flabel">Notificación</span>
+            <div class="field"><span>29/06/2026</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
+            </div>
+          </div>
+          <div class="field-col days">
+            <span class="flabel">Días</span>
+            <div class="field"><span>5</span></div>
+          </div>
+          <div class="field-col grow">
+            <span class="flabel">Tipo</span>
+            <div class="field"><span>Hábiles</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="calc-result">
+          <p>Vence el <strong>lunes 6 de julio de 2026</strong></p>
+          <p class="grace">Plazo de gracia: primeras horas del martes 7 de julio de 2026</p>
+        </div>
+        <div class="calc-addbtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Agregar plazo
+        </div>
+      </div>
+
+      <!-- Lista de vencimientos -->
+      <div class="venc-head">
+        <h3>Vencimientos (4)</h3>
+        <label class="showdone">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+          Mostrar cumplidos
+        </label>
+      </div>
+
+      <ul class="venc-list">
+        <li class="venc-row">
+          <div class="venc-main">
+            <p class="venc-title">Contestar demanda</p>
+            <p class="venc-sub">CIV 012345/2024 · Vence hoy 2/7/2026 · gracia 3/7/2026</p>
+          </div>
+          <span class="venc-badge hoy">HOY</span>
+          <span class="venc-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          <span class="venc-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </span>
+        </li>
+
+        <li class="venc-row">
+          <div class="venc-main">
+            <p class="venc-title">Ofrecer prueba pericial</p>
+            <p class="venc-sub">COM 008912/2023 · Vence 4/7/2026 · gracia 7/7/2026</p>
+          </div>
+          <span class="venc-badge soon">2 días</span>
+          <span class="venc-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          <span class="venc-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </span>
+        </li>
+
+        <li class="venc-row">
+          <div class="venc-main">
+            <p class="venc-title">Expresar agravios</p>
+            <p class="venc-sub">CNT 006734/2025 · Vence 10/7/2026 · gracia 13/7/2026</p>
+          </div>
+          <span class="venc-badge far">8 días</span>
+          <span class="venc-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          <span class="venc-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </span>
+        </li>
+
+        <li class="venc-row">
+          <div class="venc-main">
+            <p class="venc-title">Impugnar liquidación</p>
+            <p class="venc-sub">MP 015678/2025 · Vence 15/7/2026 · gracia 16/7/2026</p>
+          </div>
+          <span class="venc-badge far">13 días</span>
+          <span class="venc-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          <span class="venc-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </span>
+        </li>
+      </ul>
+
+      <div class="ics-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><line x1="19" y1="16" x2="19" y2="22"/><line x1="16" y1="19" x2="22" y2="19"/></svg>
+        Exportar a calendario (.ics)
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

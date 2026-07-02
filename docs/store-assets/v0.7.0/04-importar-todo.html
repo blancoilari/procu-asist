@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="_shared.css">
+<style>
+  /* La captura 4 muestra el asistente (overlay) sobre el panel.
+     El panel toma una altura fija para que el asistente entero quepa. */
+  .panel { position: relative; height: 660px; display: flex; flex-direction: column; }
+
+  /* Panel de fondo tenue (lista de causas apenas visible detrás del overlay) */
+  .bg-dim {
+    padding: 14px 18px;
+    filter: blur(1.5px);
+    opacity: 0.55;
+    flex: 1;
+    overflow: hidden;
+  }
+  .bg-dim .case-card { border-bottom: 1px solid var(--border); padding: 11px 0; }
+
+  /* Overlay oscuro: cubre todo el panel */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  /* Tarjeta del asistente */
+  .wizard {
+    width: 100%;
+    max-width: 340px;
+    background: var(--bg);
+    border-radius: 14px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+  }
+  .wz-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+  }
+  .wz-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .wz-title svg { display: block; }
+  .wz-close { color: var(--text-secondary); }
+  .wz-close svg { display: block; }
+  .wz-body {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    overflow-y: auto;
+  }
+  .wz-section h3 {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+  .wz-checks { display: flex; flex-direction: column; gap: 5px; }
+  .wz-check {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+  }
+  .wz-box {
+    width: 15px;
+    height: 15px;
+    border-radius: 3px;
+    border: 1.5px solid #cbd5e1;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .wz-box.checked {
+    background: var(--primary);
+    border-color: var(--primary);
+  }
+  .wz-box.checked svg { color: #fff; }
+  .wz-label { flex: 1; min-width: 0; font-size: 12px; }
+  .wz-detail { flex-shrink: 0; font-size: 10px; color: var(--text-secondary); }
+  .wz-note { font-size: 10px; line-height: 1.35; color: rgba(71, 85, 105, 0.7); margin-top: 4px; }
+
+  /* Aviso de umbral (amarillo alto contraste, colores inline como el real) */
+  .wz-warn {
+    border-radius: 10px;
+    border: 1px solid #F59E0B;
+    background: #FEF3C7;
+    padding: 9px 12px;
+  }
+  .wz-warn p {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #7C2D12;
+  }
+  .wz-warn svg { flex-shrink: 0; margin-top: 1px; }
+  .wz-warn strong { font-weight: 700; }
+
+  .wz-actions { display: flex; gap: 8px; }
+  .wz-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .wz-btn svg { display: block; }
+  .wz-btn-secondary { background: var(--bg-secondary); color: var(--text-secondary); }
+  .wz-btn-primary { background: var(--primary); color: #fff; }
+</style>
+<title>ProcuAsist v0.7.0 - Importar todo</title>
+</head>
+<body>
+<div class="stage">
+  <div class="caption">
+    <h2>Traé todas tus causas de MEV y PJN de una vez</h2>
+  </div>
+
+  <div class="panel">
+    <!-- Header -->
+    <header class="pa-header">
+      <div class="pa-logo">
+        <svg width="24" height="24" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="lg4" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#2563eb"/>
+              <stop offset="100%" stop-color="#1d4ed8"/>
+            </linearGradient>
+          </defs>
+          <rect width="128" height="128" rx="28" fill="url(#lg4)"/>
+          <g stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <line x1="64" y1="30" x2="64" y2="96"/>
+            <line x1="46" y1="100" x2="82" y2="100"/>
+            <line x1="32" y1="44" x2="96" y2="44"/>
+            <line x1="36" y1="44" x2="28" y2="64"/>
+            <line x1="36" y1="44" x2="44" y2="64"/>
+            <line x1="92" y1="44" x2="84" y2="64"/>
+            <line x1="92" y1="44" x2="100" y2="64"/>
+          </g>
+          <g fill="white">
+            <path d="M24 64 L48 64 A12 12 0 0 1 24 64 Z"/>
+            <path d="M80 64 L104 64 A12 12 0 0 1 80 64 Z"/>
+          </g>
+          <circle cx="64" cy="30" r="3.5" fill="white"/>
+        </svg>
+        ProcuAsist
+      </div>
+      <span class="pa-version">v0.7.0</span>
+    </header>
+
+    <!-- Panel de fondo tenue -->
+    <div class="bg-dim">
+      <div class="case-card" style="padding-top:0;">
+        <div class="cc-top">
+          <span class="portal-badge pjn">PJN</span>
+          <span class="cc-number">CIV 012345/2024</span>
+        </div>
+        <p class="cc-title">PEREZ, JUAN CARLOS C/ GOMEZ, MARIA S/ DAÑOS Y PERJUICIOS</p>
+      </div>
+      <div class="case-card">
+        <div class="cc-top">
+          <span class="portal-badge mev">MEV</span>
+          <span class="cc-number">LP 004567/2023</span>
+        </div>
+        <p class="cc-title">RODRIGUEZ, ANA S/ SUCESION AB INTESTATO</p>
+      </div>
+      <div class="case-card">
+        <div class="cc-top">
+          <span class="portal-badge pjn">PJN</span>
+          <span class="cc-number">COM 008912/2023</span>
+        </div>
+        <p class="cc-title">EMPRESA CONSTRUCTORA DEL SUR S.A. C/ MUNICIPALIDAD S/ CONTENCIOSO</p>
+      </div>
+      <div class="case-card">
+        <div class="cc-top">
+          <span class="portal-badge mev">MEV</span>
+          <span class="cc-number">MP 015678/2025</span>
+        </div>
+        <p class="cc-title">MARTINEZ, LAURA C/ ASEGURADORA GENERAL S.A. S/ CUMPLIMIENTO DE CONTRATO</p>
+      </div>
+      <div class="case-card" style="border-bottom:none;">
+        <div class="cc-top">
+          <span class="portal-badge pjn">PJN</span>
+          <span class="cc-number">CNT 006734/2025</span>
+        </div>
+        <p class="cc-title">FERNANDEZ, ROBERTO C/ LOGISTICA DEL PLATA S.R.L. S/ DESPIDO</p>
+      </div>
+    </div>
+
+    <!-- Overlay + wizard -->
+    <div class="overlay">
+      <div class="wizard">
+        <div class="wz-header">
+          <div class="wz-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Importar todo
+          </div>
+          <span class="wz-close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </span>
+        </div>
+
+        <div class="wz-body">
+          <!-- PJN -->
+          <div class="wz-section">
+            <h3>PJN (scw.pjn.gov.ar)</h3>
+            <div class="wz-checks">
+              <label class="wz-check">
+                <span class="wz-box checked"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                <span class="wz-label">Relacionados</span>
+                <span class="wz-detail">≈ 34 causas, 3 páginas</span>
+              </label>
+              <label class="wz-check">
+                <span class="wz-box"></span>
+                <span class="wz-label">Favoritos</span>
+                <span class="wz-detail">≈ 180 causas, 12 páginas</span>
+              </label>
+            </div>
+            <p class="wz-note">Los números son aproximados (paginador × filas por página).</p>
+          </div>
+
+          <!-- MEV -->
+          <div class="wz-section">
+            <h3>MEV (mev.scba.gov.ar)</h3>
+            <div class="wz-checks">
+              <label class="wz-check">
+                <span class="wz-box checked"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                <span class="wz-label">Set "Estudio"</span>
+                <span class="wz-detail">se cuenta al importar</span>
+              </label>
+              <label class="wz-check">
+                <span class="wz-box"></span>
+                <span class="wz-label">Set "Laborales 2026"</span>
+                <span class="wz-detail">se cuenta al importar</span>
+              </label>
+              <label class="wz-check">
+                <span class="wz-box"></span>
+                <span class="wz-label">Set "Sucesorios"</span>
+                <span class="wz-detail">se cuenta al importar</span>
+              </label>
+            </div>
+            <p class="wz-note">Cada set se recorre completo, departamento por departamento.</p>
+          </div>
+
+          <!-- Aviso de umbral -->
+          <div class="wz-warn">
+            <p>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7C2D12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span>Si el total importado supera el umbral de 50 causas, las causas nuevas van a entrar con los <strong>avisos pausados</strong> y activás el monitoreo solo de las que te interesan.</span>
+            </p>
+          </div>
+
+          <div class="wz-actions">
+            <div class="wz-btn wz-btn-secondary">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+              Reintentar detección
+            </div>
+            <div class="wz-btn wz-btn-primary">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Importar seleccionados
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
