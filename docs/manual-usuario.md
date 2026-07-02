@@ -182,7 +182,7 @@ Desde la 0.7.0, el escaneo automático de MEV puede usar un atajo: si tenés **s
 
 Sobre este modo, tres aclaraciones prudentes:
 
-- Está marcado **(beta)** y se controla desde Ajustes con el interruptor **"Escaneo rápido por novedades de set (beta)"**. Si algo no te cierra, apagalo y el escaneo vuelve al modo completo.
+- Está marcado **(beta)** y viene **desactivado de fábrica**: el escaneo normal (causa por causa) es el que corre por defecto. Si querés probar el atajo, lo activás desde Ajustes con el interruptor **"Escaneo rápido por novedades de set (beta)"**, y si algo no te cierra lo apagás y el escaneo vuelve al modo completo.
 - Ante cualquier falla del portal, ProcuAsist abandona el atajo solo y escanea todo causa por causa; además, al menos una vez por día hace un barrido completo aunque el atajo esté funcionando.
 - El botón **"Escanear ahora" siempre revisa causa por causa**, sin atajo: es tu forma de verificar todo cuando tengas dudas.
 
