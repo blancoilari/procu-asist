@@ -4,7 +4,7 @@ Materiales para actualizar Chrome Web Store. La version publicada actualmente en
 
 ## 1. Resumen de version
 
-ProcuAsist v0.7.0 unifica marcadores y monitoreo en una sola pestana "Causas" (guardar una causa es monitorearla), agrega calculadora de plazos procesales con vencimientos y export a calendario, backup local a JSON, importacion completa de sets MEV multi-departamento y de listados PJN multi-pagina, y alertas agrupadas por expediente.
+ProcuAsist v0.7.0 unifica marcadores y monitoreo en una sola pestana "Causas" (guardar una causa es monitorearla), agrega calculadora de plazos procesales con vencimientos y export a calendario, backup local a JSON, importacion completa de sets MEV multi-departamento y de listados PJN multi-pagina, y alertas agrupadas por expediente. Suma ademas el asistente "Importar todo" (trae todas las causas de los portales con sesion activa, con umbral anti-ruido que pausa avisos en importaciones grandes), el escaneo rapido MEV por novedades de set (beta) y el flujo "Restablecer PIN" para quien olvido su PIN.
 
 ## 2. Descripcion corta
 
@@ -28,8 +28,10 @@ QUE HACE
 - Busca movimientos desde una fecha indicada en causas monitoreadas.
 - Importa causas desde resultados y sets de busqueda MEV, incluso sets que abarcan varios departamentos judiciales.
 - Importa causas desde listados PJN/SCW (relacionados o favoritos), recorriendo todas las paginas.
+- Asistente "Importar todo": trae de una vez tus causas de los portales con sesion activa (listados PJN y sets MEV completos), con progreso, cancelacion y resumen. Si importas muchas causas juntas, entran con los avisos pausados para no inundarte de alertas: activas el monitoreo solo de las que te interesan.
+- Escaneo rapido MEV por novedades de set (beta): revisa tus sets de busqueda en una sola consulta y solo re-lee las causas que se movieron. Se puede apagar en Ajustes.
 - Backup local: exporta e importa tus datos a JSON desde Ajustes (nunca incluye credenciales ni PIN).
-- Cifra credenciales localmente con PIN maestro.
+- Cifra credenciales localmente con PIN maestro. Si olvidas el PIN, un flujo de restablecimiento borra las credenciales guardadas (no hay forma de recuperarlas sin el PIN) y te deja configurar uno nuevo sin perder tus causas ni plazos.
 
 PORTALES SOPORTADOS
 - MEV / SCBA: mev.scba.gov.ar
@@ -49,6 +51,9 @@ ProcuAsist se ofrece "tal cual", sin garantias. No reemplaza el control manual d
 Novedades de la v0.7.0:
 
 - Causas unificadas: una sola pestana reemplaza a Marcadores y Monitoreo. Guardar una causa es monitorearla; podes pausar los avisos por causa. Los datos existentes se migran solos.
+- Asistente "Importar todo": desde la vista Causas, trae todas tus causas de los portales con sesion activa (relacionados y favoritos de PJN, sets de busqueda MEV completos), con progreso por fuente, cancelacion y resumen final. Si el total importado supera un umbral configurable (50 por defecto), las causas entran con avisos pausados para no inundarte de alertas.
+- Escaneo rapido MEV por novedades de set (beta): el monitoreo consulta las novedades de tus sets en una sola busqueda y solo re-lee lo que se movio. Si algo falla vuelve solo al escaneo completo; se puede apagar en Ajustes.
+- Restablecer PIN: si olvidaste tu PIN, un flujo con doble confirmacion borra el PIN y las credenciales guardadas (irrecuperables sin el PIN anterior) y te deja empezar de nuevo sin perder causas, alertas ni plazos.
 - Alertas por expediente: una tarjeta por causa con su ultimo movimiento; los contadores cuentan causas con novedades, no movimientos sueltos.
 - Plazos y vencimientos: calculadora de plazos procesales en dias habiles judiciales (feriados 2026-2027 y ferias configurables), lista de vencimientos con avisos 3 dias antes, el dia del vencimiento y al vencer, y export a calendario (.ics).
 - Backup local: exporta e importa marcadores, monitores, alertas, plazos y preferencias a JSON desde Ajustes. Nunca incluye credenciales ni PIN.
@@ -64,6 +69,7 @@ Las capturas de la v0.6.1 (`docs/store-assets/v0.6.1/screenshots-1280x800`) qued
 
 - [ ] Panel lateral con la nueva pestana "Causas" (sub-vistas Causas y Alertas agrupadas por expediente). Reemplaza a `02_Menu_procu_Asist_.png` y `05_b_marcadores_.png`.
 - [ ] Nueva pestana "Plazos" con la calculadora y la lista de vencimientos.
+- [ ] Asistente "Importar todo" en el paso de seleccion, con fuentes detectadas y el aviso del umbral (opcional pero recomendable: es la novedad mas vistosa para un colega nuevo).
 - [ ] Dialogo de importacion de set MEV multi-departamento (opcional).
 
 Se pueden conservar las capturas de descarga ZIP MEV y PJN si la UI no cambio de forma visible:
@@ -102,6 +108,9 @@ Objetivo: validar la migracion al modelo unificado y las funciones nuevas antes 
 | Encabezados fijos al scrollear en Causas y Alertas | Implementada; pendiente QA manual |
 | Monitoreo por fecha (no por conteo) | Implementada; pendiente QA manual |
 | Descargas PJN con timeout y cancelar | Implementada; pendiente QA manual |
+| Asistente "Importar todo" (conteo, seleccion con umbral, ejecucion) | Implementada; pendiente QA manual en MEV y SCW reales |
+| Escaneo MEV por novedades de set (beta, default activo) | Implementada; pendiente QA manual en MEV real (la mecanica del form de novedades NO se pudo verificar en vivo) |
+| Flujo "Restablecer PIN" (borra vault y credenciales) | Implementada; pendiente QA manual |
 
 ### 7.1 Preparacion
 
@@ -153,7 +162,21 @@ Objetivo: validar la migracion al modelo unificado y las funciones nuevas antes 
 - [ ] Importar sobre un perfil con datos hace merge sin duplicar ni pisar causas existentes.
 - [ ] Importar un archivo invalido o vacio falla con mensaje claro, sin romper datos existentes.
 
-### 7.7 MEV / SCBA
+### 7.7 Asistente "Importar todo"
+
+- [ ] Con pestanas MEV y SCW logueadas, el boton "Importar todo" (vista Causas, junto al estado de escaneo) abre el asistente y detecta ambos portales.
+- [ ] La estimacion PJN es razonable (ultima pagina del paginador x filas por pagina) para relacionados y favoritos; la deteccion navega la pestana SCW entre ambos listados sin romperla.
+- [ ] Los sets MEV aparecen listados por nombre, sin conteo ("se cuenta al importar").
+- [ ] Sin pestana o sin sesion de un portal, el asistente lo explica y "Reintentar deteccion" funciona.
+- [ ] Con total estimado por encima del umbral, la consecuencia (avisos pausados) se muestra ANTES de ejecutar; con sets sin contar, se muestra la version condicional.
+- [ ] Ejecucion: progreso por fuente visible; la recoleccion PJN recorre todas las paginas con pausas de cortesia; el set MEV recorre departamentos y organismos sin pedir confirmaciones.
+- [ ] Cancelar corta limpio: la fuente en curso se detiene entre paginas u organismos, las pendientes quedan canceladas y el resumen refleja lo importado hasta ahi.
+- [ ] Resumen final coherente (importadas, duplicadas salteadas, errores); reimportar las mismas fuentes no duplica causas (dedup por portal + numero).
+- [ ] Si el total de causas nuevas supero el umbral, los monitores creados en la corrida quedan pausados y los preexistentes no se tocan; por debajo del umbral quedan activos.
+- [ ] Cerrar el panel lateral durante la corrida no la interrumpe: al reabrir, el asistente retoma el progreso en curso.
+- [ ] El umbral es editable en Ajustes (campo numerico con texto de ayuda) y el asistente usa el valor actualizado.
+
+### 7.8 MEV / SCBA
 
 - [ ] En un expediente MEV aparece la botonera flotante y Guardar deja la causa monitoreada.
 - [ ] ZIP abre modal de seleccion y genera archivo con `resumen.pdf` y documentos seleccionados.
@@ -162,8 +185,13 @@ Objetivo: validar la migracion al modelo unificado y las funciones nuevas antes 
 - [ ] Importar un set multi-departamento ofrece "solo este departamento" o "todos" y recorre organismo por organismo sin trabarse en paginas vacias.
 - [ ] `Buscar movimientos desde esa fecha` sigue funcionando sobre causas monitoreadas.
 - [ ] Movimientos nuevos se detectan por fecha: un movimiento viejo eliminado del listado no dispara falsa alerta.
+- [ ] Escaneo por novedades de set (beta) ACTIVO: un movimiento real en una causa de un set genera su alerta en el escaneo automatico, y las causas del set que no se movieron no generan falsas alertas.
+- [ ] Con el modo beta activo, una causa monitoreada que NO esta en ningun set se sigue escaneando causa por causa.
+- [ ] "Escanear ahora" revisa causa por causa aunque el modo beta este activo (es el camino de rescate si el modo rapido genera dudas).
+- [ ] Con el toggle de Ajustes apagado, el escaneo vuelve al comportamiento anterior (todo causa por causa).
+- [ ] En la consola del service worker: ante cualquier fallo del prefiltro (sin sets, form distinto, sesion vencida) el escaneo cae al modo completo sin romper nada.
 
-### 7.8 PJN
+### 7.9 PJN
 
 - [ ] En expediente SCW aparece boton ZIP; el modal lista actuaciones y filtra por categoria.
 - [ ] Descarga con documento trabado corta a los 45 segundos e informa sin romper el ZIP.
@@ -173,21 +201,25 @@ Objetivo: validar la migracion al modelo unificado y las funciones nuevas antes 
 - [ ] Acciones `Dejar nota` / `Dejar notas` visibles solo martes/viernes; el flujo individual abre el modal oficial de PJN sin confirmar automaticamente.
 - [ ] Alertas PJN muestran portal, numero, caratula, juzgado y movimiento; el click abre la causa.
 
-### 7.9 EJE / JUSCABA
+### 7.10 EJE / JUSCABA
 
 - [ ] La extension no rompe la navegacion normal del portal.
 - [ ] Confirmar el estado esperado de EJE en la UI (quedo oculto desde 0.6.7).
 
-### 7.10 Privacidad y seguridad
+### 7.11 Privacidad y seguridad
 
 - [ ] Las credenciales se guardan solo despues de configurar PIN.
 - [ ] Configurar el PIN con credenciales ya guardadas no re-clavea el vault ni las pierde.
 - [ ] El vault bloqueado no muestra credenciales en claro.
+- [ ] "Restablecer PIN" (Configuracion avanzada > Credenciales) pide DOS confirmaciones con texto explicito de que borra las credenciales; cancelar en cualquiera de las dos no borra nada.
+- [ ] Tras restablecer: se puede configurar un PIN nuevo y guardar credenciales de nuevo; en chrome.storage.local no quedan tl_master_salt, tl_pin_test, tl_persisted_key ni tl_cred_*.
+- [ ] Marcadores, monitores, alertas y plazos sobreviven intactos al restablecimiento del PIN.
+- [ ] El flujo de restablecer esta accesible con el vault BLOQUEADO (el caso real de quien olvido el PIN).
 - [ ] El auto-login corta tras el limite de reintentos (MEV y Keycloak/SSO PJN) sin loops.
 - [ ] No hay llamadas a backend propio para funciones gratuitas.
 - [ ] El README y la ficha Store aclaran que los datos quedan locales.
 
-### 7.11 Publicacion
+### 7.12 Publicacion
 
 - [ ] Rehacer screenshots anonimizadas (Causas, Alertas, Plazos; ver seccion 5).
 - [ ] Confirmar que `CHANGELOG.md` tiene entrada 0.7.0.
@@ -197,11 +229,13 @@ Objetivo: validar la migracion al modelo unificado y las funciones nuevas antes 
 - [ ] Guardar numero de version enviada a revision y fecha de envio.
 - [ ] Tras la aprobacion, actualizar README y ROADMAP (version publicada pasa a 0.7.0).
 
-### 7.12 Riesgos conocidos aceptables
+### 7.13 Riesgos conocidos aceptables
 
 - La conciliacion de datos corre sobre datos reales de usuarios de la 0.6.7: es el punto de mayor riesgo de esta release y el QA de 7.2 no es opcional.
 - El computo de plazos es una ayuda, no reemplaza el control manual del abogado; los feriados cargados llegan hasta 2027 y las ferias dependen de carga manual del usuario.
 - MEV depende de sesion abierta del usuario; el paginador y los sets pueden cambiar sin aviso.
+- El escaneo por novedades de set replica el form de busqueda.asp segun la mecanica documentada en el proyecto hermano, pero el valor exacto del campo `busca` para novedades y la forma de la pagina de resultados NO se verificaron contra el portal vivo: el QA de 7.8 sobre MEV real es obligatorio antes de publicar con el default activo. Mitigaciones ya en el codigo: fallback total al escaneo causa por causa, barrido completo diario, escaneo manual siempre exhaustivo y toggle para apagarlo.
+- Las estimaciones del asistente "Importar todo" son aproximadas (paginador x filas; en Relacionados solo la solapa visible) y la corrida depende de que las pestanas de los portales sigan abiertas.
 - El paginador RichFaces de SCW es fragil; un cambio del portal puede romper la importacion multi-pagina.
 - Algunos expedientes PJN pueden no entregar PDF descargable segun estado, permisos o tipo de actuacion.
 - `notificaciones.scba.gov.ar` sigue fuera del alcance gratuito.
