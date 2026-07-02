@@ -20,6 +20,13 @@ export interface ProcuAsistSettings {
   persistUnlock: boolean;
   /** Preferred MEV judicial department code (e.g., "80" for Avellaneda) */
   mevDepartamento: string;
+  /**
+   * Umbral anti-ruido del asistente "Importar todo": si en una corrida se
+   * importan MÁS causas nuevas que este número, sus monitores quedan con
+   * avisos pausados (el usuario activa el monitoreo de lo que le importa).
+   * Por debajo del umbral, monitoreo activo normal.
+   */
+  importAllPauseThreshold: number;
 }
 
 const STORAGE_KEY = 'tl_settings';
@@ -32,6 +39,7 @@ export const DEFAULT_SETTINGS: ProcuAsistSettings = {
   autoReconnect: true,
   persistUnlock: false, // safe default: do not persist the key across restarts
   mevDepartamento: 'aa', // "TODOS los Deptos" by default
+  importAllPauseThreshold: 50,
 };
 
 export async function getSettings(): Promise<ProcuAsistSettings> {
@@ -44,6 +52,14 @@ export async function updateSettings(
 ): Promise<ProcuAsistSettings> {
   const current = await getSettings();
   const updated = { ...current, ...partial };
+
+  // Sanitizar el umbral de pausa: entero entre 1 y 1000 (un valor absurdo
+  // rompe el sentido anti-ruido de la función).
+  const threshold = Number(updated.importAllPauseThreshold);
+  updated.importAllPauseThreshold = Number.isFinite(threshold)
+    ? Math.min(1000, Math.max(1, Math.round(threshold)))
+    : DEFAULT_SETTINGS.importAllPauseThreshold;
+
   await chrome.storage.local.set({ [STORAGE_KEY]: updated });
   return updated;
 }

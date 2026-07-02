@@ -53,6 +53,14 @@ import { MEV_BASE_URL, MEV_URLS } from '@/modules/portals/mev-selectors';
 import type { MevSearchResult } from '@/modules/portals/mev-parser';
 import { handleSessionExpired } from './auto-reconnect';
 import { scanMonitoredCases } from './case-monitor';
+import { runBulkImport } from '@/modules/storage/bulk-import';
+import {
+  cancelImportAllRun,
+  detectImportAllSources,
+  handleImportAllProgress,
+  handleImportAllSourceDone,
+  startImportAllRun,
+} from './import-all';
 import { getEvents } from '@/modules/portals/pjn-api-client';
 import { getToken, getTokenAgeMs } from '@/modules/portals/pjn-token-store';
 import {
@@ -444,72 +452,41 @@ async function handleMessage(
 
     // --- Bulk Import ---
     case 'BULK_IMPORT': {
-      console.debug(
-        `[ProcuAsist] Bulk import: ${message.cases.length} cases from ${message.source}`
+      // La lógica vive en modules/storage/bulk-import (compartida con el
+      // asistente "Importar todo"). newMonitorIds permite al asistente
+      // pausar los monitores creados si se supera el umbral anti-ruido.
+      const summary = await runBulkImport(
+        message.cases,
+        message.source,
+        message.monitor ?? false
       );
-      let imported = 0;
-      let existing = 0;
-      let monitored = 0;
-      let failed = 0;
-      for (const c of message.cases) {
-        try {
-          const richCaseObj = c;
-          const portal = richCaseObj.portal ?? ('mev' as const);
-          const wasBookmarked = await isBookmarked(portal, richCaseObj.caseNumber);
-          const caseData = {
-            id:
-              richCaseObj.id ||
-              richCaseObj.metadata?.nidCausa ||
-              richCaseObj.caseNumber,
-            portal,
-            caseNumber: richCaseObj.caseNumber,
-            title: richCaseObj.title || 'Sin caratula',
-            court: richCaseObj.court ?? '',
-            fuero: richCaseObj.fuero ?? '',
-            portalUrl: richCaseObj.portalUrl ?? '',
-            metadata: richCaseObj.metadata,
-          };
+      return { status: 'ok', ...summary };
+    }
 
-          await addBookmark(caseData);
-          if (wasBookmarked) {
-            existing++;
-          } else {
-            imported++;
-          }
+    // --- Asistente "Importar todo" ---
+    case 'IMPORT_ALL_DETECT': {
+      const detection = await detectImportAllSources();
+      return { success: true, detection };
+    }
 
-          // MEV requiere nidCausa/pidJuzgado para el escaneo; PJN se
-          // monitorea por expediente/carátula contra el feed de la API.
-          const canMonitor =
-            message.monitor &&
-            (portal === 'pjn' ||
-              (portal === 'mev' &&
-                caseData.metadata?.nidCausa &&
-                caseData.metadata?.pidJuzgado));
-          if (canMonitor) {
-            const wasMonitored = await isMonitored(portal, richCaseObj.caseNumber);
-            await addMonitor({
-              portal,
-              caseNumber: richCaseObj.caseNumber,
-              title: caseData.title,
-              court: caseData.court,
-              portalUrl: caseData.portalUrl,
-              metadata: {
-                nidCausa: caseData.metadata?.nidCausa,
-                pidJuzgado: caseData.metadata?.pidJuzgado,
-              },
-            });
-            if (!wasMonitored) monitored++;
-          }
-        } catch (err) {
-          // Skip the failing case but keep importing the rest.
-          failed++;
-          console.warn(
-            `[ProcuAsist] Bulk import failed for ${c?.caseNumber ?? '?'}:`,
-            err
-          );
-        }
-      }
-      return { status: 'ok', imported, existing, monitored, failed };
+    case 'IMPORT_ALL_RUN': {
+      return startImportAllRun(message.selection);
+    }
+
+    case 'IMPORT_ALL_CANCEL': {
+      await cancelImportAllRun();
+      return { success: true };
+    }
+
+    case 'IMPORT_ALL_SOURCE_DONE':
+    case 'IMPORT_ALL_MEV_SET_DONE': {
+      handleImportAllSourceDone(message);
+      return { success: true };
+    }
+
+    case 'IMPORT_ALL_PROGRESS': {
+      await handleImportAllProgress(message);
+      return { success: true };
     }
 
     // --- PJN ZIP de expediente ---

@@ -35,8 +35,13 @@ import {
 } from '@/modules/portals/pjn-list-collector';
 import { mountPjnZipButton } from '@/modules/portals/pjn-zip-ui';
 import { mountPjnCaseActions } from '@/modules/portals/pjn-actions-ui';
-import { mountPjnListImportButton } from '@/modules/portals/pjn-list-import-ui';
+import {
+  isImportableRow,
+  mountPjnListImportButton,
+  toImportCase,
+} from '@/modules/portals/pjn-list-import-ui';
 import { mountPjnBulkNoteButton } from '@/modules/portals/pjn-bulk-note-ui';
+import { IMPORT_ALL_CANCEL_STORAGE_KEY } from '@/modules/messages/types';
 
 export interface PjnCollectActuacionesMessage {
   type: 'PJN_COLLECT_ACTUACIONES';
@@ -95,6 +100,26 @@ function installCollectorListener(): void {
       return false;
     }
 
+    if (msg.type === 'IMPORT_ALL_COLLECT_LIST') {
+      const { runId, sourceKey } = msg as {
+        runId: string;
+        sourceKey: string;
+      };
+      if (!isScwListadoPage(new URL(window.location.href).pathname)) {
+        sendResponse({
+          ok: false,
+          error: 'La pestana scw no esta en un listado PJN.',
+        });
+        return false;
+      }
+      // Ack inmediato: la recoleccion puede tardar mas que el tope de 5
+      // minutos del canal de mensajes MV3, asi que el resultado viaja en un
+      // mensaje IMPORT_ALL_SOURCE_DONE aparte.
+      sendResponse({ ok: true });
+      void runImportAllCollection(runId, sourceKey);
+      return false;
+    }
+
     if (msg.type === 'PJN_COLLECT_LIST_ROWS') {
       const { maxPages } = msg as PjnCollectListRowsMessage;
       if (!isScwListadoPage(new URL(window.location.href).pathname)) {
@@ -143,6 +168,72 @@ function installCollectorListener(): void {
       });
     return true; // respuesta asíncrona
   });
+}
+
+/**
+ * Recolección para el asistente "Importar todo": recorre el listado con tope
+ * extendido y pausas de cortesía, reporta progreso por página (cada mensaje
+ * además mantiene vivo el service worker MV3) y entrega los casos ya mapeados
+ * al formato de BULK_IMPORT en un mensaje final.
+ */
+async function runImportAllCollection(
+  runId: string,
+  sourceKey: string
+): Promise<void> {
+  try {
+    const mode = parseScwList(document, new URL(window.location.href)).mode;
+    const collected = await collectScwListRows({
+      maxPages: 120,
+      allowExtendedPages: true,
+      pauseMs: 1200,
+      onPage: (pagesVisited, rowsCollected) => {
+        chrome.runtime
+          .sendMessage({
+            type: 'IMPORT_ALL_PROGRESS',
+            runId,
+            sourceKey,
+            detail: `página ${pagesVisited}, ${rowsCollected} causas recolectadas`,
+          })
+          .catch(() => {});
+      },
+      shouldCancel: async () => {
+        try {
+          const stored = await chrome.storage.local.get(
+            IMPORT_ALL_CANCEL_STORAGE_KEY
+          );
+          return stored[IMPORT_ALL_CANCEL_STORAGE_KEY] === true;
+        } catch {
+          return false;
+        }
+      },
+    });
+
+    const cases = collected.rows
+      .filter(isImportableRow)
+      .map((row) => toImportCase(row, mode));
+
+    await chrome.runtime.sendMessage({
+      type: 'IMPORT_ALL_SOURCE_DONE',
+      runId,
+      sourceKey,
+      ok: true,
+      cases,
+      pagesVisited: collected.pagesVisited,
+      truncated: collected.truncated,
+      cancelled: collected.cancelled,
+    });
+  } catch (err) {
+    console.error('[ProcuAsist PJN] Importar todo: recoleccion fallo', err);
+    chrome.runtime
+      .sendMessage({
+        type: 'IMPORT_ALL_SOURCE_DONE',
+        runId,
+        sourceKey,
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      .catch(() => {});
+  }
 }
 
 function initScwDebug(): void {

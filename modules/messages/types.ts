@@ -40,7 +40,13 @@ export type ProcuAsistMessage =
   | PjnGenerateZipMessage
   | PjnCancelZipMessage
   | OpenPjnCaseMessage
-  | ConsumePjnOpenTargetMessage;
+  | ConsumePjnOpenTargetMessage
+  | ImportAllDetectMessage
+  | ImportAllRunMessage
+  | ImportAllCancelMessage
+  | ImportAllSourceDoneMessage
+  | ImportAllProgressMessage
+  | ImportAllMevSetDoneMessage;
 
 export interface SetupPinMessage {
   type: 'SETUP_PIN';
@@ -307,6 +313,123 @@ export interface OpenPjnCaseMessage {
 /** Content-script request to read & clear the pending PJN open target. */
 export interface ConsumePjnOpenTargetMessage {
   type: 'CONSUME_PJN_OPEN_TARGET';
+}
+
+// --- Asistente "Importar todo" ---
+
+/** Progreso de la corrida activa (chrome.storage.session, lee el panel). */
+export const IMPORT_ALL_PROGRESS_STORAGE_KEY = 'tl_import_all_progress';
+/** Flag de cancelación (chrome.storage.local: lo leen los content scripts
+ *  entre páginas/organismos para cortar limpio). */
+export const IMPORT_ALL_CANCEL_STORAGE_KEY = 'tl_import_all_cancel';
+
+/** Qué fuentes eligió el usuario en el paso de selección del asistente. */
+export interface ImportAllSelection {
+  pjnRelacionados: boolean;
+  pjnFavoritos: boolean;
+  /** Sets de búsqueda MEV a recorrer completos (multi-departamento). */
+  mevSets: Array<{ id: string; nombre: string }>;
+}
+
+/** Estimación de una fuente PJN detectada por el asistente. */
+export interface ImportAllPjnSource {
+  list: 'relacionados' | 'favoritos';
+  /** Filas visibles + paginador (aproximado); null si no se pudo estimar. */
+  estimatedCases: number | null;
+  pages: number | null;
+  error?: string;
+}
+
+/** Resultado de la fase de conteo/detección del asistente. */
+export interface ImportAllDetectResult {
+  pjn: {
+    hasTab: boolean;
+    hasSession: boolean;
+    sources: ImportAllPjnSource[];
+  };
+  mev: {
+    hasTab: boolean;
+    hasSession: boolean;
+    sets: Array<{ id: string; nombre: string }>;
+    error?: string;
+  };
+}
+
+/** Estado de una fuente durante la ejecución (persistido en storage.session). */
+export interface ImportAllSourceProgress {
+  key: string;
+  label: string;
+  state: 'pending' | 'running' | 'done' | 'error' | 'cancelled';
+  imported: number;
+  existing: number;
+  failed: number;
+  detail?: string;
+}
+
+/** Progreso completo de una corrida del asistente (storage.session). */
+export interface ImportAllRunProgress {
+  runId: string;
+  running: boolean;
+  cancelled: boolean;
+  startedAt: string;
+  finishedAt?: string;
+  sources: ImportAllSourceProgress[];
+  totalImported: number;
+  totalExisting: number;
+  totalFailed: number;
+  /** Cuántos monitores nuevos quedaron pausados por superar el umbral. */
+  monitorsPaused: number;
+  pauseThreshold: number;
+}
+
+export interface ImportAllDetectMessage {
+  type: 'IMPORT_ALL_DETECT';
+}
+
+export interface ImportAllRunMessage {
+  type: 'IMPORT_ALL_RUN';
+  selection: ImportAllSelection;
+}
+
+export interface ImportAllCancelMessage {
+  type: 'IMPORT_ALL_CANCEL';
+}
+
+/** Content script PJN → background: recolección de un listado terminada. */
+export interface ImportAllSourceDoneMessage {
+  type: 'IMPORT_ALL_SOURCE_DONE';
+  runId: string;
+  sourceKey: string;
+  ok: boolean;
+  /** Casos ya mapeados al formato de BULK_IMPORT (con metadata.source). */
+  cases?: Array<Partial<Case> & { caseNumber: string; title: string }>;
+  pagesVisited?: number;
+  truncated?: boolean;
+  cancelled?: boolean;
+  error?: string;
+}
+
+/** Content script → background: progreso de una fuente en curso. */
+export interface ImportAllProgressMessage {
+  type: 'IMPORT_ALL_PROGRESS';
+  runId: string;
+  sourceKey: string;
+  detail: string;
+}
+
+/** Content script MEV → background: recorrido de un set terminado. */
+export interface ImportAllMevSetDoneMessage {
+  type: 'IMPORT_ALL_MEV_SET_DONE';
+  runId: string;
+  sourceKey: string;
+  ok: boolean;
+  imported?: number;
+  existing?: number;
+  monitored?: number;
+  failed?: number;
+  newMonitorIds?: string[];
+  cancelled?: boolean;
+  error?: string;
 }
 
 /** Response types for type safety */

@@ -6,16 +6,35 @@ export interface PjnCollectedListRows {
   pagesVisited: number;
   /** true si se corto por el tope de paginas y quedaban mas por recorrer. */
   truncated: boolean;
+  /** true si el recorrido se corto por pedido de cancelacion del usuario. */
+  cancelled?: boolean;
+}
+
+export interface CollectScwListOptions {
+  maxPages?: number;
+  /**
+   * Habilita el tope extendido (hasta 200 paginas) para el asistente
+   * "Importar todo". Los flujos comunes conservan el tope duro de 25.
+   */
+  allowExtendedPages?: boolean;
+  /** Pausa de cortesia entre paginas (ms), para no castigar al SCW. */
+  pauseMs?: number;
+  /** Callback de progreso: se invoca despues de parsear cada pagina. */
+  onPage?: (pagesVisited: number, rowsCollected: number) => void;
+  /** Si devuelve true entre paginas, el recorrido corta limpio. */
+  shouldCancel?: () => Promise<boolean> | boolean;
 }
 
 export async function collectScwListRows(
-  options: { maxPages?: number } = {}
+  options: CollectScwListOptions = {}
 ): Promise<PjnCollectedListRows> {
-  const maxPages = Math.max(1, Math.min(options.maxPages ?? 12, 25));
+  const hardCap = options.allowExtendedPages ? 200 : 25;
+  const maxPages = Math.max(1, Math.min(options.maxPages ?? 12, hardCap));
   const seen = new Set<string>();
   const rows: ReturnType<typeof parseScwList>['rows'] = [];
   let pagesVisited = 0;
   let truncated = false;
+  let cancelled = false;
 
   for (let page = 0; page < maxPages; page++) {
     const parsed = parseScwList(document, new URL(window.location.href));
@@ -32,6 +51,8 @@ export async function collectScwListRows(
       rows.push(row);
     }
 
+    options.onPage?.(pagesVisited, rows.length);
+
     const next = findNextListPageControl();
     if (!next) break;
 
@@ -40,6 +61,15 @@ export async function collectScwListRows(
     if (page === maxPages - 1) {
       truncated = true;
       break;
+    }
+
+    if (options.shouldCancel && (await options.shouldCancel())) {
+      cancelled = true;
+      break;
+    }
+
+    if (options.pauseMs && options.pauseMs > 0) {
+      await new Promise((resolve) => window.setTimeout(resolve, options.pauseMs));
     }
 
     const before = listSignature();
@@ -52,7 +82,8 @@ export async function collectScwListRows(
 
   console.debug(
     `[ProcuAsist PJN] Listado recolectado: ${rows.length} filas en ${pagesVisited} página(s)` +
-      (truncated ? ' (cortado por tope de páginas, puede haber más)' : '')
+      (truncated ? ' (cortado por tope de páginas, puede haber más)' : '') +
+      (cancelled ? ' (cancelado por el usuario)' : '')
   );
 
   return {
@@ -60,6 +91,7 @@ export async function collectScwListRows(
     rows,
     pagesVisited,
     truncated,
+    cancelled,
   };
 }
 

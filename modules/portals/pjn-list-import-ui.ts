@@ -277,7 +277,11 @@ function ensurePjnActionBar(): HTMLDivElement {
   return bar;
 }
 
-function toImportCase(row: PjnCaseRow, mode: PjnListMode) {
+/** Convierte una fila del listado SCW en el caso que espera BULK_IMPORT.
+ *  Exportada para que el asistente "Importar todo" arme el mismo payload
+ *  (misma metadata.source, de la que depende p. ej. la elegibilidad de
+ *  "Dejar notas" para relacionados-letrado). */
+export function toImportCase(row: PjnCaseRow, mode: PjnListMode) {
   const caseNumber = cleanText(row.expediente);
   const detailUrl = resolveDetailUrl(row.detailHref);
   return {
@@ -296,7 +300,7 @@ function toImportCase(row: PjnCaseRow, mode: PjnListMode) {
   };
 }
 
-function isImportableRow(row: PjnCaseRow): boolean {
+export function isImportableRow(row: PjnCaseRow): boolean {
   return Boolean(cleanText(row.expediente) && cleanText(row.caratula));
 }
 
