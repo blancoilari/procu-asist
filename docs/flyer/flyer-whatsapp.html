@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<title>Flyer ProcuAsist WhatsApp 1080x1350</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1350px; }
+  body {
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    background: #ffffff;
+    color: #14285a;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---------- Header ---------- */
+  .header {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    padding: 32px 60px 28px;
+    text-align: center;
+    position: relative;
+  }
+  .logo { width: 140px; height: 140px; border-radius: 31px; box-shadow: 0 14px 34px rgba(10, 30, 90, 0.45); }
+  .brand {
+    font-family: 'Sora', 'Inter', sans-serif;
+    font-size: 72px;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -1px;
+    margin-top: 18px;
+    line-height: 1;
+  }
+  .tagline {
+    font-family: 'Sora', 'Inter', sans-serif;
+    font-size: 27px;
+    font-weight: 600;
+    letter-spacing: 9px;
+    color: #bfdbfe;
+    text-transform: uppercase;
+    margin-top: 14px;
+  }
+  .pill {
+    display: inline-block;
+    margin-top: 20px;
+    background: #ffffff;
+    color: #1d4ed8;
+    font-size: 28px;
+    font-weight: 700;
+    padding: 13px 36px;
+    border-radius: 999px;
+    box-shadow: 0 8px 20px rgba(10, 30, 90, 0.35);
+  }
+
+  /* ---------- Portales ---------- */
+  .chips {
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    padding: 22px 60px 0;
+  }
+  .chip {
+    background: #eff6ff;
+    border: 2px solid #bfdbfe;
+    color: #1e3a8a;
+    font-size: 24px;
+    font-weight: 600;
+    padding: 10px 24px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  /* ---------- Bullets ---------- */
+  .bullets {
+    padding: 24px 62px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    flex: 0 0 auto;
+  }
+  .bullet { display: flex; align-items: center; gap: 24px; }
+  .bullet-icon {
+    flex: 0 0 54px;
+    width: 54px;
+    height: 54px;
+    border-radius: 15px;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 14px rgba(29, 78, 216, 0.28);
+  }
+  .bullet-icon svg { width: 30px; height: 30px; }
+  .bullet p { font-size: 27px; font-weight: 500; line-height: 1.28; color: #14285a; }
+  .bullet p strong { font-weight: 700; }
+
+  /* ---------- QR ---------- */
+  .qr-panel {
+    margin: 28px 60px 0;
+    background: #eff6ff;
+    border: 2px solid #dbeafe;
+    border-radius: 30px;
+    padding: 24px 44px;
+    display: flex;
+    align-items: center;
+    gap: 44px;
+  }
+  .qr-card {
+    background: #ffffff;
+    border-radius: 22px;
+    padding: 14px;
+    box-shadow: 0 10px 26px rgba(15, 42, 94, 0.15);
+    flex: 0 0 auto;
+    font-size: 0;
+  }
+  .qr-card img { width: 294px; height: 294px; display: block; }
+  .qr-text { flex: 1; }
+  .qr-title {
+    font-family: 'Sora', 'Inter', sans-serif;
+    font-size: 44px;
+    font-weight: 700;
+    color: #14285a;
+    line-height: 1.15;
+  }
+  .qr-sub { font-size: 29px; font-weight: 500; color: #33437a; margin-top: 14px; line-height: 1.35; }
+  .qr-url {
+    display: inline-block;
+    margin-top: 22px;
+    font-size: 27px;
+    font-weight: 700;
+    color: #1d4ed8;
+    background: #ffffff;
+    border: 2px solid #bfdbfe;
+    border-radius: 12px;
+    padding: 12px 22px;
+  }
+  .qr-search { font-size: 25px; font-weight: 600; color: #33437a; margin-top: 12px; }
+
+  /* ---------- Footer ---------- */
+  .footer {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 60px;
+  }
+  .footer p { font-size: 28px; font-weight: 600; color: #475569; text-align: center; }
+</style>
+</head>
+<body>
+
+  <div class="header">
+    <svg class="logo" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bgv" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#2563eb"/>
+          <stop offset="100%" stop-color="#1d4ed8"/>
+        </linearGradient>
+      </defs>
+      <rect width="128" height="128" rx="28" fill="url(#bgv)"/>
+      <rect x="2.5" y="2.5" width="123" height="123" rx="25.5" stroke="rgba(255,255,255,0.55)" stroke-width="5" fill="none"/>
+      <g stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <line x1="64" y1="30" x2="64" y2="96"/>
+        <line x1="46" y1="100" x2="82" y2="100"/>
+        <line x1="32" y1="44" x2="96" y2="44"/>
+        <line x1="36" y1="44" x2="28" y2="64"/>
+        <line x1="36" y1="44" x2="44" y2="64"/>
+        <line x1="92" y1="44" x2="84" y2="64"/>
+        <line x1="92" y1="44" x2="100" y2="64"/>
+      </g>
+      <g fill="white">
+        <path d="M24 64 L48 64 A12 12 0 0 1 24 64 Z"/>
+        <path d="M80 64 L104 64 A12 12 0 0 1 80 64 Z"/>
+      </g>
+      <circle cx="64" cy="30" r="3.5" fill="white"/>
+    </svg>
+    <div class="brand">ProcuAsist</div>
+    <div class="tagline">Copiloto legal</div>
+    <div class="pill">Extensión gratuita de Chrome para abogados</div>
+  </div>
+
+  <div class="chips">
+    <span class="chip">MEV / SCBA · Provincia de Bs. As.</span>
+    <span class="chip">PJN · Nación</span>
+    <span class="chip">JUSCABA · CABA</span>
+  </div>
+
+  <div class="bullets">
+    <div class="bullet">
+      <span class="bullet-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"/><path d="M8 10l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      </span>
+      <p><strong>Descargá el expediente completo</strong> de MEV y PJN en un ZIP, con un click.</p>
+    </div>
+    <div class="bullet">
+      <span class="bullet-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 9a6 6 0 1 0-12 0c0 6-2.5 7-2.5 7h17S18 15 18 9"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></svg>
+      </span>
+      <p><strong>Monitoreá tus causas</strong> y recibí alertas de movimientos nuevos.</p>
+    </div>
+    <div class="bullet">
+      <span class="bullet-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h10a1 1 0 0 1 1 1v17l-6-4-6 4V4a1 1 0 0 1 1-1z"/></svg>
+      </span>
+      <p><strong>Marcadores de expedientes</strong> en un panel lateral del navegador.</p>
+    </div>
+    <div class="bullet">
+      <span class="bullet-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/><path d="M9 15l2 2 4-4"/></svg>
+      </span>
+      <p><strong>Calculadora de plazos procesales</strong> con avisos de vencimiento.</p>
+    </div>
+    <div class="bullet">
+      <span class="bullet-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.2-3 7.6-7 9-4-1.4-7-4.8-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+      </span>
+      <p><strong>Gratuita y sin límites:</strong> tus datos quedan en tu navegador.</p>
+    </div>
+  </div>
+
+  <div class="qr-panel">
+    <div class="qr-card"><img src="qr-store.png" alt="QR Chrome Web Store"></div>
+    <div class="qr-text">
+      <div class="qr-title">Escaneá el código e instalala gratis</div>
+      <div class="qr-sub">Directo desde Chrome Web Store, sin crear cuenta.</div>
+      <span class="qr-url">chromewebstore.google.com</span>
+      <div class="qr-search">Buscá: <strong>ProcuAsist</strong></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Hecho por un abogado de la matrícula, para colegas.</p>
+  </div>
+
+</body>
+</html>
