@@ -186,6 +186,8 @@ function CredentialsPage({
         )}
       </section>
 
+      {lockStatus?.pinConfigured && <ResetPinSection />}
+
       {/* Portal Credentials - Only show when unlocked */}
       {lockStatus?.unlocked ? (
         <>
@@ -211,6 +213,119 @@ function CredentialsPage({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Restablecer PIN olvidado. Doble confirmación explícita: el reseteo BORRA
+ * las credenciales guardadas de los portales (sin el PIN viejo son
+ * indescifrables, no hay recuperación posible con AES-GCM) y deja la
+ * extensión lista para configurar un PIN nuevo. Marcadores, monitores,
+ * alertas y plazos no se tocan.
+ */
+function ResetPinSection() {
+  const [step, setStep] = useState<0 | 1 | 2>(0);
+  const [working, setWorking] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  const handleReset = () => {
+    setWorking(true);
+    setError('');
+    chrome.runtime.sendMessage({ type: 'RESET_PIN' }, (response) => {
+      setWorking(false);
+      if (response?.success) {
+        setMessage(
+          'PIN restablecido y credenciales borradas. Configurá un PIN nuevo y volvé a cargar tus credenciales.'
+        );
+        setStep(0);
+        setTimeout(() => window.location.reload(), 2000);
+      } else {
+        setError(response?.error ?? 'No se pudo restablecer el PIN.');
+      }
+    });
+  };
+
+  return (
+    <section className="mb-8 rounded-lg border border-danger/40 p-4">
+      <h3 className="mb-2 text-lg font-semibold text-danger">
+        Restablecer PIN
+      </h3>
+
+      {message && <p className="mb-2 text-sm text-success">{message}</p>}
+      {error && <p className="mb-2 text-sm text-danger">{error}</p>}
+
+      {step === 0 && !message && (
+        <div className="flex flex-col gap-3">
+          <p className="text-xs text-text-secondary">
+            Si te olvidaste el PIN, no hay forma de recuperarlo ni de recuperar
+            las credenciales cifradas con él. La única salida es restablecer:
+            borrar y empezar de nuevo.
+          </p>
+          <button
+            onClick={() => setStep(1)}
+            className="w-fit rounded-lg border border-danger px-4 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+          >
+            Restablecer PIN (borra las credenciales guardadas)
+          </button>
+        </div>
+      )}
+
+      {step === 1 && (
+        <div className="flex flex-col gap-3 rounded-lg bg-danger/5 p-3">
+          <p className="text-sm text-text">
+            Restablecer el PIN <strong>BORRA de forma definitiva</strong> todas
+            las credenciales de portales guardadas (MEV, PJN): sin el PIN
+            anterior no se pueden desencriptar, no existe recuperación. Tus
+            causas guardadas, alertas y plazos <strong>no se tocan</strong>.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setStep(2)}
+              className="rounded-lg border border-danger px-4 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+            >
+              Entiendo, continuar
+            </button>
+            <button
+              onClick={() => setStep(0)}
+              className="rounded-lg bg-bg-secondary px-4 py-2 text-sm text-text-secondary hover:bg-border"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="flex flex-col gap-3 rounded-lg bg-danger/5 p-3">
+          <p className="text-sm text-text">
+            Confirmación final: se van a borrar el PIN actual y las
+            credenciales guardadas de todos los portales.{' '}
+            <strong>Esta acción no se puede deshacer.</strong> Después vas a
+            poder configurar un PIN nuevo y cargar las credenciales otra vez a
+            mano.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleReset}
+              disabled={working}
+              className="rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {working
+                ? 'Restableciendo...'
+                : 'Borrar credenciales y restablecer PIN'}
+            </button>
+            <button
+              onClick={() => setStep(0)}
+              disabled={working}
+              className="rounded-lg bg-bg-secondary px-4 py-2 text-sm text-text-secondary hover:bg-border"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
