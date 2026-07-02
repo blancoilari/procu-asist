@@ -43,10 +43,12 @@ export function mountPjnListImportButton(url: URL): void {
 
     let allRows: PjnCaseRow[] = [];
     let pagesVisited = 1;
+    let truncated = false;
     try {
       const collected = await collectScwListRows({ maxPages: 25 });
       allRows = collected.rows.filter(isImportableRow);
       pagesVisited = collected.pagesVisited;
+      truncated = collected.truncated;
     } catch (err) {
       // Fall back to the visible page if pagination failed.
       console.warn('[ProcuAsist PJN] Recolección multi-página falló:', err);
@@ -62,7 +64,12 @@ export function mountPjnListImportButton(url: URL): void {
     }
 
     // Let the user pick which of ALL collected cases to import.
-    const selected = await showImportSelectionModal(allRows, mode, pagesVisited);
+    const selected = await showImportSelectionModal(
+      allRows,
+      mode,
+      pagesVisited,
+      truncated
+    );
     if (!selected) {
       resetImportButton(btn, mode, 0);
       return;
@@ -125,7 +132,8 @@ const IMPORT_MODAL_ID = 'procu-asist-pjn-import-modal';
 function showImportSelectionModal(
   rows: PjnCaseRow[],
   mode: PjnListMode,
-  pagesVisited: number
+  pagesVisited: number,
+  truncated: boolean
 ): Promise<PjnCaseRow[] | null> {
   return new Promise((resolve) => {
     document.getElementById(IMPORT_MODAL_ID)?.remove();
@@ -151,7 +159,10 @@ function showImportSelectionModal(
     Object.assign(title.style, { margin: '0 0 4px 0', color: '#1f2937', fontSize: '16px' });
 
     const subtitle = document.createElement('p');
-    subtitle.textContent = `Se recolectaron ${pagesVisited} página(s) del listado. Las causas importadas también se agregan al monitoreo. Elegí cuáles importar.`;
+    const pagesInfo = truncated
+      ? `Se recolectaron ${pagesVisited} página(s) y se alcanzó el tope: puede haber más causas en páginas siguientes.`
+      : `Se recolectaron ${pagesVisited} página(s) del listado.`;
+    subtitle.textContent = `${pagesInfo} Las causas importadas también se agregan al monitoreo. Elegí cuáles importar.`;
     Object.assign(subtitle.style, { margin: '0 0 12px 0', color: '#6b7280', fontSize: '12px' });
 
     const topBar = document.createElement('div');

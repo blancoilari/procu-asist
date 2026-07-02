@@ -76,9 +76,9 @@ Sugerencia de 5 principales para la Store: Causas unificadas, Alertas por expedi
 
 ## 6. Checklist tecnico
 
-- [x] `npm run compile` (2026-07-01, sin errores)
-- [x] `npm run build` (2026-07-01, sin errores)
-- [x] `npm run zip` (2026-07-01)
+- [x] `npm run compile` (2026-07-02, sin errores)
+- [x] `npm run build` (2026-07-02, sin errores)
+- [x] `npm run zip` (2026-07-02)
 - [x] ZIP generado: `.output/procu-asist-0.7.0-chrome.zip`
 - [ ] QA manual segun checklist de la seccion 7.
 - [ ] Commit y push a GitHub.
@@ -98,7 +98,7 @@ Objetivo: validar la migracion al modelo unificado y las funciones nuevas antes 
 | Pestana "Plazos" + vencimientos + export .ics | Implementada; pendiente QA manual |
 | Backup y restauracion JSON | Implementada; pendiente QA manual |
 | Importacion sets MEV multi-departamento | Implementada; pendiente QA manual en MEV real |
-| Importacion PJN multi-pagina (paginador RichFaces) | Implementada; pendiente QA manual en SCW real |
+| Importacion PJN multi-pagina (paginador RichFaces y fallback por links numerados) | Implementada; pendiente QA manual en SCW real |
 | Monitoreo por fecha (no por conteo) | Implementada; pendiente QA manual |
 | Descargas PJN con timeout y cancelar | Implementada; pendiente QA manual |
 
@@ -166,7 +166,7 @@ Objetivo: validar la migracion al modelo unificado y las funciones nuevas antes 
 - [ ] En expediente SCW aparece boton ZIP; el modal lista actuaciones y filtra por categoria.
 - [ ] Descarga con documento trabado corta a los 45 segundos e informa sin romper el ZIP.
 - [ ] `Cancelar descarga` funciona durante la generacion.
-- [ ] Importar relacionados/favoritos recorre todas las paginas del paginador RichFaces y el modal informa cuantas paginas recolecto.
+- [ ] Importar relacionados/favoritos recorre todas las paginas: con flecha "siguiente" o, si el paginador muestra solo numeros de pagina, avanzando por los links numerados (fallback por numero de pagina activa + 1); el modal informa cuantas paginas recolecto y avisa si corto por el tope de 25.
 - [ ] La importacion PJN agrega causas monitoreadas sin duplicados.
 - [ ] Acciones `Dejar nota` / `Dejar notas` visibles solo martes/viernes; el flujo individual abre el modal oficial de PJN sin confirmar automaticamente.
 - [ ] Alertas PJN muestran portal, numero, caratula, juzgado y movimiento; el click abre la causa.
