@@ -34,7 +34,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 
 ## Funcionalidades
 
-- **Auto-login** en portales judiciales (MEV/SCBA, JUSCABA/EJE, PJN con SSO Keycloak compartido)
+- **Auto-login** en portales judiciales (MEV/SCBA y PJN con SSO Keycloak compartido)
 - **Keep-alive** de sesión para evitar desconexiones por inactividad
 - **Auto-reconexión** automática cuando la sesión expira
 - **Marcadores de causas** con búsqueda rápida y organización
@@ -52,7 +52,6 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 |--------|-----|-----------------|
 | MEV / SCBA (Mesa de Entradas Virtual - Provincia de Buenos Aires) | mev.scba.gov.ar | Auto-login, extracción de causas, marcadores, monitoreo, descarga ZIP |
 | PJN (Poder Judicial de la Nación) | scw.pjn.gov.ar, portalpjn.pjn.gov.ar, api.pjn.gov.ar | Auto-login SSO, listado de causas, descarga ZIP del expediente |
-| JUSCABA / EJE (Poder Judicial de CABA) | eje.jus.gov.ar | Auto-login y extracción básica de causas |
 
 ## Stack Tecnológico
 
