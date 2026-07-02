@@ -38,6 +38,7 @@ import {
   createPortalModalButton,
   setPortalActionButtonState,
 } from '@/modules/ui/portal-action-bar';
+import { IMPORT_ALL_CANCEL_STORAGE_KEY } from '@/modules/messages/types';
 
 const MEV_COLORS = PORTAL_COLORS.mev;
 const MEV_ACTION_BAR_ID = 'procu-asist-action-bar';
@@ -56,6 +57,11 @@ interface MevSetImportSession {
   deptsDone?: number;
   /** Tras cambiar de departamento hay que re-leer los organismos del set. */
   pendingOrganismRefresh?: boolean;
+  /** Corrida del asistente "Importar todo" que disparó este recorrido:
+   *  al terminar (o cancelar) se reporta al background en vez de solo
+   *  mostrar el estado en la botonera. */
+  wizardRunId?: string;
+  wizardSourceKey?: string;
 }
 
 export default defineContentScript({
@@ -67,7 +73,12 @@ export default defineContentScript({
     console.debug('[ProcuAsist] MEV content script loaded');
     const doc = document;
 
+    installWizardMessageListener();
+
     if (isLoginPage(doc)) {
+      // Una corrida del asistente que cae al login no puede seguir: avisar
+      // al background en vez de dejarlo esperando el timeout.
+      failWizardIfActive('La sesión de MEV expiró durante la importación.');
       handleLoginPage(doc);
     } else if (isPosLoginPage(doc)) {
       handlePosLoginPage(doc);
@@ -273,6 +284,10 @@ async function handlePosLoginPage(doc: Document) {
 function handleBusquedaPage(_doc: Document) {
   console.debug('[ProcuAsist] MEV search page detected');
 
+  // Si hay un arranque de set del asistente pendiente y volvimos a caer en
+  // la búsqueda, la consulta rebotó (no llegó a resultados): avisar rápido.
+  failWizardIfActive('La búsqueda del set no llegó a la página de resultados.');
+
   // Notify background that login was successful
   chrome.runtime.sendMessage({ type: 'LOGIN_SUCCESS', portal: 'mev' });
   clearAutoLoginAttempts();
@@ -303,8 +318,16 @@ function handleResultsPage(doc: Document) {
   }
   // Continuar recorridos activos AUNQUE esta página no tenga resultados:
   // un organismo o página sin causas no debe frenar la sesión de importación.
-  void continueSetImportIfActive(results);
-  void continuePageWalkIfActive(results);
+  // El asistente "Importar todo" tiene prioridad: si acaba de disparar una
+  // búsqueda de set, acá se adopta la sesión (sin modales) y recién después
+  // corren las continuaciones normales.
+  void (async () => {
+    const adopted = await adoptWizardSessionIfPending(results);
+    if (!adopted) {
+      await continueSetImportIfActive(results);
+      await continuePageWalkIfActive(results);
+    }
+  })();
 }
 
 function injectResultsImportButton(results: MevSearchResult[]) {
@@ -559,9 +582,300 @@ function showSetScopeChoiceModal(
   });
 }
 
+// --- Asistente "Importar todo" (disparado desde el panel lateral) ---------
+// El background navega la pestaña MEV a busqueda.asp y manda
+// IMPORT_ALL_MEV_START_SET. Acá se opera el form REAL del portal (radio de
+// set + select + botón Buscar, los mismos selectores del flujo manual) y se
+// deja un marcador en sessionStorage; al cargar los resultados, el marcador
+// se adopta como sesión de importación de set SIN modales, con alcance
+// "todos los departamentos". El final (o la cancelación) se reporta al
+// background con IMPORT_ALL_MEV_SET_DONE.
+
+const MEV_WIZARD_PENDING_KEY = 'procu_asist_wizard_set_pending';
+
+interface MevWizardPending {
+  runId: string;
+  sourceKey: string;
+  setId: string;
+  startedAt: number;
+}
+
+function installWizardMessageListener(): void {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (!msg || typeof msg !== 'object') return false;
+    const m = msg as {
+      type?: string;
+      runId?: string;
+      sourceKey?: string;
+      setId?: string;
+    };
+    if (m.type !== 'IMPORT_ALL_MEV_START_SET') return false;
+
+    try {
+      if (isLoginPage(document)) {
+        sendResponse({ ok: false, error: 'session_expired' });
+        return false;
+      }
+      if (!isBusquedaPage(document)) {
+        sendResponse({
+          ok: false,
+          error: 'La pestaña MEV no está en la página de búsqueda.',
+        });
+        return false;
+      }
+      sendResponse(
+        startWizardSetSearch(m.setId ?? '', m.runId ?? '', m.sourceKey ?? '')
+      );
+    } catch (err) {
+      sendResponse({
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return false;
+  });
+}
+
+function startWizardSetSearch(
+  setId: string,
+  runId: string,
+  sourceKey: string
+): { ok: boolean; error?: string } {
+  const setSelect = document.querySelector(
+    MEV_SELECTORS.busqueda.set
+  ) as HTMLSelectElement | null;
+  if (!setSelect) {
+    return { ok: false, error: 'No se encontró el selector de sets en la búsqueda.' };
+  }
+
+  // Operar el form real: marcar el radio de "Set de Búsqueda" deja que el JS
+  // propio del portal complete OpcionBusqueda al buscar.
+  const radio = document.querySelector(
+    MEV_SELECTORS.busqueda.radioSet
+  ) as HTMLInputElement | null;
+  if (radio && !radio.checked) radio.click();
+
+  setSelect.value = setId;
+  if (setSelect.value !== setId) {
+    return { ok: false, error: 'El set indicado ya no existe en la página.' };
+  }
+  setSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+  const pending: MevWizardPending = {
+    runId,
+    sourceKey,
+    setId,
+    startedAt: Date.now(),
+  };
+  sessionStorage.setItem(MEV_WIZARD_PENDING_KEY, JSON.stringify(pending));
+
+  const buscar = document.querySelector(
+    MEV_SELECTORS.busqueda.buscar
+  ) as HTMLElement | null;
+  const form = setSelect.form ?? setSelect.closest('form');
+  if (!buscar && !form) {
+    sessionStorage.removeItem(MEV_WIZARD_PENDING_KEY);
+    return { ok: false, error: 'No se encontró el botón Buscar del formulario.' };
+  }
+
+  window.setTimeout(() => {
+    if (buscar) {
+      buscar.click();
+    } else if (form) {
+      form.requestSubmit ? form.requestSubmit() : form.submit();
+    }
+  }, 300);
+
+  return { ok: true };
+}
+
+/**
+ * Al cargar una página de resultados, si hay un arranque de set del asistente
+ * pendiente, se convierte en sesión de importación (alcance: todos los
+ * departamentos, sin modales). Devuelve true si el asistente tomó el control
+ * de esta carga de página.
+ */
+async function adoptWizardSessionIfPending(
+  results: MevSearchResult[]
+): Promise<boolean> {
+  const raw = sessionStorage.getItem(MEV_WIZARD_PENDING_KEY);
+  if (!raw) return false;
+  sessionStorage.removeItem(MEV_WIZARD_PENDING_KEY);
+
+  let pending: MevWizardPending;
+  try {
+    pending = JSON.parse(raw) as MevWizardPending;
+  } catch {
+    return false;
+  }
+  if (!pending.runId || Date.now() - pending.startedAt > 5 * 60_000) {
+    return false;
+  }
+
+  if (await isImportAllCancelled()) {
+    reportWizardSetDone(pending.runId, pending.sourceKey, {
+      ok: true,
+      cancelled: true,
+    });
+    return true;
+  }
+
+  const select = findSetOrganismSelect();
+  const options = select ? getSetOptionValues(select) : [];
+  const deptSelect = select ? findSetDepartmentSelect(select) : null;
+  const deptOptions = deptSelect ? getSetOptionValues(deptSelect) : [];
+
+  if (!select && findNextResultsPageControl()) {
+    // Resultados planos multi-página (sin UI de set): recorrer páginas.
+    const walkSession: MevPageWalkSession = {
+      collected: results,
+      pagesVisited: 1,
+      startedAt: Date.now(),
+      wizardRunId: pending.runId,
+      wizardSourceKey: pending.sourceKey,
+    };
+    sessionStorage.setItem(
+      MEV_PAGE_WALK_SESSION_KEY,
+      JSON.stringify(walkSession)
+    );
+    showSetImportStatus('Recolectando resultados (página 1)...');
+    findNextResultsPageControl()?.click();
+    return true;
+  }
+
+  const session: MevSetImportSession = {
+    collected: results,
+    remainingValues: select
+      ? options.map((o) => o.value).filter((v) => v !== select.value)
+      : [],
+    startedAt: Date.now(),
+    totalOrganisms: Math.max(options.length, 1),
+    wizardRunId: pending.runId,
+    wizardSourceKey: pending.sourceKey,
+  };
+  if (deptSelect && deptOptions.length > 1) {
+    session.remainingDeptValues = deptOptions
+      .map((o) => o.value)
+      .filter((v) => v !== deptSelect.value);
+    session.totalDepts = deptOptions.length;
+    session.deptsDone = 0;
+  }
+  sessionStorage.setItem(MEV_SET_IMPORT_SESSION_KEY, JSON.stringify(session));
+
+  // Ya estamos parados en la primera página de resultados del set: el camino
+  // normal de sets se encarga del resto (organismos, departamentos, cierre).
+  await continueSetImportIfActive(results);
+  return true;
+}
+
+/**
+ * Corta una corrida del asistente que quedó a mitad de camino en esta pestaña
+ * (marker pendiente o sesión de recorrido con wizardRunId) y reporta el error
+ * al background para que no espere hasta el timeout.
+ */
+function failWizardIfActive(reason: string): void {
+  try {
+    const rawPending = sessionStorage.getItem(MEV_WIZARD_PENDING_KEY);
+    if (rawPending) {
+      sessionStorage.removeItem(MEV_WIZARD_PENDING_KEY);
+      const pending = JSON.parse(rawPending) as MevWizardPending;
+      if (pending.runId) {
+        reportWizardSetDone(pending.runId, pending.sourceKey ?? '', {
+          ok: false,
+          error: reason,
+        });
+      }
+    }
+
+    const rawSession = sessionStorage.getItem(MEV_SET_IMPORT_SESSION_KEY);
+    if (rawSession) {
+      const session = JSON.parse(rawSession) as MevSetImportSession;
+      if (session.wizardRunId) {
+        sessionStorage.removeItem(MEV_SET_IMPORT_SESSION_KEY);
+        reportWizardSetDone(session.wizardRunId, session.wizardSourceKey ?? '', {
+          ok: false,
+          error: reason,
+        });
+      }
+    }
+
+    const rawWalk = sessionStorage.getItem(MEV_PAGE_WALK_SESSION_KEY);
+    if (rawWalk) {
+      const walk = JSON.parse(rawWalk) as MevPageWalkSession;
+      if (walk.wizardRunId) {
+        sessionStorage.removeItem(MEV_PAGE_WALK_SESSION_KEY);
+        reportWizardSetDone(walk.wizardRunId, walk.wizardSourceKey ?? '', {
+          ok: false,
+          error: reason,
+        });
+      }
+    }
+  } catch {
+    // sessionStorage dañado: nada que reportar
+  }
+}
+
+async function isImportAllCancelled(): Promise<boolean> {
+  try {
+    const stored = await chrome.storage.local.get(IMPORT_ALL_CANCEL_STORAGE_KEY);
+    return stored[IMPORT_ALL_CANCEL_STORAGE_KEY] === true;
+  } catch {
+    return false;
+  }
+}
+
+function reportWizardSetDone(
+  runId: string,
+  sourceKey: string,
+  payload: {
+    ok: boolean;
+    imported?: number;
+    existing?: number;
+    monitored?: number;
+    failed?: number;
+    newMonitorIds?: string[];
+    cancelled?: boolean;
+    error?: string;
+  }
+): void {
+  chrome.runtime
+    .sendMessage({
+      type: 'IMPORT_ALL_MEV_SET_DONE',
+      runId,
+      sourceKey,
+      ...payload,
+    })
+    .catch(() => {});
+}
+
+function reportWizardProgress(
+  runId: string,
+  sourceKey: string,
+  detail: string
+): void {
+  chrome.runtime
+    .sendMessage({ type: 'IMPORT_ALL_PROGRESS', runId, sourceKey, detail })
+    .catch(() => {});
+}
+
 async function continueSetImportIfActive(results: MevSearchResult[]) {
   const session = readSetImportSession();
   if (!session) return;
+
+  // Corrida del asistente cancelada desde el panel: cortar limpio.
+  if (session.wizardRunId && (await isImportAllCancelled())) {
+    sessionStorage.removeItem(MEV_SET_IMPORT_SESSION_KEY);
+    reportWizardSetDone(session.wizardRunId, session.wizardSourceKey ?? '', {
+      ok: true,
+      cancelled: true,
+    });
+    showSetImportStatus('Importación cancelada.');
+    return;
+  }
+
+  // Refrescar startedAt mientras el recorrido sigue vivo: sin esto, un set
+  // grande (>10 min) moría a mitad de camino por el guard de sesiones rancias.
+  session.startedAt = Date.now();
 
   session.collected = mergeMevSearchResults(session.collected, results);
 
@@ -585,9 +899,16 @@ async function continueSetImportIfActive(results: MevSearchResult[]) {
       ? ` — depto ${(session.deptsDone ?? 0) + 1}/${session.totalDepts}`
       : '';
   const currentStep = session.totalOrganisms - session.remainingValues.length;
-  showSetImportStatus(
-    `Importando set (organismo ${currentStep}/${session.totalOrganisms}${deptInfo}, ${session.collected.length} causas)...`
-  );
+  const statusMessage = `Importando set (organismo ${currentStep}/${session.totalOrganisms}${deptInfo}, ${session.collected.length} causas)...`;
+  showSetImportStatus(statusMessage);
+  if (session.wizardRunId) {
+    // El progreso viaja al panel Y mantiene despierto al service worker.
+    reportWizardProgress(
+      session.wizardRunId,
+      session.wizardSourceKey ?? '',
+      `organismo ${currentStep}/${session.totalOrganisms}${deptInfo}, ${session.collected.length} causas`
+    );
+  }
 
   if (session.remainingValues.length > 0) {
     sessionStorage.setItem(MEV_SET_IMPORT_SESSION_KEY, JSON.stringify(session));
@@ -605,11 +926,32 @@ async function continueSetImportIfActive(results: MevSearchResult[]) {
   }
 
   sessionStorage.removeItem(MEV_SET_IMPORT_SESSION_KEY);
-  const response = await bulkImportMevResults(session.collected);
-  showSetImportStatus(
-    `Set importado: ${response.imported} nuevas, ${response.existing} existentes, ${response.monitored} monitoreadas.`,
-    'success'
-  );
+  try {
+    const response = await bulkImportMevResults(session.collected);
+    showSetImportStatus(
+      `Set importado: ${response.imported} nuevas, ${response.existing} existentes, ${response.monitored} monitoreadas.`,
+      'success'
+    );
+    if (session.wizardRunId) {
+      reportWizardSetDone(session.wizardRunId, session.wizardSourceKey ?? '', {
+        ok: true,
+        imported: response.imported,
+        existing: response.existing,
+        monitored: response.monitored,
+        failed: response.failed ?? 0,
+        newMonitorIds: response.newMonitorIds ?? [],
+      });
+    }
+  } catch (err) {
+    console.error('[ProcuAsist] MEV set import error:', err);
+    showSetImportStatus('Error al importar el set.');
+    if (session.wizardRunId) {
+      reportWizardSetDone(session.wizardRunId, session.wizardSourceKey ?? '', {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 }
 
 // --- Multi-page results walk -------------------------------------------
@@ -624,6 +966,9 @@ interface MevPageWalkSession {
   collected: MevSearchResult[];
   pagesVisited: number;
   startedAt: number;
+  /** Corrida del asistente "Importar todo" que disparó este recorrido. */
+  wizardRunId?: string;
+  wizardSourceKey?: string;
 }
 
 /** Busca el control "Siguiente" del paginador nativo de resultados.asp. */
@@ -699,6 +1044,17 @@ async function continuePageWalkIfActive(results: MevSearchResult[]) {
   const session = readPageWalkSession();
   if (!session) return;
 
+  // Corrida del asistente cancelada desde el panel: cortar limpio.
+  if (session.wizardRunId && (await isImportAllCancelled())) {
+    sessionStorage.removeItem(MEV_PAGE_WALK_SESSION_KEY);
+    reportWizardSetDone(session.wizardRunId, session.wizardSourceKey ?? '', {
+      ok: true,
+      cancelled: true,
+    });
+    showSetImportStatus('Importación cancelada.');
+    return;
+  }
+
   session.collected = mergeMevSearchResults(session.collected, results);
   session.pagesVisited += 1;
 
@@ -708,6 +1064,13 @@ async function continuePageWalkIfActive(results: MevSearchResult[]) {
     showSetImportStatus(
       `Recolectando resultados (página ${session.pagesVisited}, ${session.collected.length} causas)...`
     );
+    if (session.wizardRunId) {
+      reportWizardProgress(
+        session.wizardRunId,
+        session.wizardSourceKey ?? '',
+        `página ${session.pagesVisited}, ${session.collected.length} causas`
+      );
+    }
     setTimeout(() => next.click(), 400);
     return;
   }
@@ -717,6 +1080,34 @@ async function continuePageWalkIfActive(results: MevSearchResult[]) {
     showSetImportStatus(
       `Límite de ${MEV_PAGE_WALK_MAX_PAGES} páginas alcanzado — puede haber más resultados.`
     );
+  }
+
+  // Modo asistente: sin modal de selección, se importa todo lo recolectado
+  // y se reporta el cierre al background.
+  if (session.wizardRunId) {
+    try {
+      const response = await bulkImportMevResults(session.collected);
+      showSetImportStatus(
+        `Importadas: ${response.imported} nuevas, ${response.existing} existentes.`,
+        'success'
+      );
+      reportWizardSetDone(session.wizardRunId, session.wizardSourceKey ?? '', {
+        ok: true,
+        imported: response.imported,
+        existing: response.existing,
+        monitored: response.monitored,
+        failed: response.failed ?? 0,
+        newMonitorIds: response.newMonitorIds ?? [],
+      });
+    } catch (err) {
+      console.error('[ProcuAsist] MEV wizard page-walk import error:', err);
+      showSetImportStatus('Error al importar los resultados.');
+      reportWizardSetDone(session.wizardRunId, session.wizardSourceKey ?? '', {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return;
   }
 
   const selected = await showMevImportSelectionModal(session.collected);
@@ -856,6 +1247,8 @@ async function bulkImportMevResults(results: MevSearchResult[]) {
     imported: number;
     existing: number;
     monitored: number;
+    failed?: number;
+    newMonitorIds?: string[];
   };
 }
 

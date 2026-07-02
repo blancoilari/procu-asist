@@ -38,6 +38,7 @@ import { DONATE_URL } from '@/modules/tier/limits';
 import { useDarkMode } from '@/modules/ui/use-dark-mode';
 import Onboarding, { isOnboardingDone } from '@/modules/ui/Onboarding';
 import PlazosTab from '@/modules/ui/PlazosTab';
+import ImportAllWizard from '@/modules/ui/ImportAllWizard';
 import { exportBackup, importBackup } from '@/modules/storage/backup';
 import { isDateOnOrAfter, parseDateOnly } from '@/modules/utils/date';
 
@@ -483,6 +484,10 @@ function CasesTab({
   const [sinceScanMessage, setSinceScanMessage] = useState('');
   const [view, setView] = useState<'monitors' | 'alerts'>('monitors');
   const [alertsFromDate, setAlertsFromDate] = useState('');
+  const [showImportAll, setShowImportAll] = useState(false);
+  const [pauseThreshold, setPauseThreshold] = useState(
+    DEFAULT_SETTINGS.importAllPauseThreshold
+  );
 
   const loadData = useCallback(async () => {
     try {
@@ -653,6 +658,22 @@ function CasesTab({
     loadData();
   };
 
+  const handleOpenImportAll = async () => {
+    // El umbral configurado se muestra dentro del asistente, antes de
+    // ejecutar: leerlo fresco por si el usuario lo cambió en Ajustes.
+    try {
+      const resp = (await chrome.runtime.sendMessage({
+        type: 'GET_SETTINGS',
+      })) as { success: boolean; settings: ProcuAsistSettings };
+      if (resp?.success) {
+        setPauseThreshold(resp.settings.importAllPauseThreshold);
+      }
+    } catch {
+      // defaults ya cargados
+    }
+    setShowImportAll(true);
+  };
+
   const handleOpenCase = (entry: MergedCase) => {
     openPortalCase(entry.portal, entry.caseNumber, entry.portalUrl);
   };
@@ -793,27 +814,37 @@ function CasesTab({
                 (bookmark) => bookmark.portal === 'pjn'
               ) && <PjnBookmarkNotePrep bookmarks={filteredBookmarks} />}
 
-            {/* Scan button */}
-            {filteredCases.length > 0 && (
-              <div className="flex items-center justify-between border-b border-border px-4 py-2">
-                <LastScanInfo />
+            {/* Barra de acciones: estado de escaneo + Importar todo + Escanear.
+                Va dentro del bloque sticky, así queda siempre a la vista. */}
+            <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-border px-4 py-2">
+              <LastScanInfo />
+              <div className="flex items-center gap-1.5">
                 <button
-                  onClick={handleScanNow}
-                  disabled={scanning}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  onClick={() => void handleOpenImportAll()}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-bg-secondary px-3 py-1 text-xs font-medium text-text-secondary hover:bg-border transition-colors"
+                  title="Traer todas tus causas desde los portales con sesión activa"
                 >
-                  {scanning ? (
-                    <>
-                      <Hourglass size={12} /> Escaneando...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw size={12} /> Escanear ahora
-                    </>
-                  )}
+                  <Download size={12} /> Importar todo
                 </button>
+                {filteredCases.length > 0 && (
+                  <button
+                    onClick={handleScanNow}
+                    disabled={scanning}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    {scanning ? (
+                      <>
+                        <Hourglass size={12} /> Escaneando...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw size={12} /> Escanear ahora
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
-            )}
+            </div>
           </>
         ) : (
           <>
@@ -951,6 +982,16 @@ function CasesTab({
           </ul>
         )}
       </div>
+
+      {showImportAll && (
+        <ImportAllWizard
+          pauseThreshold={pauseThreshold}
+          onClose={() => {
+            setShowImportAll(false);
+            loadData();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1393,6 +1434,27 @@ function SettingsTab() {
 
       <hr className="my-2 border-border" />
 
+      {/* Monitoreo e importación */}
+      <h3 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-text-secondary">
+        Monitoreo e importación
+      </h3>
+      <NumberSetting
+        label="Umbral de pausa al importar en masa"
+        description="Si importás más causas que este número con el asistente Importar todo, entran con los avisos pausados y activás el monitoreo solo en las que te interesan. Un umbral muy alto puede volver lento el escaneo y llenar el panel de alertas irrelevantes."
+        value={settings.importAllPauseThreshold}
+        min={1}
+        max={1000}
+        onCommit={async (value) => {
+          const response = (await chrome.runtime.sendMessage({
+            type: 'UPDATE_SETTINGS',
+            settings: { importAllPauseThreshold: value },
+          })) as { success: boolean; settings: ProcuAsistSettings };
+          if (response?.success) setSettings(response.settings);
+        }}
+      />
+
+      <hr className="my-2 border-border" />
+
       {/* Backup / restore */}
       <h3 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-text-secondary">
         Datos
@@ -1556,6 +1618,67 @@ function DataBackupSection() {
 // ──────────────────────────────────────────────────────────
 // Reusable Components
 // ──────────────────────────────────────────────────────────
+
+/**
+ * Ajuste numérico con estado local: se confirma al salir del campo o con
+ * Enter, para no guardar valores a medio tipear (el background igual sanea
+ * el rango).
+ */
+function NumberSetting({
+  label,
+  description,
+  value,
+  min,
+  max,
+  onCommit,
+}: {
+  label: string;
+  description?: string;
+  value: number;
+  min: number;
+  max: number;
+  onCommit: (value: number) => void | Promise<void>;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const commit = () => {
+    const parsed = Number(draft);
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(value));
+      return;
+    }
+    const clamped = Math.min(max, Math.max(min, Math.round(parsed)));
+    setDraft(String(clamped));
+    if (clamped !== value) void onCommit(clamped);
+  };
+
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-lg px-1 py-2.5 hover:bg-bg-secondary/50 transition-colors">
+      <div className="min-w-0">
+        <span className="text-sm">{label}</span>
+        {description && (
+          <p className="text-[10px] text-text-secondary">{description}</p>
+        )}
+      </div>
+      <input
+        type="number"
+        min={min}
+        max={max}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        }}
+        className="w-16 shrink-0 rounded-lg border border-border bg-bg-secondary px-2 py-1.5 text-right text-sm outline-none focus:border-primary"
+      />
+    </div>
+  );
+}
 
 function SettingToggle({
   label,
