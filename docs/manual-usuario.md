@@ -13,7 +13,7 @@
 9. [Backup: exportar e importar tus datos](#9-backup-exportar-e-importar-tus-datos)
 10. [Preguntas frecuentes y problemas comunes](#10-preguntas-frecuentes-y-problemas-comunes)
 11. [Privacidad](#11-privacidad)
-12. [Capturas pendientes](#12-capturas-pendientes)
+12. [Estado de las capturas](#12-estado-de-las-capturas)
 
 ---
 
@@ -37,7 +37,7 @@ Cómo fijarlo:
 2. Buscá "ProcuAsist - Copiloto Legal" en la lista.
 3. Hacé clic en el ícono de alfiler (pin) que aparece al lado. Se pone de color y el ícono de ProcuAsist queda fijo en la barra, visible todo el tiempo.
 
-![PENDIENTE: menú de extensiones de Chrome con la pieza de rompecabezas abierta y el alfiler de ProcuAsist marcado](tutorial/01-fijar-icono.png)
+![Menú de extensiones de Chrome con el ícono de ProcuAsist fijado (alfiler activo)](tutorial/01-fijar-icono.png)
 
 ### 1.3. Qué es el panel lateral
 
@@ -48,7 +48,7 @@ Para abrir el panel lateral tenés dos caminos:
 - Hacé clic en el ícono de ProcuAsist ya fijado en la barra de extensiones.
 - O, si estás en una página de un expediente en MEV o en PJN, hacé clic en el botón **"Configurar"** de la botonera flotante que aparece en la esquina inferior derecha de la pantalla (ver punto 1.4).
 
-![PENDIENTE: panel lateral abierto mostrando las tres pestañas Causas, Plazos y Ajustes](tutorial/02-panel-lateral.png)
+![Panel lateral abierto mostrando las tres pestañas Causas, Plazos y Ajustes](tutorial/02-panel-lateral.png)
 
 ### 1.4. La botonera flotante en los portales judiciales
 
@@ -73,7 +73,7 @@ No es un botón único: es visualmente una columna de botones, cada uno con su f
 4. Chrome va a mostrar un cuadro con los permisos que pide la extensión. Confirmá haciendo clic en **"Agregar extensión"**.
 5. Vas a ver un aviso breve de que ProcuAsist se agregó. Fijá el ícono como se explica en el punto 1.2 para tenerlo siempre a mano.
 
-![PENDIENTE: ficha de ProcuAsist en Chrome Web Store con el botón "Agregar a Chrome"](tutorial/03-instalar-cws.png)
+![Ficha de ProcuAsist en Chrome Web Store con el botón "Agregar a Chrome"](tutorial/03-instalar-cws.png)
 
 No hace falta reiniciar Chrome ni crear ninguna cuenta. Con la instalación ya está lista para configurarse.
 
@@ -97,7 +97,7 @@ Para que ProcuAsist pueda iniciar sesión automáticamente en los portales judic
 4. Escribí un PIN de **4 a 8 dígitos** (solo números) y confirmalo en el segundo campo.
 5. Hacé clic en **"Configurar PIN"**.
 
-![PENDIENTE: página de opciones, sección Credenciales, con los campos de PIN y confirmación de PIN](tutorial/04-configurar-pin.png)
+![Página de opciones, sección Credenciales, con los campos de PIN y confirmación de PIN](tutorial/04-configurar-pin.png)
 
 ### 3.3. Guardar las credenciales de los portales
 
@@ -110,7 +110,7 @@ Para cada portal: completá usuario y contraseña, y hacé clic en **"Guardar Cr
 
 Estas credenciales **quedan cifradas exclusivamente en tu computadora**. ProcuAsist no tiene servidores propios para la versión gratuita: nunca viajan a internet, ni siquiera a un servidor del autor.
 
-![PENDIENTE: formularios de credenciales de MEV y PJN completos, con el aviso "Credenciales guardadas y encriptadas"](tutorial/05-guardar-credenciales.png)
+![Formularios de credenciales de MEV y PJN completos, con el aviso "Guardado"](tutorial/05-guardar-credenciales.png)
 
 En esa misma página, debajo de las credenciales de MEV, hay un selector de **Departamento Judicial**: elegí el departamento donde más litigás (La Plata, Mar del Plata, Avellaneda, etc.) para que el ingreso automático a MEV lo complete solo.
 
@@ -130,7 +130,7 @@ Qué hace y qué no hace, sin vueltas:
 
 El flujo pide **dos confirmaciones** seguidas, con el detalle explícito de lo que se borra, antes de ejecutar nada. Si cancelás en cualquiera de las dos, no se borra nada.
 
-![PENDIENTE: bloque Restablecer PIN en la página de opciones, con el primer aviso de confirmación visible](tutorial/06-restablecer-pin.png)
+![Bloque Restablecer PIN en la página de opciones, con el primer aviso de confirmación visible](tutorial/06-restablecer-pin.png)
 
 ---
 
@@ -147,7 +147,7 @@ Desde la 0.7.0, ya no existen pestañas separadas de "Marcadores" y "Monitoreo":
 
 También podés guardar una causa recién detectada desde el panel lateral: si acabás de abrir una causa en el portal, en la parte superior de la pestaña Causas aparece un aviso "Causa detectada en MEV/PJN" con un botón para agregarla sin volver a la pestaña del portal.
 
-![PENDIENTE: botón "Guardar" en la botonera flotante sobre una causa de MEV](tutorial/07-guardar-causa.png)
+![Botón "Guardar" en la botonera flotante sobre una causa de MEV](tutorial/07-guardar-causa.png)
 
 ### 4.2. Buscar causas guardadas
 
@@ -172,7 +172,7 @@ Cada tarjeta tiene un menú de opciones (el ícono de los tres puntos, visible a
 - **Pausar avisos** / **Reanudar avisos**: pausar detiene las notificaciones de esa causa puntual sin borrar nada; reanudar las vuelve a activar. Es la forma de "silenciar" una causa que ya no te interesa seguir de cerca sin perder el historial.
 - **Eliminar causa**: es una única acción que borra, en cascada, el marcador, el monitoreo y todas las alertas asociadas a esa causa. No hay forma de deshacerlo desde la extensión.
 
-![PENDIENTE: tarjeta de una causa con el menú de opciones desplegado (Abrir, Copiar carátula, Pausar avisos, Eliminar causa)](tutorial/08-menu-causa.png)
+![Tarjeta de una causa con el menú de opciones desplegado (Abrir, Copiar carátula, Pausar avisos, Eliminar causa)](tutorial/08-menu-causa.png)
 
 ### 4.5. Escanear ahora y el escaneo rápido por sets (beta)
 
@@ -208,7 +208,7 @@ El badge rojo **NOVEDAD** aparece en una causa (y en su tarjeta de alerta) cuand
 - O hacé clic en el enlace **"Marcar como leída"** dentro de la tarjeta, sin necesidad de abrir el portal.
 - Si tenés varias causas con novedades, arriba de la lista hay un botón **"Marcar todas como leídas"** para limpiarlas todas de una vez.
 
-![PENDIENTE: sub-pestaña Alertas con varias tarjetas agrupadas por causa, alguna con badge NOVEDAD](tutorial/09-alertas.png)
+![Sub-pestaña Alertas con una tarjeta agrupada por causa y badge NOVEDAD](tutorial/09-alertas.png)
 
 ### 5.4. Buscar movimientos desde una fecha
 
@@ -231,7 +231,7 @@ Este barrido necesita que tengas una pestaña abierta y con sesión activa del p
    - **"Un PDF (N)"**: genera un único PDF que junta todo (resumen y pasos seleccionados) en un solo archivo, para quien prefiera no manejar un ZIP.
 6. Si hacés clic en "Cancelar" sin seleccionar nada, no se descarga nada.
 
-![PENDIENTE: modal "Seleccionar pasos procesales a descargar" con la lista de movimientos y los botones ZIP / Un PDF](tutorial/10-modal-zip-mev.png)
+![Modal "Seleccionar pasos procesales a descargar" con la lista de movimientos y los botones ZIP / Un PDF](tutorial/10-modal-zip-mev.png)
 
 La descarga puede tardar varios minutos en expedientes grandes, porque ProcuAsist tiene que abrir cada paso procesal, convertirlo a PDF y bajar sus adjuntos uno por uno. Si algún documento o adjunto falla, el ZIP se completa igual y queda un archivo `_verificacion.txt` con el detalle de qué no se pudo descargar. A diferencia de la descarga de PJN (ver 6.2), la descarga de MEV no tiene un botón para cancelarla a mitad de camino: si te arrepentís, hay que esperar a que termine.
 
@@ -247,7 +247,7 @@ Diferencias importantes respecto de MEV:
 - Cada documento tiene un **límite de 45 segundos** para descargarse. Si el servidor del SCW se cuelga con un documento puntual, ProcuAsist corta ese documento a los 45 segundos, lo deja registrado como error y sigue con el resto sin romper el ZIP completo.
 - Mientras la descarga está en curso, hay un botón **"Cancelar descarga"** disponible para frenar todo el proceso si te arrepentís o si se está haciendo demasiado largo.
 
-![PENDIENTE: modal de descarga ZIP de PJN con la tabla de actuaciones y el botón Cancelar descarga visible durante la generación](tutorial/11-modal-zip-pjn.png)
+![Modal de descarga ZIP de PJN con la tabla de actuaciones por categoría](tutorial/11-modal-zip-pjn.png)
 
 ---
 
@@ -283,7 +283,7 @@ Elegir "Todos los departamentos" puede demorar varios minutos si el set es grand
 3. El portal de PJN pagina los resultados con su propio sistema (RichFaces); ProcuAsist recorre automáticamente **todas las páginas del listado**, no solo la que estás viendo.
 4. Al terminar de recolectar, el modal te avisa cuántas páginas recorrió, con un texto del estilo: "Se recolectaron N página(s) del listado. Las causas importadas también se agregan al monitoreo." Ahí elegís cuáles importar.
 
-![PENDIENTE: modal de importación PJN mostrando cuántas páginas se recolectaron y la lista de causas para elegir](tutorial/13-importar-pjn-multipagina.png)
+![Modal de importación PJN mostrando cuántas páginas se recolectaron y la lista de causas para elegir](tutorial/13-importar-pjn-multipagina.png)
 
 ### 7.4. El asistente "Importar todo"
 
@@ -299,7 +299,7 @@ Si recién instalás ProcuAsist y querés traer **todas** tus causas de una sola
 
 La importación de PJN recorre el listado con pausas de cortesía entre páginas para no castigar al portal; un set grande de MEV que abarca varios departamentos puede tardar varios minutos. Es esperable: el asistente avisa y sigue solo.
 
-![PENDIENTE: asistente Importar todo en el paso de selección, con fuentes detectadas, estimados y el aviso del umbral](tutorial/14-importar-todo.png)
+![Asistente Importar todo en el paso de selección, con fuentes detectadas, estimados y el aviso del umbral](tutorial/14-importar-todo.png)
 
 ---
 
@@ -319,7 +319,7 @@ En la parte superior de la pestaña hay un formulario **"Calcular plazo"** que p
 
 A medida que completás los datos, se muestra una vista previa con la fecha exacta de vencimiento y la fecha del "plazo de gracia" (las primeras horas del despacho del día hábil siguiente al vencimiento). Hacé clic en **"Agregar plazo"** para sumarlo a tu lista de vencimientos.
 
-![PENDIENTE: formulario "Calcular plazo" con la vista previa de fecha de vencimiento y plazo de gracia](tutorial/15-calcular-plazo.png)
+![Formulario "Calcular plazo" con la vista previa de fecha de vencimiento y plazo de gracia](tutorial/15-calcular-plazo.png)
 
 ### 8.2. Días hábiles, feriados y ferias
 
@@ -339,7 +339,7 @@ ProcuAsist te avisa con una notificación de Chrome **3 días antes** del vencim
 
 El botón **"Exportar a calendario (.ics)"** descarga un archivo con todos tus plazos pendientes como eventos de día completo, cada uno con una alarma programada un día antes. Ese archivo se puede importar en Google Calendar, Outlook o cualquier otro calendario que acepte formato .ics, para tener tus vencimientos también ahí.
 
-![PENDIENTE: pestaña Plazos completa, con la lista de vencimientos y el botón Exportar a calendario](tutorial/16-plazos-vencimientos.png)
+![Pestaña Plazos completa, con la lista de vencimientos y el botón Exportar a calendario](tutorial/16-plazos-vencimientos.png)
 
 ---
 
@@ -359,7 +359,7 @@ El archivo que se descarga (un .json) incluye tus causas guardadas, los monitore
 
 Al importar un archivo de backup, ProcuAsist **agrega** lo que trae el archivo sin borrar nada de lo que ya tenías guardado, y evita duplicar causas, alertas o rangos de fechas que ya existían. Si el archivo no es un backup válido de ProcuAsist, o está vacío o dañado, la importación falla con un mensaje de error y no toca tus datos existentes.
 
-![PENDIENTE: sección Datos en Ajustes con los botones Exportar datos e Importar datos y un mensaje de resultado de la importación](tutorial/17-backup.png)
+![Sección Datos en Ajustes con los botones Exportar datos e Importar datos y un mensaje de resultado de la importación](tutorial/17-backup.png)
 
 ---
 
@@ -427,29 +427,13 @@ Para más detalle, ver el archivo `PRIVACY.md` del proyecto.
 
 ---
 
-## 12. Capturas pendientes
+## 12. Estado de las capturas
 
-Guion completo de la sesión de capturas de pantalla para este manual, en orden:
+Sesión de capturas del 2026-07-03: 16 de las 17 capturas ya están tomadas en vivo (instalación real desde la Chrome Web Store, causas reales de MEV y PJN) y viven en `tutorial/`.
 
-1. `tutorial/01-fijar-icono.png` - Menú de extensiones de Chrome con la pieza de rompecabezas abierta y el alfiler de ProcuAsist marcado.
-2. `tutorial/02-panel-lateral.png` - Panel lateral abierto mostrando las tres pestañas Causas, Plazos y Ajustes.
-3. `tutorial/03-instalar-cws.png` - Ficha de ProcuAsist en Chrome Web Store con el botón "Agregar a Chrome".
-4. `tutorial/04-configurar-pin.png` - Página de opciones, sección Credenciales, con los campos de PIN y confirmación de PIN.
-5. `tutorial/05-guardar-credenciales.png` - Formularios de credenciales de MEV y PJN completos, con el aviso "Credenciales guardadas y encriptadas".
-6. `tutorial/06-restablecer-pin.png` - Bloque "Restablecer PIN" en la página de opciones, con el primer aviso de confirmación visible.
-7. `tutorial/07-guardar-causa.png` - Botón "Guardar" en la botonera flotante sobre una causa de MEV.
-8. `tutorial/08-menu-causa.png` - Tarjeta de una causa con el menú de opciones desplegado (Abrir, Copiar carátula, Pausar avisos, Eliminar causa).
-9. `tutorial/09-alertas.png` - Sub-pestaña Alertas con varias tarjetas agrupadas por causa, alguna con badge NOVEDAD.
-10. `tutorial/10-modal-zip-mev.png` - Modal "Seleccionar pasos procesales a descargar" con la lista de movimientos y los botones ZIP / Un PDF.
-11. `tutorial/11-modal-zip-pjn.png` - Modal de descarga ZIP de PJN con la tabla de actuaciones y el botón Cancelar descarga visible durante la generación.
-12. `tutorial/12-dialogo-multidepartamento.png` - Cuadro de diálogo "Importar set de búsqueda" con las opciones Todos los departamentos / Solo este departamento / Cancelar.
-13. `tutorial/13-importar-pjn-multipagina.png` - Modal de importación PJN mostrando cuántas páginas se recolectaron y la lista de causas para elegir.
-14. `tutorial/14-importar-todo.png` - Asistente "Importar todo" en el paso de selección, con las fuentes detectadas, los estimados y el aviso del umbral de pausa.
-15. `tutorial/15-calcular-plazo.png` - Formulario "Calcular plazo" con la vista previa de fecha de vencimiento y plazo de gracia.
-16. `tutorial/16-plazos-vencimientos.png` - Pestaña Plazos completa, con la lista de vencimientos y el botón Exportar a calendario.
-17. `tutorial/17-backup.png` - Sección Datos en Ajustes con los botones Exportar datos e Importar datos y un mensaje de resultado de la importación.
+**Pendiente:** `tutorial/12-dialogo-multidepartamento.png` (cuadro de diálogo "Importar set de búsqueda" con las opciones Todos los departamentos / Solo este departamento / Cancelar). Al probarlo en vivo, la extensión importó un set de MEV sin mostrar ese diálogo aunque el set debería abarcar más de un departamento judicial; queda como pendiente técnico a confirmar (¿el set probado era en realidad de un solo departamento, o es un bug?) antes de poder sacar esta captura.
 
-Todas las capturas deben ir anonimizadas (sin carátulas ni datos reales de clientes).
+**Sobre los datos reales:** varias capturas se tomaron sobre causas reales de MEV y PJN. Se taparon con recuadros los datos más sensibles (carátulas, usuario de MEV, CUIT en PJN, nombres de los sets de búsqueda de MEV) en `05-guardar-credenciales.png`, `07-guardar-causa.png`, `08-menu-causa.png`, `09-alertas.png`, `13-importar-pjn-multipagina.png` y `14-importar-todo.png`. Quedan visibles a propósito, por ser menos identificatorios, algunos números de expediente sueltos (sin carátula) y nombres de juzgados/dependencias. Revisar con criterio propio antes de publicar; si se prefiere, se pueden reemplazar más adelante por capturas con datos ficticios.
 
 ---
 
