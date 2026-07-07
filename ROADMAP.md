@@ -6,8 +6,8 @@ Este roadmap marca prioridades, no promesas cerradas. El orden puede cambiar seg
 
 ## Version actual
 
-- Publicada en Chrome Web Store: **v0.6.7** (actualizada el 2026-05-28).
-- En este repositorio: **v0.7.0**, pendiente de publicacion en la Store.
+- Publicada en Chrome Web Store: **v0.7.0** (enviada a revision el 2026-07-02, aprobada el 2026-07-05).
+- En este repositorio: **v0.7.0** (misma version).
 
 Lo que ya existe:
 

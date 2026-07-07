@@ -1,6 +1,6 @@
 # Assets de release - ProcuAsist v0.7.0
 
-Materiales para actualizar Chrome Web Store. La version publicada actualmente en la Store es la 0.6.7 (2026-05-28); esta release la reemplaza y consolida las versiones internas 0.6.8 y 0.6.9, que no se publicaron.
+Materiales para actualizar Chrome Web Store. **ACTUALIZACION 2026-07-06: esta release YA SE PUBLICO** (enviada a revision el 2026-07-02 tras el QA de esa sesion, aprobada por Google el 2026-07-05). Quedan pendientes solo los assets del manual: sesion de capturas definitivas y videotutorial. Texto original: la version publicada en la Store era la 0.6.7 (2026-05-28); esta release la reemplaza y consolida las versiones internas 0.6.8 y 0.6.9, que no se publicaron.
 
 ## 1. Resumen de version
 
@@ -85,9 +85,9 @@ Sugerencia de 5 principales para la Store: Causas unificadas, Alertas por expedi
 - [x] `npm run build` (2026-07-02, sin errores)
 - [x] `npm run zip` (2026-07-02)
 - [x] ZIP generado: `.output/procu-asist-0.7.0-chrome.zip`
-- [ ] QA manual segun checklist de la seccion 7.
-- [ ] Commit y push a GitHub.
-- [ ] Version enviada a revision en Chrome Web Store.
+- [x] QA manual segun checklist de la seccion 7 (sesion del 2026-07-02: verificado contra portales reales, ver commits de esa fecha).
+- [x] Commit y push a GitHub (2026-07-02).
+- [x] Version enviada a revision en Chrome Web Store (2026-07-02; aprobada el 2026-07-05).
 
 ## 7. Checklist de publicacion (QA adaptado de docs/qa-v0.6.1.md a lo que cambio en 0.7.0)
 
