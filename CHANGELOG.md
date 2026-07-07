@@ -4,7 +4,7 @@ Todos los cambios notables del proyecto se documentan en este archivo.
 
 ## [0.7.0] - 2026-06-12
 
-(en repo, pendiente de publicacion en Chrome Web Store)
+(publicada en Chrome Web Store: enviada a revision el 2026-07-02, aprobada el 2026-07-05)
 
 Consolida las versiones internas 0.6.7, 0.6.8 y 0.6.9. La 0.6.7 se publico en la Store como snapshot el 2026-05-28; la 0.6.8, la 0.6.9 y la 0.7.0 no se publicaron.
 
