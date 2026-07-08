@@ -82,7 +82,8 @@ export interface MovementAlert {
 export interface EncryptedCredential {
   iv: string; // base64 encoded 12-byte IV
   ciphertext: string; // base64 encoded AES-GCM ciphertext
-  salt: string; // base64 encoded 16-byte salt
+  /** Salt del esquema PIN viejo; los blobs nuevos ya no lo llevan. */
+  salt?: string;
 }
 
 /** Portal credentials (decrypted) */

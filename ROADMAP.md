@@ -16,10 +16,18 @@ Lo que ya existe:
 - **PJN**: auto-login SSO, lectura de listados y favoritos, descarga ZIP de expedientes desde SCW.
 - **PJN monitoreo inicial**: importacion de listados SCW, paso a monitoreo y escaneo por feed o listado abierto.
 - **JUSCABA / EJE**: auto-login y extraccion basica de causas.
-- **Credenciales locales**: cifrado AES-GCM protegido por PIN.
+- **Credenciales locales**: cifrado AES-GCM con clave de dispositivo automatica (sin PIN desde la 0.8.0).
 - **Modelo local-first**: los datos se guardan en el navegador; no hay backend obligatorio.
 
-Nuevo en la v0.7.0 (en repo, pendiente de publicacion):
+Nuevo en la v0.8.0 (en repo, pendiente de publicacion):
+
+- **Sin PIN**: credenciales directas de los portales, cifradas con clave de dispositivo automatica; auto-login y reconexion que no se caen.
+- **Onboarding operativo**: carga de credenciales, apertura de portales e "Importar todo" desde la bienvenida.
+- **Multi-departamento MEV real**: los sets se recorren por todos los departamentos judiciales, con cambio de departamento automatico.
+- **Avisos activos siempre**: se elimino la pausa por umbral al importar en masa.
+- **Un solo boton Guardar**: guardar = monitorear, sin boton Monitorear aparte.
+
+Publicado en la v0.7.0 (Store, 2026-07-05):
 
 - **Causas unificadas**: guardar una causa es monitorearla; una sola pestana "Causas" con alertas agrupadas por expediente.
 - **Plazos**: calculadora de plazos procesales en dias habiles, lista de vencimientos con avisos y export a calendario (.ics).

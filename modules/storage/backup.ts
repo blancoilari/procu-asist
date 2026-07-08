@@ -3,8 +3,8 @@
  *
  * Incluye: marcadores, monitores, alertas, plazos, días inhábiles
  * personalizados y preferencias.
- * NO incluye (a propósito): credenciales cifradas, salt/test del PIN ni la
- * clave persistida — el material sensible no sale del dispositivo.
+ * NO incluye (a propósito): credenciales cifradas ni la clave de dispositivo
+ * — el material sensible no sale del dispositivo.
  *
  * La importación es un MERGE: nunca borra lo existente; saltea duplicados.
  */
@@ -59,8 +59,8 @@ export async function exportBackup(): Promise<BackupPayload> {
   const settings = {
     ...((stored[KEY_SETTINGS] as Partial<ProcuAsistSettings>) ?? {}),
   };
-  // La persistencia de la clave es una decisión por dispositivo: no viaja.
-  delete settings.persistUnlock;
+  // Ajuste del esquema PIN viejo: por si quedó en storage, no viaja.
+  delete (settings as Record<string, unknown>).persistUnlock;
 
   return {
     app: 'procu-asist',

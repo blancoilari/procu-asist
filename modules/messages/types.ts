@@ -10,12 +10,8 @@ export type ProcuAsistMessage =
   | DownloadAttachmentMessage
   | GetCredentialsMessage
   | BulkImportMessage
-  | SetupPinMessage
-  | UnlockPinMessage
-  | ResetPinMessage
-  | LockMessage
-  | GetLockStatusMessage
   | SaveCredentialsMessage
+  | DeleteCredentialsMessage
   | SearchResultsMessage
   | AddBookmarkMessage
   | RemoveBookmarkMessage
@@ -27,7 +23,6 @@ export type ProcuAsistMessage =
   | RemoveMonitorMessage
   | GetMonitorsMessage
   | ToggleMonitorMessage
-  | IsMonitoredMessage
   | GetAlertsMessage
   | MarkAlertReadMessage
   | MarkAllAlertsReadMessage
@@ -48,39 +43,19 @@ export type ProcuAsistMessage =
   | ImportAllProgressMessage
   | ImportAllMevSetDoneMessage;
 
-export interface SetupPinMessage {
-  type: 'SETUP_PIN';
-  pin: string;
-}
-
-export interface UnlockPinMessage {
-  type: 'UNLOCK_PIN';
-  pin: string;
-}
-
-/**
- * Restablecer el PIN olvidado: borra el material del vault Y las credenciales
- * guardadas de todos los portales (sin el PIN viejo son indescifrables).
- * No toca marcadores, monitores, alertas ni plazos.
- */
-export interface ResetPinMessage {
-  type: 'RESET_PIN';
-}
-
-export interface LockMessage {
-  type: 'LOCK';
-}
-
-export interface GetLockStatusMessage {
-  type: 'GET_LOCK_STATUS';
-}
-
 export interface SaveCredentialsMessage {
   type: 'SAVE_CREDENTIALS';
   portal: PortalId;
   username: string;
   password: string;
 }
+
+/** Borra las credenciales guardadas de un portal. */
+export interface DeleteCredentialsMessage {
+  type: 'DELETE_CREDENTIALS';
+  portal: PortalId;
+}
+
 
 export interface SessionExpiredMessage {
   type: 'SESSION_EXPIRED';
@@ -211,12 +186,6 @@ export interface GetMonitorsMessage {
 export interface ToggleMonitorMessage {
   type: 'TOGGLE_MONITOR';
   monitorId: string;
-}
-
-export interface IsMonitoredMessage {
-  type: 'IS_MONITORED';
-  portal: PortalId;
-  caseNumber: string;
 }
 
 export interface GetAlertsMessage {
@@ -377,9 +346,6 @@ export interface ImportAllRunProgress {
   totalImported: number;
   totalExisting: number;
   totalFailed: number;
-  /** Cuántos monitores nuevos quedaron pausados por superar el umbral. */
-  monitorsPaused: number;
-  pauseThreshold: number;
 }
 
 export interface ImportAllDetectMessage {
@@ -427,7 +393,6 @@ export interface ImportAllMevSetDoneMessage {
   existing?: number;
   monitored?: number;
   failed?: number;
-  newMonitorIds?: string[];
   cancelled?: boolean;
   error?: string;
 }

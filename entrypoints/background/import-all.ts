@@ -17,9 +17,9 @@
  * la próxima lectura del progreso; nada se corrompe porque la deduplicación
  * de marcadores/monitores es idempotente.
  *
- * Anti-ruido: si el total de causas NUEVAS importadas supera el umbral
- * `importAllPauseThreshold`, los monitores creados en esta corrida quedan
- * con avisos pausados (el usuario reactiva lo que le importa).
+ * Todas las causas importadas entran con avisos ACTIVOS: guardar = monitorear,
+ * sin excepciones (la pausa por umbral de 0.7.0 se eliminó a pedido del
+ * titular; los avisos se pausan por causa desde la lista si hace falta).
  */
 
 import {
@@ -34,8 +34,6 @@ import {
   type ImportAllSourceProgress,
 } from '@/modules/messages/types';
 import { runBulkImport } from '@/modules/storage/bulk-import';
-import { deactivateMonitors } from '@/modules/storage/monitor-store';
-import { getSettings } from '@/modules/storage/settings-store';
 import { MEV_BASE_URL, MEV_URLS } from '@/modules/portals/mev-selectors';
 import {
   PJN_SCW_BASE_URL,
@@ -46,7 +44,9 @@ const IMPORT_ALL_PROGRESS_KEY = IMPORT_ALL_PROGRESS_STORAGE_KEY;
 const IMPORT_ALL_CANCEL_KEY = IMPORT_ALL_CANCEL_STORAGE_KEY;
 
 const PJN_SOURCE_TIMEOUT_MS = 15 * 60_000;
-const MEV_SET_TIMEOUT_MS = 20 * 60_000;
+// Un set puede recorrer TODOS los departamentos judiciales vía POSloguin
+// (~20 saltos con búsquedas y organismos): margen amplio.
+const MEV_SET_TIMEOUT_MS = 45 * 60_000;
 const NAVIGATION_TIMEOUT_MS = 25_000;
 const SETTLE_DELAY_MS = 2_000;
 
@@ -57,7 +57,6 @@ const SETTLE_DELAY_MS = 2_000;
 interface ActiveRun {
   runId: string;
   progress: ImportAllRunProgress;
-  newMonitorIds: string[];
   /** Resolvers pendientes por sourceKey (una fuente a la vez, pero el mapa
    *  tolera respuestas tardías sin romper). */
   resolvers: Map<string, (msg: SourceDone) => void>;
@@ -305,7 +304,6 @@ export async function startImportAllRun(
     return { success: false, error: 'Ya hay una importación en curso.' };
   }
 
-  const settings = await getSettings();
   const runId = crypto.randomUUID();
 
   const sources: ImportAllSourceProgress[] = [];
@@ -333,10 +331,7 @@ export async function startImportAllRun(
       totalImported: 0,
       totalExisting: 0,
       totalFailed: 0,
-      monitorsPaused: 0,
-      pauseThreshold: settings.importAllPauseThreshold,
     },
-    newMonitorIds: [],
     resolvers: new Map(),
   };
   await chrome.storage.local.remove(IMPORT_ALL_CANCEL_KEY);
@@ -404,20 +399,6 @@ async function executeRun(selection: ImportAllSelection): Promise<void> {
     }
 
     await saveProgress();
-  }
-
-  // Decisión anti-ruido: se compara lo EFECTIVAMENTE importado (causas
-  // nuevas, sin duplicados) contra el umbral; si lo supera, los monitores
-  // creados en esta corrida quedan pausados.
-  if (
-    run.progress.totalImported > run.progress.pauseThreshold &&
-    run.newMonitorIds.length > 0
-  ) {
-    try {
-      run.progress.monitorsPaused = await deactivateMonitors(run.newMonitorIds);
-    } catch (err) {
-      console.warn('[ProcuAsist] Importar todo: no se pudieron pausar monitores:', err);
-    }
   }
 
   run.progress.cancelled = await isCancelRequested();
@@ -492,7 +473,6 @@ async function runPjnSource(
   run.progress.totalImported += summary.imported;
   run.progress.totalExisting += summary.existing;
   run.progress.totalFailed += summary.failed;
-  run.newMonitorIds.push(...summary.newMonitorIds);
 
   source.state = doneMsg.cancelled ? 'cancelled' : 'done';
 }
@@ -552,7 +532,6 @@ async function runMevSetSource(
   run.progress.totalImported += source.imported;
   run.progress.totalExisting += source.existing;
   run.progress.totalFailed += source.failed;
-  run.newMonitorIds.push(...(doneMsg.newMonitorIds ?? []));
 
   source.state = doneMsg.cancelled ? 'cancelled' : 'done';
 }

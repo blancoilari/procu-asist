@@ -1,4 +1,4 @@
-# ProcuAsist - Guía rápida (v0.7.0)
+# ProcuAsist - Guía rápida (v0.8.0)
 
 Una página con los pasos esenciales. Para el detalle completo, ver `manual-usuario.md`.
 
@@ -13,13 +13,12 @@ Una página con los pasos esenciales. Para el detalle completo, ver `manual-usua
 
 ---
 
-## 2. Configurar el PIN y las credenciales de los portales
+## 2. Cargar las credenciales de los portales
 
-1. Abrí el panel lateral (clic en el ícono ya fijado de ProcuAsist).
-2. Andá a **Ajustes** y hacé clic en **"Configuración avanzada"**.
-3. En **Credenciales**, escribí un PIN de 4 a 8 dígitos y confirmalo. Clic en **"Configurar PIN"**.
-4. Cargá usuario y contraseña de **MEV** y de **PJN** (las mismas que ya usás para entrar a esos portales). Clic en **"Guardar Credenciales"** en cada uno.
-5. Anotá tu PIN en un lugar seguro: si te lo olvidás y ya guardaste credenciales, **no hay forma de recuperarlas**. Lo único que podés hacer en ese caso es **"Restablecer PIN"** (en la misma sección Credenciales): borra el PIN y las credenciales guardadas, con doble confirmación, y te deja configurar uno nuevo sin perder tus causas ni plazos.
+1. Al instalar, ProcuAsist abre la **bienvenida** con los campos para cargar usuario y contraseña de **MEV** y **PJN** (las mismas que ya usás para entrar a esos portales). Cargalas ahí mismo y clic en **"Guardar"** en cada portal.
+2. Si la salteaste: panel lateral, pestaña **Ajustes**, botón **"Credenciales de portales y configuración avanzada"**, y cargalas en la sección **Credenciales**.
+3. No hay PIN: las credenciales se guardan encriptadas en tu navegador con una clave propia del dispositivo y nunca salen de tu computadora.
+4. Con las credenciales guardadas, ProcuAsist te loguea solo en los portales y te reconecta cuando la sesión se cae. En MEV, el departamento judicial que elijas al entrar queda aprendido para la próxima reconexión.
 
 ---
 
@@ -60,10 +59,11 @@ Una página con los pasos esenciales. Para el detalle completo, ver `manual-usua
 3. Elegí cuáles importar y confirmá.
 
 **Todo de una vez (recién instalás y querés traer tus causas):**
-1. Dejá abiertas y logueadas las pestañas de MEV y/o PJN/SCW.
+1. Dejá abiertas y logueadas las pestañas de MEV y/o PJN/SCW. En MEV tenés que haber entrado a un departamento judicial (cualquiera: el asistente recorre todos).
 2. Panel lateral, pestaña **Causas**, botón **"Importar todo"**: el asistente detecta los portales, estima los listados PJN y lista tus sets MEV.
-3. Elegí las fuentes y confirmá. Ojo: si importás más causas que el umbral configurado (50 por defecto, editable en Ajustes), entran con los **avisos pausados** y activás el monitoreo solo de las que te interesan.
-4. Podés cancelar en cualquier momento; al final hay un resumen (importadas, duplicadas salteadas, errores).
+3. Elegí las fuentes y confirmá. Los sets MEV se recorren completos, **departamento por departamento** (ProcuAsist cambia de departamento solo si hace falta).
+4. Todas las causas importadas quedan guardadas y con **avisos activos**. Si alguna no te interesa, pausás sus avisos desde la lista de Causas.
+5. Podés cancelar en cualquier momento; al final hay un resumen (importadas, duplicadas salteadas, errores).
 
 ---
 
@@ -85,4 +85,4 @@ Una página con los pasos esenciales. Para el detalle completo, ver `manual-usua
 
 ---
 
-*ProcuAsist v0.7.0 - Copiloto Legal para Abogados Argentinos. Manual completo en `docs/manual-usuario.md`.*
+*ProcuAsist v0.8.0 - Copiloto Legal para Abogados Argentinos. Manual completo en `docs/manual-usuario.md`.*

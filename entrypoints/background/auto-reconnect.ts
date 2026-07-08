@@ -5,13 +5,12 @@
  */
 
 import type { PortalId } from '@/modules/portals/types';
-import { ensureKey } from '@/modules/crypto/key-manager';
 import { getCredentials } from '@/modules/storage/credential-store';
 
 export async function handleSessionExpired(
   portal: PortalId,
   returnUrl: string,
-  tabId: number
+  _tabId: number
 ): Promise<void> {
   console.debug(
     `[ProcuAsist] Auto-reconnect initiated for ${portal}, return URL: ${returnUrl}`
@@ -25,18 +24,6 @@ export async function handleSessionExpired(
     return;
   }
 
-  // Restore the vault key (survives SW restarts). Only null if the user
-  // never set up / unlocked the vault.
-  const key = await ensureKey();
-  if (!key) {
-    console.debug(
-      '[ProcuAsist] Vault never unlocked — skipping auto-reconnect silently.'
-    );
-    // Don't throw, don't notify — the session monitor will retry later
-    return;
-  }
-
-  // Get credentials
   try {
     const creds = await getCredentials(portal);
     if (!creds) {
@@ -63,7 +50,6 @@ function sendExpiryNotification(portal: PortalId) {
     type: 'basic',
     iconUrl: '/icon/128.png',
     title: 'ProcuAsist - Sesión Expirada',
-    message: `Tu sesión en ${portal.toUpperCase()} ha expirado. Ingresá tu PIN para reconectar automáticamente.`,
+    message: `Tu sesión en ${portal.toUpperCase()} expiró. Guardá tus credenciales en Ajustes de ProcuAsist para que la reconexión sea automática.`,
   });
 }
-

@@ -6,7 +6,12 @@
  * case data extraction, and dark mode.
  */
 
-import { MEV_SELECTORS } from '@/modules/portals/mev-selectors';
+import {
+  MEV_BASE_URL,
+  MEV_DEPARTAMENTOS,
+  MEV_SELECTORS,
+  MEV_URLS,
+} from '@/modules/portals/mev-selectors';
 import type { Movement } from '@/modules/portals/types';
 import type { MevCaseData, MevSearchResult } from '@/modules/portals/mev-parser';
 import {
@@ -24,7 +29,6 @@ import {
 import { PORTAL_COLORS } from '@/modules/ui/portal-colors';
 import {
   ICON_STAR,
-  ICON_EYE,
   ICON_CHECK,
   ICON_X,
   ICON_LOADER,
@@ -51,12 +55,32 @@ interface MevSetImportSession {
   remainingValues: string[];
   startedAt: number;
   totalOrganisms: number;
-  /** Recorrido multi-departamento (opcional, sesiones viejas no lo tienen). */
+  /** Recorrido multi-departamento con select EN la página de resultados
+   *  (opcional, sesiones viejas no lo tienen). */
   remainingDeptValues?: string[];
   totalDepts?: number;
   deptsDone?: number;
   /** Tras cambiar de departamento hay que re-leer los organismos del set. */
   pendingOrganismRefresh?: boolean;
+  /**
+   * Plan B multi-departamento: cuando la página del set NO ofrece un select
+   * de departamento, se recorre cambiando de departamento vía POSloguin.asp
+   * (la página de selección de departamento de la MEV) y re-lanzando la
+   * búsqueda del set en cada uno.
+   */
+  deptHop?: {
+    /** Valor del set en el select de busqueda.asp, para re-buscar en cada depto. */
+    setId: string;
+    /** Códigos de depto pendientes; null = aún no leídos de POSloguin. */
+    remaining: string[] | null;
+    /** Cuántos deptos ya se recorrieron (para el progreso). */
+    done: number;
+    total: number | null;
+    /** 'walk' organismos, 'switch' eligiendo depto, 'search' re-buscando el set. */
+    phase: 'walk' | 'switch' | 'search';
+    /** Reintentos de búsqueda en el depto actual (corta rebotes infinitos). */
+    searchAttempts: number;
+  };
   /** Corrida del asistente "Importar todo" que disparó este recorrido:
    *  al terminar (o cancelar) se reporta al background en vez de solo
    *  mostrar el estado en la botonera. */
@@ -81,7 +105,11 @@ export default defineContentScript({
       failWizardIfActive('La sesión de MEV expiró durante la importación.');
       handleLoginPage(doc);
     } else if (isPosLoginPage(doc)) {
-      handlePosLoginPage(doc);
+      // Si hay un recorrido de set esperando cambiar de departamento, esta
+      // carga de POSloguin es parte del recorrido, no un login del usuario.
+      if (!handleDeptHopPosLogin(doc)) {
+        handlePosLoginPage(doc);
+      }
     } else {
       // Start session expiry monitoring
       startSessionMonitor();
@@ -94,6 +122,10 @@ export default defineContentScript({
         handleCasePage(doc);
       } else if (isProveidoPage(doc)) {
         handleProveidoPage(doc);
+      } else {
+        // Página intermedia (p. ej. bienvenida tras cambiar de departamento):
+        // si un recorrido multi-departamento espera re-buscar el set, seguir.
+        redirectDeptHopToBusquedaIfPending();
       }
     }
 
@@ -220,6 +252,12 @@ async function handleLoginPage(doc: Document) {
 async function handlePosLoginPage(doc: Document) {
   console.debug('[ProcuAsist] MEV post-login page detected');
 
+  // Aprender el departamento que el usuario elige a mano: cuando envía el
+  // formulario, se guarda como departamento preferido. Así la próxima
+  // reconexión automática entra directo a su departamento sin configurar
+  // nada en Opciones.
+  installDepartmentLearner(doc);
+
   // Get preferred department from settings
   const stored = await chrome.storage.local.get('tl_settings');
   const settings = stored.tl_settings as Record<string, unknown> | undefined;
@@ -279,10 +317,49 @@ async function handlePosLoginPage(doc: Document) {
   }, 600);
 }
 
+/**
+ * Escucha el envío del formulario de POSloguin y guarda el departamento
+ * elegido como preferido (settings.mevDepartamento). El último elegido gana:
+ * la reconexión automática vuelve siempre al departamento habitual.
+ */
+function installDepartmentLearner(doc: Document): void {
+  const deptoSelect = doc.querySelector(
+    MEV_SELECTORS.posLogin.depto
+  ) as HTMLSelectElement | null;
+  if (!deptoSelect) return;
+
+  const learn = () => {
+    const value = deptoSelect.value;
+    if (!value || value === 'aa') return;
+    chrome.runtime
+      .sendMessage({
+        type: 'UPDATE_SETTINGS',
+        settings: { mevDepartamento: value },
+      })
+      .catch(() => {});
+  };
+
+  const aceptarBtn = doc.querySelector(
+    MEV_SELECTORS.posLogin.aceptar
+  ) as HTMLInputElement | null;
+  aceptarBtn?.addEventListener('click', learn);
+  deptoSelect.form?.addEventListener('submit', learn);
+}
+
 // --- Búsqueda Page ---
 
-function handleBusquedaPage(_doc: Document) {
+function handleBusquedaPage(doc: Document) {
   console.debug('[ProcuAsist] MEV search page detected');
+
+  // Recorrido multi-departamento en curso: si acabamos de cambiar de
+  // departamento, esta carga de la búsqueda es para re-lanzar el set.
+  if (continueDeptHopOnBusqueda()) return;
+
+  // Registrar la última búsqueda por set del usuario: si después quiere
+  // "Importar set - todos los departamentos" y la página de resultados no
+  // ofrece selector de departamento, este dato permite re-buscar el set en
+  // cada departamento.
+  installLastSetSearchRecorder(doc);
 
   // Si hay un arranque de set del asistente pendiente y volvimos a caer en
   // la búsqueda, la consulta rebotó (no llegó a resultados): avisar rápido.
@@ -298,6 +375,59 @@ function handleBusquedaPage(_doc: Document) {
     sessionStorage.removeItem('procu_asist_return_url');
     console.debug('[ProcuAsist] Navigating back to:', returnUrl);
     window.location.href = returnUrl;
+  }
+}
+
+// --- Última búsqueda por set (para el plan B multi-departamento) ---------
+
+const MEV_LAST_SET_SEARCH_KEY = 'procu_asist_last_set_search';
+const MEV_LAST_SET_SEARCH_TTL_MS = 30 * 60 * 1000;
+
+interface MevLastSetSearch {
+  setId: string;
+  at: number;
+}
+
+function installLastSetSearchRecorder(doc: Document): void {
+  const setSelect = doc.querySelector(
+    MEV_SELECTORS.busqueda.set
+  ) as HTMLSelectElement | null;
+  if (!setSelect) return;
+
+  const record = () => {
+    const radio = doc.querySelector(
+      MEV_SELECTORS.busqueda.radioSet
+    ) as HTMLInputElement | null;
+    if (!radio?.checked || !setSelect.value) return;
+    try {
+      const data: MevLastSetSearch = { setId: setSelect.value, at: Date.now() };
+      sessionStorage.setItem(MEV_LAST_SET_SEARCH_KEY, JSON.stringify(data));
+    } catch {
+      // sessionStorage no disponible
+    }
+  };
+
+  const buscar = doc.querySelector(
+    MEV_SELECTORS.busqueda.buscar
+  ) as HTMLElement | null;
+  buscar?.addEventListener('click', record);
+  (setSelect.form ?? doc.querySelector('form'))?.addEventListener(
+    'submit',
+    record
+  );
+}
+
+function readLastSetSearch(): MevLastSetSearch | null {
+  try {
+    const raw = sessionStorage.getItem(MEV_LAST_SET_SEARCH_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw) as MevLastSetSearch;
+    if (!data.setId || Date.now() - data.at > MEV_LAST_SET_SEARCH_TTL_MS) {
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
   }
 }
 
@@ -405,14 +535,21 @@ async function startSetImportIfPossible(
   const deptSelect = findSetDepartmentSelect(select);
   const deptOptions = deptSelect ? getSetOptionValues(deptSelect) : [];
   const multiOrganism = options.length > 1;
-  const multiDept = deptOptions.length > 1;
-  if (!multiOrganism && !multiDept) return false;
+  const multiDeptInPage = deptOptions.length > 1;
+  // Plan B: sin select de departamento en la página, se puede recorrer el
+  // set completo cambiando de departamento vía POSloguin, siempre que
+  // sepamos qué set buscó el usuario (capturado en busqueda.asp).
+  const lastSet = readLastSetSearch();
+  const canHopDepts = !multiDeptInPage && !!lastSet;
+  if (!multiOrganism && !multiDeptInPage && !canHopDepts) return false;
 
-  // Si el set abarca varios departamentos judiciales, el usuario elige el
-  // alcance: solo el departamento actual o el set COMPLETO.
+  // Si el set puede abarcar varios departamentos judiciales, el usuario
+  // elige el alcance: solo el departamento actual o el set COMPLETO.
   let includeAllDepts = false;
-  if (multiDept) {
-    const choice = await showSetScopeChoiceModal(deptOptions.length);
+  if (multiDeptInPage || canHopDepts) {
+    const choice = await showSetScopeChoiceModal(
+      multiDeptInPage ? deptOptions.length : null
+    );
     if (choice === 'cancel') {
       setPortalActionButtonState(btn, ICON_DOWNLOAD, 'Importar set', 'secondary');
       btn.disabled = false;
@@ -432,12 +569,21 @@ async function startSetImportIfPossible(
     startedAt: Date.now(),
     totalOrganisms: options.length,
   };
-  if (includeAllDepts && deptSelect) {
+  if (includeAllDepts && multiDeptInPage && deptSelect) {
     session.remainingDeptValues = deptOptions
       .map((option) => option.value)
       .filter((value) => value !== deptSelect.value);
     session.totalDepts = deptOptions.length;
     session.deptsDone = 0;
+  } else if (includeAllDepts && lastSet) {
+    session.deptHop = {
+      setId: lastSet.setId,
+      remaining: null,
+      done: 0,
+      total: null,
+      phase: 'walk',
+      searchAttempts: 0,
+    };
   }
 
   sessionStorage.setItem(MEV_SET_IMPORT_SESSION_KEY, JSON.stringify(session));
@@ -449,6 +595,7 @@ async function startSetImportIfPossible(
     // Sin más organismos en este departamento: saltar de departamento si
     // corresponde; si no, cerrar con lo visible.
     if (includeAllDepts && goToNextSetDepartment(session)) return true;
+    if (includeAllDepts && startDeptHopSwitch(session)) return true;
 
     sessionStorage.removeItem(MEV_SET_IMPORT_SESSION_KEY);
     const response = await bulkImportMevResults(results);
@@ -459,23 +606,64 @@ async function startSetImportIfPossible(
   return true;
 }
 
+/** Nombres de departamentos conocidos, compactados para comparar. */
+const KNOWN_DEPT_NAMES = Object.entries(MEV_DEPARTAMENTOS)
+  .filter(([code]) => code !== 'aa')
+  .map(([, name]) => compactText(name));
+
+function compactText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '');
+}
+
 /**
  * Selector de "Departamento Judicial" en la página del set (distinto del de
- * organismos). Heurística por texto del contexto / name / id.
+ * organismos). Tres heurísticas en cascada, porque el markup de la MEV pone
+ * la etiqueta en la celda hermana (el textContent del padre directo no
+ * alcanza, ese era el bug por el que el diálogo multi-departamento nunca
+ * aparecía):
+ *  1. name/id del select con pinta de departamento;
+ *  2. "departamento" en el contexto cercano (padre, celda anterior o fila);
+ *  3. opciones cuyo texto coincide con nombres de departamentos conocidos.
  */
 function findSetDepartmentSelect(
   exclude: HTMLSelectElement | null
 ): HTMLSelectElement | null {
-  const selects = Array.from(document.querySelectorAll('select')) as HTMLSelectElement[];
+  const selects = (
+    Array.from(document.querySelectorAll('select')) as HTMLSelectElement[]
+  ).filter((select) => select !== exclude);
+
   for (const select of selects) {
-    if (select === exclude) continue;
+    const nameId = `${select.getAttribute('name') ?? ''} ${select.id}`;
+    if (/depto|dtojud|departamento/i.test(nameId)) return select;
+  }
+
+  for (const select of selects) {
     const context = [
       select.parentElement?.textContent ?? '',
-      select.getAttribute('name') ?? '',
-      select.id,
+      select.closest('td')?.previousElementSibling?.textContent ?? '',
+      select.closest('tr')?.textContent ?? '',
     ].join(' ');
     if (/departamento/i.test(context)) return select;
   }
+
+  for (const select of selects) {
+    const labels = Array.from(select.options).map((option) =>
+      compactText(option.textContent ?? '')
+    );
+    const hits = labels.filter(
+      (label) =>
+        label &&
+        KNOWN_DEPT_NAMES.some(
+          (known) => label.includes(known) || known.includes(label)
+        )
+    ).length;
+    if (hits >= 2) return select;
+  }
+
   return null;
 }
 
@@ -507,9 +695,308 @@ function goToNextSetDepartment(session: MevSetImportSession): boolean {
   return true;
 }
 
-/** Modal chico para elegir el alcance de la importación del set. */
+// --- Plan B multi-departamento vía POSloguin ------------------------------
+// Cuando la página de resultados del set NO ofrece un select de departamento,
+// el recorrido completo se hace como lo haría el usuario: ir a la página de
+// selección de departamento (POSloguin.asp), entrar al siguiente
+// departamento, repetir la búsqueda del set y recorrer sus organismos. Los
+// resultados se acumulan en la misma sesión y se deduplican por nidCausa.
+
+/**
+ * Si la sesión tiene recorrido por POSloguin (deptHop) con departamentos
+ * pendientes (o aún sin leer), navega a la selección de departamento.
+ * Devuelve true si tomó el control de la navegación.
+ */
+function startDeptHopSwitch(session: MevSetImportSession): boolean {
+  const hop = session.deptHop;
+  if (!hop) return false;
+  if (hop.remaining !== null && hop.remaining.length === 0) return false;
+
+  hop.phase = 'switch';
+  hop.searchAttempts = 0;
+  session.startedAt = Date.now();
+  sessionStorage.setItem(MEV_SET_IMPORT_SESSION_KEY, JSON.stringify(session));
+
+  showSetImportStatus('Cambiando de departamento judicial...');
+  if (session.wizardRunId) {
+    reportWizardProgress(
+      session.wizardRunId,
+      session.wizardSourceKey ?? '',
+      'cambiando de departamento judicial...'
+    );
+  }
+
+  // Preferir el link "Cambio de departamento" del propio portal; si no está
+  // a la vista, navegar directo a POSloguin.asp.
+  const link = findChangeDepartmentLink();
+  if (link) {
+    link.click();
+  } else {
+    window.location.href = new URL(MEV_URLS.posLogin, MEV_BASE_URL).href;
+  }
+  return true;
+}
+
+function findChangeDepartmentLink(): HTMLElement | null {
+  const candidates = Array.from(
+    document.querySelectorAll('a, input[type="button"], input[type="submit"], button')
+  ) as HTMLElement[];
+  for (const el of candidates) {
+    if (el.closest('[id^="procu-asist"]')) continue;
+    const text = ((el as HTMLInputElement).value || el.textContent || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (/cambi\w*\s+(de\s+)?(depto|departamento)/i.test(text)) return el;
+    if (/posloguin/i.test(el.getAttribute('href') ?? '')) return el;
+  }
+  return null;
+}
+
+/**
+ * En POSloguin durante un recorrido multi-departamento: elegir el próximo
+ * departamento del select real del portal y aceptar. Devuelve true si esta
+ * carga de POSloguin es parte del recorrido (y no un login del usuario).
+ *
+ * Se acepta cualquier fase: 'switch' es lo esperado; 'search' significa que
+ * el portal nos devolvió a POSloguin en vez de a la búsqueda; 'walk' que la
+ * sesión del portal nos soltó en la selección de departamento a mitad del
+ * recorrido. En todos los casos, seguir con el próximo departamento conserva
+ * lo ya recolectado.
+ */
+function handleDeptHopPosLogin(doc: Document): boolean {
+  const session = readSetImportSession();
+  const hop = session?.deptHop;
+  if (!session || !hop) return false;
+
+  void (async () => {
+    // Corrida del asistente cancelada desde el panel: cortar limpio acá,
+    // sin entrar a un departamento más.
+    if (session.wizardRunId && (await isImportAllCancelled())) {
+      sessionStorage.removeItem(MEV_SET_IMPORT_SESSION_KEY);
+      reportWizardSetDone(session.wizardRunId, session.wizardSourceKey ?? '', {
+        ok: true,
+        cancelled: true,
+      });
+      showSetImportStatus('Importación cancelada.');
+      return;
+    }
+
+    const deptoSelect = doc.querySelector(
+      MEV_SELECTORS.posLogin.depto
+    ) as HTMLSelectElement | null;
+    const aceptarBtn = doc.querySelector(
+      MEV_SELECTORS.posLogin.aceptar
+    ) as HTMLInputElement | null;
+    if (!deptoSelect || !aceptarBtn) {
+      // Página inesperada: cerrar con lo recolectado hasta acá.
+      void finishSetImportSession(session);
+      return;
+    }
+
+    if (hop.remaining === null) {
+      // Primera visita: leer los códigos reales de departamento del portal.
+      // El departamento inicial ya se recorrió: si su código quedó aprendido
+      // en settings (installDepartmentLearner), se excluye para no repetirlo;
+      // si no, la dedup de resultados por nidCausa evita duplicados igual.
+      const stored = await chrome.storage.local.get('tl_settings');
+      const settings = stored.tl_settings as
+        | Record<string, unknown>
+        | undefined;
+      const initialDept = (settings?.mevDepartamento as string) ?? '';
+      const values = Array.from(deptoSelect.options)
+        .map((option) => option.value)
+        .filter(
+          (value) => value && value !== 'aa' && value !== initialDept
+        );
+      hop.remaining = values;
+      hop.total = values.length + 1; // +1: el departamento inicial
+    }
+
+    let next = hop.remaining.shift();
+    while (next) {
+      deptoSelect.value = next;
+      if (deptoSelect.value === next) break;
+      next = hop.remaining.shift();
+    }
+    if (!next) {
+      void finishSetImportSession(session);
+      return;
+    }
+
+    // El radio "Departamento Judicial" deja el form en el estado correcto.
+    const deptRadio = doc.querySelector(
+      MEV_SELECTORS.posLogin.deptJudRadio
+    ) as HTMLInputElement | null;
+    if (deptRadio && !deptRadio.checked) deptRadio.click();
+
+    hop.phase = 'search';
+    hop.done += 1;
+    hop.searchAttempts = 0;
+    session.startedAt = Date.now();
+    sessionStorage.setItem(
+      MEV_SET_IMPORT_SESSION_KEY,
+      JSON.stringify(session)
+    );
+
+    const totalInfo = hop.total ? `/${hop.total}` : '';
+    showSetImportStatus(
+      `Entrando al departamento ${hop.done + 1}${totalInfo}...`
+    );
+    if (session.wizardRunId) {
+      reportWizardProgress(
+        session.wizardRunId,
+        session.wizardSourceKey ?? '',
+        `entrando al departamento ${hop.done + 1}${totalInfo}...`
+      );
+    }
+
+    window.setTimeout(() => aceptarBtn.click(), 500);
+  })();
+
+  return true;
+}
+
+/**
+ * En busqueda.asp durante un recorrido multi-departamento: re-lanzar la
+ * búsqueda del set en el departamento recién elegido. Devuelve true si esta
+ * carga es parte del recorrido.
+ */
+function continueDeptHopOnBusqueda(): boolean {
+  const session = readSetImportSession();
+  const hop = session?.deptHop;
+  if (!session || !hop || hop.phase === 'walk') return false;
+
+  void (async () => {
+    // Corrida del asistente cancelada desde el panel: cortar limpio.
+    if (session.wizardRunId && (await isImportAllCancelled())) {
+      sessionStorage.removeItem(MEV_SET_IMPORT_SESSION_KEY);
+      reportWizardSetDone(session.wizardRunId, session.wizardSourceKey ?? '', {
+        ok: true,
+        cancelled: true,
+      });
+      showSetImportStatus('Importación cancelada.');
+      return;
+    }
+
+    // Fase 'switch' en la búsqueda: el "cambio de departamento" no pasó por
+    // POSloguin (p. ej. el portal redirigió directo). Reintentar POSloguin
+    // un par de veces y, si no hay caso, cerrar con lo recolectado.
+    if (hop.phase === 'switch') {
+      hop.searchAttempts += 1;
+      session.startedAt = Date.now();
+      sessionStorage.setItem(
+        MEV_SET_IMPORT_SESSION_KEY,
+        JSON.stringify(session)
+      );
+      if (hop.searchAttempts > 2) {
+        void finishSetImportSession(session);
+        return;
+      }
+      window.location.href = new URL(MEV_URLS.posLogin, MEV_BASE_URL).href;
+      return;
+    }
+
+    // Guard anti-rebote: si la búsqueda del set vuelve a caer acá, pasamos
+    // al próximo departamento en vez de reintentar para siempre.
+    hop.searchAttempts += 1;
+    if (hop.searchAttempts > 2) {
+      if (!startDeptHopSwitch(session)) void finishSetImportSession(session);
+      return;
+    }
+
+    const setSelect = document.querySelector(
+      MEV_SELECTORS.busqueda.set
+    ) as HTMLSelectElement | null;
+    if (!setSelect) {
+      if (!startDeptHopSwitch(session)) void finishSetImportSession(session);
+      return;
+    }
+
+    const radio = document.querySelector(
+      MEV_SELECTORS.busqueda.radioSet
+    ) as HTMLInputElement | null;
+    if (radio && !radio.checked) radio.click();
+
+    setSelect.value = hop.setId;
+    if (setSelect.value !== hop.setId) {
+      // El set no aparece en este departamento: probar el siguiente.
+      if (!startDeptHopSwitch(session)) void finishSetImportSession(session);
+      return;
+    }
+    setSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // Los organismos del nuevo departamento se leen al llegar a resultados.
+    session.remainingValues = [];
+    session.pendingOrganismRefresh = true;
+    session.startedAt = Date.now();
+    sessionStorage.setItem(
+      MEV_SET_IMPORT_SESSION_KEY,
+      JSON.stringify(session)
+    );
+
+    const totalInfo = hop.total ? `/${hop.total}` : '';
+    showSetImportStatus(
+      `Buscando el set en el departamento ${hop.done + 1}${totalInfo}...`
+    );
+    if (session.wizardRunId) {
+      reportWizardProgress(
+        session.wizardRunId,
+        session.wizardSourceKey ?? '',
+        `buscando el set en el departamento ${hop.done + 1}${totalInfo}...`
+      );
+    }
+
+    const buscar = document.querySelector(
+      MEV_SELECTORS.busqueda.buscar
+    ) as HTMLElement | null;
+    const form = setSelect.form ?? setSelect.closest('form');
+    window.setTimeout(() => {
+      if (buscar) {
+        buscar.click();
+      } else if (form) {
+        form.requestSubmit ? form.requestSubmit() : form.submit();
+      }
+    }, 400);
+  })();
+
+  return true;
+}
+
+/**
+ * Página intermedia (p. ej. bienvenida tras elegir departamento): si hay un
+ * recorrido esperando re-buscar el set (fase 'search') se va a la búsqueda;
+ * si quedó esperando la selección de departamento (fase 'switch', p. ej. el
+ * link de cambio de departamento cayó en un menú), se va a POSloguin.
+ */
+function redirectDeptHopToBusquedaIfPending(): void {
+  const session = readSetImportSession();
+  const hop = session?.deptHop;
+  if (!session || !hop || hop.phase === 'walk') return;
+
+  // Guard anti-loop: si el portal nos devuelve una y otra vez a una página
+  // intermedia, cerrar con lo recolectado en vez de navegar para siempre.
+  hop.searchAttempts += 1;
+  session.startedAt = Date.now();
+  sessionStorage.setItem(MEV_SET_IMPORT_SESSION_KEY, JSON.stringify(session));
+  if (hop.searchAttempts > 3) {
+    void finishSetImportSession(session);
+    return;
+  }
+
+  if (hop.phase === 'search') {
+    window.location.href = new URL(MEV_URLS.busqueda, MEV_BASE_URL).href;
+  } else {
+    window.location.href = new URL(MEV_URLS.posLogin, MEV_BASE_URL).href;
+  }
+}
+
+/**
+ * Modal chico para elegir el alcance de la importación del set.
+ * deptCount null = no sabemos cuántos departamentos abarca (plan B por
+ * POSloguin: se descubren al recorrer).
+ */
 function showSetScopeChoiceModal(
-  deptCount: number
+  deptCount: number | null
 ): Promise<'current' | 'all' | 'cancel'> {
   return new Promise((resolve) => {
     document.getElementById('procu-asist-set-scope-modal')?.remove();
@@ -536,7 +1023,10 @@ function showSetScopeChoiceModal(
     Object.assign(title.style, { margin: '0', color: '#1f2937', fontSize: '15px' });
 
     const text = document.createElement('p');
-    text.textContent = `Este set abarca ${deptCount} departamentos judiciales. ¿Querés importar solo el departamento actual o recorrer el set completo? (Recorrer todos puede tardar varios minutos.)`;
+    text.textContent =
+      deptCount !== null
+        ? `Este set abarca ${deptCount} departamentos judiciales. ¿Querés importar solo el departamento actual o recorrer el set completo? (Recorrer todos puede tardar varios minutos.)`
+        : '¿Querés importar solo el departamento actual o recorrer el set en TODOS los departamentos judiciales? ProcuAsist cambia de departamento en automático y repite la búsqueda del set en cada uno. (Recorrer todos puede tardar varios minutos.)';
     Object.assign(text.style, { margin: '0', color: '#6b7280', fontSize: '12px', lineHeight: '1.5' });
 
     const buttons = document.createElement('div');
@@ -550,7 +1040,10 @@ function showSetScopeChoiceModal(
     };
 
     const allBtn = createPortalModalButton({
-      label: `Todos los departamentos (${deptCount})`,
+      label:
+        deptCount !== null
+          ? `Todos los departamentos (${deptCount})`
+          : 'Todos los departamentos',
       variant: 'primary',
     });
     allBtn.addEventListener('click', () => finish('all'));
@@ -759,6 +1252,18 @@ async function adoptWizardSessionIfPending(
       .filter((v) => v !== deptSelect.value);
     session.totalDepts = deptOptions.length;
     session.deptsDone = 0;
+  } else {
+    // Sin select de departamento en la página: recorrer el set completo
+    // cambiando de departamento vía POSloguin (el asistente importa SIEMPRE
+    // todos los departamentos).
+    session.deptHop = {
+      setId: pending.setId,
+      remaining: null,
+      done: 0,
+      total: null,
+      phase: 'walk',
+      searchAttempts: 0,
+    };
   }
   sessionStorage.setItem(MEV_SET_IMPORT_SESSION_KEY, JSON.stringify(session));
 
@@ -833,7 +1338,6 @@ function reportWizardSetDone(
     existing?: number;
     monitored?: number;
     failed?: number;
-    newMonitorIds?: string[];
     cancelled?: boolean;
     error?: string;
   }
@@ -877,6 +1381,13 @@ async function continueSetImportIfActive(results: MevSearchResult[]) {
   // grande (>10 min) moría a mitad de camino por el guard de sesiones rancias.
   session.startedAt = Date.now();
 
+  // Llegamos a resultados tras re-buscar el set en otro departamento
+  // (plan B por POSloguin): retomar el recorrido normal de organismos.
+  if (session.deptHop && session.deptHop.phase !== 'walk') {
+    session.deptHop.phase = 'walk';
+    session.deptHop.searchAttempts = 0;
+  }
+
   session.collected = mergeMevSearchResults(session.collected, results);
 
   // Recién cambiamos de departamento: re-leer los organismos de ESTE depto.
@@ -894,10 +1405,13 @@ async function continueSetImportIfActive(results: MevSearchResult[]) {
     }
   }
 
+  const hopTotal = session.deptHop?.total;
   const deptInfo =
     session.totalDepts && session.totalDepts > 1
       ? ` — depto ${(session.deptsDone ?? 0) + 1}/${session.totalDepts}`
-      : '';
+      : session.deptHop
+        ? ` — depto ${session.deptHop.done + 1}${hopTotal ? `/${hopTotal}` : ''}`
+        : '';
   const currentStep = session.totalOrganisms - session.remainingValues.length;
   const statusMessage = `Importando set (organismo ${currentStep}/${session.totalOrganisms}${deptInfo}, ${session.collected.length} causas)...`;
   showSetImportStatus(statusMessage);
@@ -925,11 +1439,29 @@ async function continueSetImportIfActive(results: MevSearchResult[]) {
     // Si el salto de departamento falla, cerramos con lo recolectado.
   }
 
+  // Plan B multi-departamento: cambiar de departamento vía POSloguin.
+  if (startDeptHopSwitch(session)) return;
+
+  await finishSetImportSession(session);
+}
+
+/**
+ * Cierre del recorrido de un set: importa lo recolectado, muestra el estado
+ * y (si vino del asistente) reporta al background. Limpia la sesión antes de
+ * importar para que un fallo no deje el recorrido colgado.
+ */
+async function finishSetImportSession(
+  session: MevSetImportSession
+): Promise<void> {
   sessionStorage.removeItem(MEV_SET_IMPORT_SESSION_KEY);
   try {
     const response = await bulkImportMevResults(session.collected);
+    const hopNote =
+      session.deptHop && session.deptHop.done > 0
+        ? ' Ojo: la sesión de MEV quedó en el último departamento recorrido.'
+        : '';
     showSetImportStatus(
-      `Set importado: ${response.imported} nuevas, ${response.existing} existentes, ${response.monitored} monitoreadas.`,
+      `Set importado: ${response.imported} nuevas, ${response.existing} existentes, ${response.monitored} monitoreadas.${hopNote}`,
       'success'
     );
     if (session.wizardRunId) {
@@ -939,7 +1471,6 @@ async function continueSetImportIfActive(results: MevSearchResult[]) {
         existing: response.existing,
         monitored: response.monitored,
         failed: response.failed ?? 0,
-        newMonitorIds: response.newMonitorIds ?? [],
       });
     }
   } catch (err) {
@@ -1097,7 +1628,6 @@ async function continuePageWalkIfActive(results: MevSearchResult[]) {
         existing: response.existing,
         monitored: response.monitored,
         failed: response.failed ?? 0,
-        newMonitorIds: response.newMonitorIds ?? [],
       });
     } catch (err) {
       console.error('[ProcuAsist] MEV wizard page-walk import error:', err);
@@ -1139,6 +1669,13 @@ function readSetImportSession(): MevSetImportSession | null {
     }
     if (Date.now() - session.startedAt > 10 * 60 * 1000) {
       sessionStorage.removeItem(MEV_SET_IMPORT_SESSION_KEY);
+      // No dejar al asistente esperando el timeout largo del background.
+      if (session.wizardRunId) {
+        reportWizardSetDone(session.wizardRunId, session.wizardSourceKey ?? '', {
+          ok: false,
+          error: 'El recorrido del set quedó inactivo demasiado tiempo.',
+        });
+      }
       return null;
     }
     return session;
@@ -1187,16 +1724,27 @@ function findConsultarControl(): HTMLElement | null {
 }
 
 function findSetOrganismSelect(): HTMLSelectElement | null {
-  const selects = Array.from(document.querySelectorAll('select')) as HTMLSelectElement[];
-  if (!selects.length) return null;
+  const allSelects = Array.from(
+    document.querySelectorAll('select')
+  ) as HTMLSelectElement[];
+  if (!allSelects.length) return null;
 
   const setText = document.body.textContent ?? '';
   if (!/Set de B[uú]squeda|Organismos del Set/i.test(setText)) return null;
 
+  // Excluir el select de departamento para que el fallback "primer select"
+  // no lo confunda con el de organismos.
+  const deptSelect = findSetDepartmentSelect(null);
+  const selects = allSelects.filter((select) => select !== deptSelect);
+
   return (
     selects.find((select) => {
-      const parentText = select.parentElement?.textContent ?? '';
-      return /Organismos del Set/i.test(parentText);
+      const context = [
+        select.parentElement?.textContent ?? '',
+        select.closest('td')?.previousElementSibling?.textContent ?? '',
+        select.closest('tr')?.textContent ?? '',
+      ].join(' ');
+      return /organismo/i.test(context);
     }) ?? selects[0] ?? null
   );
 }
@@ -1248,7 +1796,6 @@ async function bulkImportMevResults(results: MevSearchResult[]) {
     existing: number;
     monitored: number;
     failed?: number;
-    newMonitorIds?: string[];
   };
 }
 
@@ -1419,11 +1966,12 @@ function injectBookmarkButton(caseData: {
   const bar = ensureMevActionBar();
   if (document.getElementById('procu-asist-bookmark')) return;
 
+  // "Guardar" incluye el monitoreo: guardar = monitorear (modelo unificado).
   const btn = createPortalActionButton({
     id: 'procu-asist-bookmark',
     icon: ICON_STAR,
     label: 'Guardar',
-    title: `Guardar ${caseData.numero} en marcadores`,
+    title: `Guardar y monitorear ${caseData.numero}`,
     variant: 'secondary',
   });
 
@@ -1489,78 +2037,6 @@ function injectBookmarkButton(caseData: {
   });
 
   bar.appendChild(btn);
-
-  // Monitor button
-  const monBtn = createPortalActionButton({
-    id: 'procu-asist-monitor',
-    icon: ICON_EYE,
-    label: 'Monitorear',
-    title: `Monitorear ${caseData.numero}`,
-    variant: 'secondary',
-  });
-
-  // Check if already monitored
-  chrome.runtime
-    .sendMessage({
-      type: 'IS_MONITORED',
-      portal: 'mev',
-      caseNumber: caseData.numero,
-    })
-    .then((r) => {
-      const resp = r as { success: boolean; isMonitored: boolean };
-      if (resp?.success && resp.isMonitored) {
-        setPortalActionButtonState(monBtn, ICON_EYE, 'Monitoreando', 'success');
-        monBtn.dataset.monitored = 'true';
-      }
-    });
-
-  monBtn.addEventListener('click', async () => {
-    if (monBtn.dataset.monitored === 'true') return;
-
-    setPortalActionButtonState(monBtn, ICON_LOADER, 'Activando', 'muted');
-    monBtn.disabled = true;
-
-    try {
-      const response = (await chrome.runtime.sendMessage({
-        type: 'ADD_MONITOR',
-        caseData: {
-          id: caseData.nidCausa,
-          portal: 'mev' as const,
-          caseNumber: caseData.numero,
-          title: caseData.caratula,
-          court: caseData.juzgado,
-          fuero: '',
-          portalUrl: window.location.href,
-          metadata: {
-            nidCausa: caseData.nidCausa,
-            pidJuzgado: caseData.pidJuzgado,
-            fechaInicio: caseData.fechaInicio,
-            estadoPortal: caseData.estadoPortal,
-            numeroReceptoria: caseData.numeroReceptoria,
-          },
-        },
-      })) as { success: boolean };
-
-      if (response?.success) {
-        setPortalActionButtonState(monBtn, ICON_EYE, 'Monitoreando', 'success');
-        monBtn.dataset.monitored = 'true';
-      } else {
-        setPortalActionButtonState(monBtn, ICON_X, 'Error', 'danger');
-        setTimeout(() => {
-          setPortalActionButtonState(monBtn, ICON_EYE, 'Monitorear', 'secondary');
-          monBtn.disabled = false;
-        }, 2000);
-      }
-    } catch {
-      setPortalActionButtonState(monBtn, ICON_X, 'Error', 'danger');
-      setTimeout(() => {
-        setPortalActionButtonState(monBtn, ICON_EYE, 'Monitorear', 'secondary');
-        monBtn.disabled = false;
-      }, 2000);
-    }
-  });
-
-  bar.appendChild(monBtn);
 }
 
 // --- Movement Selection Modal ---

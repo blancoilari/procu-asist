@@ -1,23 +1,24 @@
 /**
  * Asistente "Importar todo": trae todas las causas de un colega recién
- * instalado, con acompañamiento y sin generar ruido de alertas.
+ * instalado, con acompañamiento.
  *
  * Tres fases:
  * 1. Conteo: detecta pestañas MEV/SCW con sesión, estima los listados PJN
  *    por paginador y enumera los sets MEV (sin contarlos: se cuentan al
  *    importar, caminar páginas solo para contar castiga al portal).
- * 2. Selección: checkboxes por fuente, con la consecuencia anti-ruido
- *    explicada ANTES de ejecutar (umbral de avisos pausados).
+ * 2. Selección: checkboxes por fuente.
  * 3. Ejecución: progreso por fuente leído de storage.session, cancelar que
  *    corta limpio y resumen final. La corrida vive en el background: cerrar
  *    el panel no la interrumpe.
+ *
+ * Todas las causas importadas quedan con avisos ACTIVOS (guardar = monitorear).
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  AlertTriangle,
   CheckCircle2,
   Download,
+  Eye,
   Hourglass,
   RefreshCw,
   X,
@@ -32,13 +33,7 @@ import {
 
 type Step = 'detect' | 'select' | 'run';
 
-export default function ImportAllWizard({
-  pauseThreshold,
-  onClose,
-}: {
-  pauseThreshold: number;
-  onClose: () => void;
-}) {
+export default function ImportAllWizard({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<Step>('detect');
   const [detection, setDetection] = useState<ImportAllDetectResult | null>(
     null
@@ -128,10 +123,6 @@ export default function ImportAllWizard({
   const sourceEstimate = (list: 'relacionados' | 'favoritos'): number | null =>
     detection?.pjn.sources.find((s) => s.list === list)?.estimatedCases ?? null;
 
-  const knownTotal =
-    (pjnRelacionados ? (sourceEstimate('relacionados') ?? 0) : 0) +
-    (pjnFavoritos ? (sourceEstimate('favoritos') ?? 0) : 0);
-  const hasUncountedSets = selectedSets.size > 0;
   const nothingSelected =
     !pjnRelacionados && !pjnFavoritos && selectedSets.size === 0;
 
@@ -294,43 +285,23 @@ export default function ImportAllWizard({
                 )}
               </div>
 
-              {/* Consecuencia anti-ruido, clara ANTES de ejecutar.
-                  Colores explícitos (no clases amber con variante dark) para
-                  garantizar el contraste en ambos modos: el par bg/texto de
-                  Tailwind se desincronizaba y el aviso quedaba ilegible. */}
+              {/* Colores explícitos (no clases con variante dark) para
+                  garantizar el contraste en ambos modos. */}
               <div
                 className="rounded-lg border px-3 py-2"
-                style={{ backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }}
+                style={{ backgroundColor: '#EFF6FF', borderColor: '#93C5FD' }}
               >
                 <p
                   className="flex items-start gap-1.5 text-[11px] font-medium leading-snug"
-                  style={{ color: '#7C2D12' }}
+                  style={{ color: '#1E3A8A' }}
                 >
-                  <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                  <Eye size={13} className="mt-0.5 shrink-0" />
                   <span>
-                    {knownTotal > pauseThreshold ? (
-                      <>
-                        Vas a importar aproximadamente {knownTotal} causas,
-                        más que el umbral de {pauseThreshold}: las causas
-                        nuevas van a entrar con los{' '}
-                        <strong>avisos pausados</strong>. Después activás el
-                        monitoreo solo de las que te interesan.
-                      </>
-                    ) : hasUncountedSets ? (
-                      <>
-                        Si el total importado supera el umbral de{' '}
-                        {pauseThreshold} causas (los sets MEV se cuentan al
-                        importar), las causas nuevas van a entrar con los{' '}
-                        <strong>avisos pausados</strong> y activás el
-                        monitoreo solo de las que te interesan.
-                      </>
-                    ) : (
-                      <>
-                        Por debajo del umbral de {pauseThreshold} causas, las
-                        importadas quedan con monitoreo activo normal. El
-                        umbral se cambia en Ajustes.
-                      </>
-                    )}
+                    Todas las causas importadas quedan guardadas y con{' '}
+                    <strong>avisos activos</strong>: ProcuAsist las escanea y
+                    te avisa cuando hay movimientos nuevos. Si alguna no te
+                    interesa, podés pausar sus avisos desde la lista de
+                    Causas.
                   </span>
                 </p>
               </div>
@@ -400,12 +371,9 @@ export default function ImportAllWizard({
                         {progress.totalFailed} errores.
                         {progress.cancelled ? ' Corrida cancelada.' : ''}
                       </p>
-                      {progress.monitorsPaused > 0 && (
+                      {progress.totalImported > 0 && (
                         <p className="mt-1">
-                          Se superó el umbral de {progress.pauseThreshold}{' '}
-                          causas: {progress.monitorsPaused} causas nuevas
-                          quedaron con avisos pausados. Activá el monitoreo de
-                          las que te interesan desde la lista de Causas.
+                          Las causas importadas quedaron con avisos activos.
                         </p>
                       )}
                     </div>

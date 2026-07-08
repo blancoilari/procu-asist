@@ -1,10 +1,10 @@
-# ProcuAsist - Manual de Usuario (v0.7.0)
+# ProcuAsist - Manual de Usuario (v0.8.0)
 
 ## Índice
 
 1. [Qué es ProcuAsist](#1-qué-es-procuasist)
 2. [Instalación desde Chrome Web Store](#2-instalación-desde-chrome-web-store)
-3. [Primer uso: PIN maestro y credenciales de los portales](#3-primer-uso-pin-maestro-y-credenciales-de-los-portales)
+3. [Primer uso: bienvenida y credenciales de los portales](#3-primer-uso-bienvenida-y-credenciales-de-los-portales)
 4. [La pestaña Causas](#4-la-pestaña-causas)
 5. [Alertas](#5-alertas)
 6. [Descargar un expediente completo](#6-descargar-un-expediente-completo)
@@ -79,58 +79,34 @@ No hace falta reiniciar Chrome ni crear ninguna cuenta. Con la instalación ya e
 
 ---
 
-## 3. Primer uso: PIN maestro y credenciales de los portales
+## 3. Primer uso: bienvenida y credenciales de los portales
 
-La primera vez que abrís el panel lateral, ProcuAsist te muestra una bienvenida de 5 pantallas (onboarding) que explica brevemente qué hace la extensión, cómo funciona el guardado de causas, el monitoreo y la seguridad. Las primeras cuatro pantallas se pueden saltear con el botón **"Omitir"** si ya conocés la herramienta; la última, de términos de uso, no se puede saltear: hay que confirmarla con **"Acepto y comenzar"** para poder seguir usando la extensión. Este asistente es solo informativo: no te pide el PIN ni las credenciales de los portales en ningún momento, eso se configura después, desde Ajustes (ver 3.2 y 3.3).
+Al instalar, ProcuAsist abre solo una pestaña de **bienvenida** (la misma que aparece la primera vez que abrís el panel lateral). Son 5 pantallas que, además de explicar la herramienta, **te dejan operativo**: en la segunda pantalla cargás las credenciales de los portales, en la tercera abrís MEV y PJN para verificar el auto-login, y al final podés lanzar directamente **"Importar todo"** para traer tus causas. La última pantalla, de términos de uso, no se puede saltear: hay que confirmarla con **"Acepto y comenzar"** (o con **"Acepto y quiero importar mis causas ahora"**).
 
-### 3.1. Por qué hace falta un PIN
+### 3.1. Cargar las credenciales (en la bienvenida)
 
-Para que ProcuAsist pueda iniciar sesión automáticamente en los portales judiciales, necesita guardar tu usuario y tu contraseña de esos portales. Guardarlos "en texto plano" sería un riesgo, así que ProcuAsist los cifra (con AES-256-GCM, el mismo tipo de cifrado que usan los bancos) y la única llave para abrir ese cifrado es un **PIN maestro** que elegís vos y que ProcuAsist no guarda en ningún servidor: existe solo en tu computadora.
-
-**Importante y sin margen de vuelta atrás**: no existe ninguna función de "recuperar PIN". Si ya guardaste alguna credencial de portal, ProcuAsist no te deja configurar un PIN nuevo por encima del viejo: te va a pedir que uses "Desbloquear" con el PIN que ya tenías. Si te olvidaste ese PIN, no hay forma de recuperar las credenciales que tenías guardadas, porque nadie (ni el autor de ProcuAsist) puede desencriptarlas sin él. Lo que sí existe desde la 0.7.0 es un flujo de **"Restablecer PIN"** (ver 3.5): borra el PIN y las credenciales guardadas, y te deja empezar de nuevo **sin perder** tus causas, alertas ni plazos. Igual conviene anotar el PIN en un lugar seguro (por ejemplo, tu gestor de contraseñas habitual) antes de perderlo de vista: restablecer implica volver a cargar las credenciales de todos los portales a mano.
-
-### 3.2. Configurar el PIN
-
-1. Abrí el panel lateral y andá a la pestaña **Ajustes**.
-2. Hacé clic en **"Configuración avanzada"**. Se abre la página de opciones de ProcuAsist en una pestaña nueva.
-3. En la sección **Credenciales**, vas a ver el bloque **"PIN Maestro"**.
-4. Escribí un PIN de **4 a 8 dígitos** (solo números) y confirmalo en el segundo campo.
-5. Hacé clic en **"Configurar PIN"**.
-
-![Página de opciones, sección Credenciales, con los campos de PIN y confirmación de PIN](tutorial/04-configurar-pin.png)
-
-### 3.3. Guardar las credenciales de los portales
-
-Una vez que el PIN está configurado y desbloqueado, en la misma página de opciones aparecen los formularios de credenciales de cada portal. **Son las mismas credenciales que ya usás para entrar manualmente a esos portales**, no hay que crear ningún usuario nuevo:
+Para que ProcuAsist pueda iniciar sesión automáticamente en los portales judiciales, necesita guardar tu usuario y tu contraseña de esos portales. **Son las mismas credenciales que ya usás para entrar manualmente**, no hay que crear ningún usuario nuevo:
 
 - **MEV**: tu usuario y tu contraseña de mev.scba.gov.ar (Mesa de Entradas Virtual, Provincia de Buenos Aires).
 - **PJN**: tu usuario y tu contraseña del inicio de sesión único (SSO) del Poder Judicial de la Nación, el mismo que usás para entrar a scw.pjn.gov.ar o portalpjn.pjn.gov.ar.
 
-Para cada portal: completá usuario y contraseña, y hacé clic en **"Guardar Credenciales"**. Un aviso confirma "Credenciales guardadas y encriptadas".
+En la segunda pantalla de la bienvenida, completá usuario y contraseña de cada portal y hacé clic en **"Guardar"**. El paso no te deja avanzar sin guardarlas o sin tildar explícitamente que preferís cargarlas más tarde: es la pieza que hace funcionar el auto-login y la reconexión automática.
 
-Estas credenciales **quedan cifradas exclusivamente en tu computadora**. ProcuAsist no tiene servidores propios para la versión gratuita: nunca viajan a internet, ni siquiera a un servidor del autor.
+**No hay PIN**: las credenciales se cifran con AES-256-GCM usando una clave generada automáticamente en tu computadora. Quedan cifradas **exclusivamente en tu navegador**: ProcuAsist no tiene servidores, nunca viajan a internet, ni siquiera a un servidor del autor. Tené presente que cualquiera que use tu perfil de Chrome desbloqueado puede usar la extensión, así que si compartís la computadora, cerrá tu sesión de Windows o usá un perfil de Chrome propio.
 
-![Formularios de credenciales de MEV y PJN completos, con el aviso "Guardado"](tutorial/05-guardar-credenciales.png)
+### 3.2. Cargarlas o cambiarlas después (Ajustes)
 
-En esa misma página, debajo de las credenciales de MEV, hay un selector de **Departamento Judicial**: elegí el departamento donde más litigás (La Plata, Mar del Plata, Avellaneda, etc.) para que el ingreso automático a MEV lo complete solo.
+Si salteaste la bienvenida o querés cambiar una contraseña:
 
-### 3.4. Mantener la sesión desbloqueada (opcional)
+1. Abrí el panel lateral y andá a la pestaña **Ajustes**.
+2. Hacé clic en **"Credenciales de portales y configuración avanzada"**. Se abre la página de opciones en una pestaña nueva.
+3. En la sección **Credenciales**, completá usuario y contraseña de cada portal y hacé clic en **"Guardar Credenciales"**. Un aviso confirma "Credenciales guardadas y encriptadas". El botón **"Borrar"** elimina las guardadas de ese portal.
 
-Por defecto, cada vez que Chrome reinicia el proceso interno de la extensión (algo que pasa solo, después de un rato de inactividad), ProcuAsist te va a volver a pedir el PIN antes de poder usar el auto-login. Si preferís no tener que reingresarlo tan seguido, en la pestaña Ajustes del panel lateral hay un interruptor **"Mantener sesión iniciada (no pedir PIN)"**. Es más cómodo, pero también menos seguro: la clave queda guardada en ese perfil de Chrome mientras el interruptor esté activado. Si compartís la computadora con alguien, es preferible dejarlo apagado.
+En esa misma página hay un selector de **Departamento Judicial** para el reingreso automático a MEV. Podés dejarlo como está: ProcuAsist **aprende solo** el departamento que elijas la próxima vez que entres a la MEV y lo usa para las reconexiones siguientes.
 
-### 3.5. Si te olvidaste el PIN: restablecer
+### 3.3. Abrir los portales y verificar el auto-login
 
-En la misma página de opciones (Ajustes, "Configuración avanzada", sección Credenciales) hay un bloque **"Restablecer PIN"**, disponible incluso con el vault bloqueado, que es justamente la situación de quien olvidó su PIN.
-
-Qué hace y qué no hace, sin vueltas:
-
-- **Borra** el PIN actual y **todas las credenciales de portales guardadas** (MEV, PJN). No es una recuperación: sin el PIN anterior esas credenciales son indescifrables para siempre, así que borrarlas y empezar de nuevo es el único camino.
-- **No toca** tus causas guardadas, los monitoreos, las alertas ni los plazos: todo eso sigue intacto.
-- Después del restablecimiento podés configurar un PIN nuevo y volver a cargar las credenciales de cada portal a mano (ver 3.2 y 3.3).
-
-El flujo pide **dos confirmaciones** seguidas, con el detalle explícito de lo que se borra, antes de ejecutar nada. Si cancelás en cualquiera de las dos, no se borra nada.
-
-![Bloque Restablecer PIN en la página de opciones, con el primer aviso de confirmación visible](tutorial/06-restablecer-pin.png)
+La tercera pantalla de la bienvenida tiene botones para abrir **MEV** y **PJN** en pestañas nuevas. Con las credenciales guardadas, cada portal se debería loguear solo. En MEV, después del login, el portal pide elegir un **Departamento Judicial**: elegí el tuyo (ProcuAsist lo recuerda). Dejá esas pestañas abiertas: "Importar todo" (ver punto 7) las necesita con la sesión iniciada.
 
 ---
 
@@ -293,13 +269,13 @@ Si recién instalás ProcuAsist y querés traer **todas** tus causas de una sola
 
 **Paso 1 - Detección y conteo.** El asistente detecta qué portales tienen sesión activa. Para PJN estima cuántas causas hay en Relacionados y en Favoritos (navega tu pestaña de SCW entre ambos listados para leer el paginador; los números son aproximados). Para MEV lista tus sets de búsqueda guardados, sin contarlos: los sets se cuentan al importar.
 
-**Paso 2 - Selección.** Elegís con casilleros qué importar: Relacionados de PJN, Favoritos de PJN y cada set de MEV. Antes de ejecutar, el asistente te muestra la consecuencia anti-ruido: si el total de causas nuevas importadas supera un **umbral configurable** (50 por defecto, editable en Ajustes como "Umbral de pausa al importar en masa"), todas las causas nuevas de esa corrida entran guardadas pero **con los avisos pausados**, para que cientos de causas no te inunden el panel de alertas. Después activás el monitoreo solo de las que te interesan, desde el menú de cada tarjeta. Por debajo del umbral, las causas quedan con monitoreo activo normal.
+**Paso 2 - Selección.** Elegís con casilleros qué importar: Relacionados de PJN, Favoritos de PJN y cada set de MEV. Todas las causas importadas quedan guardadas **con los avisos activos** (guardar = monitorear); si alguna no te interesa, después pausás sus avisos desde el menú de su tarjeta.
 
-**Paso 3 - Ejecución.** El asistente muestra el progreso fuente por fuente (páginas recorridas en PJN, organismos y departamentos en MEV). Podés **cancelar** en cualquier momento: el recorrido corta limpio entre páginas u organismos y el resumen refleja lo importado hasta ahí. También podés cerrar el panel lateral: la importación sigue en segundo plano y al reabrir el asistente retoma el progreso. Al final, un resumen indica cuántas causas se importaron, cuántas ya existían (los duplicados se saltean solos) y si hubo errores.
+**Paso 3 - Ejecución.** El asistente muestra el progreso fuente por fuente (páginas recorridas en PJN, organismos y departamentos en MEV). Los sets MEV se recorren **completos, departamento por departamento**: si hace falta, ProcuAsist cambia de departamento judicial en automático (pasa por la pantalla de selección de departamento del portal y repite la búsqueda del set en cada uno). Podés **cancelar** en cualquier momento: el recorrido corta limpio entre páginas u organismos y el resumen refleja lo importado hasta ahí. También podés cerrar el panel lateral: la importación sigue en segundo plano y al reabrir el asistente retoma el progreso. Al final, un resumen indica cuántas causas se importaron, cuántas ya existían (los duplicados se saltean solos) y si hubo errores.
 
-La importación de PJN recorre el listado con pausas de cortesía entre páginas para no castigar al portal; un set grande de MEV que abarca varios departamentos puede tardar varios minutos. Es esperable: el asistente avisa y sigue solo.
+La importación de PJN recorre el listado con pausas de cortesía entre páginas para no castigar al portal; un set grande de MEV que abarca varios departamentos puede tardar varios minutos. Es esperable: el asistente avisa y sigue solo. Ojo: al terminar un recorrido multi-departamento, tu pestaña de MEV puede quedar parada en el último departamento recorrido.
 
-![Asistente Importar todo en el paso de selección, con fuentes detectadas, estimados y el aviso del umbral](tutorial/14-importar-todo.png)
+![Asistente Importar todo en el paso de selección, con fuentes detectadas y estimados](tutorial/14-importar-todo.png)
 
 ---
 
@@ -353,7 +329,7 @@ El archivo que se descarga (un .json) incluye tus causas guardadas, los monitore
 
 ### 9.2. Qué NO incluye, nunca
 
-**El backup nunca incluye tus credenciales de los portales ni tu PIN.** Es intencional: ese material sensible no sale de tu computadora bajo ninguna circunstancia, ni siquiera en un archivo de resguardo. Si pasás tus datos a otra computadora con este backup, vas a tener que volver a cargar el PIN y las credenciales de los portales ahí.
+**El backup nunca incluye tus credenciales de los portales ni la clave de cifrado.** Es intencional: ese material sensible no sale de tu computadora bajo ninguna circunstancia, ni siquiera en un archivo de resguardo. Si pasás tus datos a otra computadora con este backup, vas a tener que volver a cargar las credenciales de los portales ahí.
 
 ### 9.3. Cómo se importa: es un agregado, no un reemplazo
 
@@ -365,15 +341,13 @@ Al importar un archivo de backup, ProcuAsist **agrega** lo que trae el archivo s
 
 ## 10. Preguntas frecuentes y problemas comunes
 
-### Me olvidé el PIN. ¿Cómo lo recupero?
+### ¿Qué pasó con el PIN? Antes me lo pedía y ahora no
 
-No se puede recuperar: sin el PIN correcto, las credenciales cifradas quedan inaccesibles para siempre, incluso para el autor de ProcuAsist. Lo que sí podés hacer es **restablecerlo** (ver 3.5): en Ajustes, "Configuración avanzada", sección Credenciales, el bloque "Restablecer PIN" borra el PIN y las credenciales guardadas (con doble confirmación previa) y te deja configurar un PIN nuevo. Tus causas guardadas, alertas y plazos no se pierden; las credenciales de los portales las vas a tener que cargar de nuevo a mano.
-
-Ya no hace falta desinstalar y reinstalar la extensión como en versiones anteriores.
+Desde la versión 0.8.0 **no hay más PIN**: generaba errores ("bloqueado, ingresá tu PIN") y cortaba la reconexión automática. Las credenciales se siguen guardando cifradas (AES-256-GCM), pero con una clave generada automáticamente en tu computadora. Si venías de una versión con PIN y tenías activado "Mantener sesión iniciada", tus credenciales se conservan solas; si no lo tenías activado, ProcuAsist te avisa con una notificación que las vuelvas a cargar una única vez en Ajustes (sin el PIN viejo no hay forma técnica de descifrarlas).
 
 ### La sesión del portal venció. ¿Qué hace ProcuAsist?
 
-Si tenías la auto-reconexión activada (interruptor en Ajustes) y el PIN ya estaba desbloqueado, ProcuAsist detecta que te mandaron de vuelta a la pantalla de login y vuelve a entrar solo con tus credenciales guardadas, sin que tengas que hacer nada. Si el PIN nunca se desbloqueó en esa sesión de Chrome, o no hay credenciales guardadas para ese portal, en cambio, te llega una notificación de Chrome avisando que la sesión expiró y pidiéndote reingresar el PIN para poder reconectar.
+Si tenías la auto-reconexión activada (interruptor en Ajustes) y hay credenciales guardadas, ProcuAsist detecta que te mandaron de vuelta a la pantalla de login y vuelve a entrar solo, sin que tengas que hacer nada. En MEV, además, elige solo el departamento judicial que usaste la última vez. Si no hay credenciales guardadas para ese portal, te llega una notificación de Chrome avisando que la sesión expiró y sugiriéndote cargarlas en Ajustes.
 
 ### El escaneo de monitoreo no encuentra movimientos nuevos
 
@@ -403,7 +377,7 @@ El límite es de 45 segundos por documento. Si el servidor del SCW tarda más qu
 
 ### Cambié de computadora, ¿pierdo mis causas guardadas?
 
-Si hiciste un backup (ver punto 9) antes de cambiar, no: exportá el JSON en la computadora vieja e importalo en la nueva. Vas a tener que volver a configurar el PIN y las credenciales en la computadora nueva, porque esos datos nunca viajan en el backup.
+Si hiciste un backup (ver punto 9) antes de cambiar, no: exportá el JSON en la computadora vieja e importalo en la nueva. Vas a tener que volver a cargar las credenciales de los portales en la computadora nueva, porque esos datos nunca viajan en el backup.
 
 ### ¿Funciona en otro navegador que no sea Chrome?
 
@@ -419,7 +393,7 @@ Es esperable: el interruptor de modo oscuro de ProcuAsist (en Ajustes) cambia la
 
 ProcuAsist funciona enteramente en tu computadora: no hay backend propio para la versión gratuita ni servidores del autor que reciban tus datos. Tus causas, alertas, plazos y credenciales cifradas se guardan únicamente en el almacenamiento local de Chrome, en tu perfil de usuario.
 
-Las credenciales de los portales se cifran con AES-256-GCM y la llave para desencriptarlas se deriva de tu PIN: sin el PIN correcto, nadie puede leerlas, ni siquiera el autor de la extensión.
+Las credenciales de los portales se cifran con AES-256-GCM usando una clave generada automáticamente que existe solo en tu navegador: nunca viajan a internet y el autor de la extensión no puede leerlas. La clave vive en tu perfil de Chrome, así que quien use tu computadora con tu sesión abierta podría usar la extensión: si compartís la máquina, usá un perfil de Chrome propio o bloqueá tu sesión.
 
 ProcuAsist es una herramienta complementaria: no reemplaza el control manual de las actuaciones judiciales ni el criterio profesional del abogado. Se ofrece "tal cual", sin garantías de ningún tipo.
 
@@ -431,7 +405,9 @@ Para más detalle, ver el archivo `PRIVACY.md` del proyecto.
 
 Sesión de capturas del 2026-07-03: 16 de las 17 capturas ya están tomadas en vivo (instalación real desde la Chrome Web Store, causas reales de MEV y PJN) y viven en `tutorial/`.
 
-**Pendiente:** `tutorial/12-dialogo-multidepartamento.png` (cuadro de diálogo "Importar set de búsqueda" con las opciones Todos los departamentos / Solo este departamento / Cancelar). Al probarlo en vivo, la extensión importó un set de MEV sin mostrar ese diálogo aunque el set debería abarcar más de un departamento judicial; queda como pendiente técnico a confirmar (¿el set probado era en realidad de un solo departamento, o es un bug?) antes de poder sacar esta captura.
+**Pendiente:** `tutorial/12-dialogo-multidepartamento.png` (cuadro de diálogo "Importar set de búsqueda" con las opciones Todos los departamentos / Solo este departamento / Cancelar). En 0.7.0 el diálogo no aparecía en vivo; era un bug de detección del selector de departamento, corregido en 0.8.0 (junto con un plan B que cambia de departamento vía la pantalla de selección del portal cuando la página del set no ofrece selector). Falta re-probar en vivo y sacar la captura.
+
+**Pendientes 0.8.0:** las capturas `04-configurar-pin.png`, `05-guardar-credenciales.png` y `06-restablecer-pin.png` quedaron desactualizadas (ya no hay PIN); reemplazarlas por capturas de la nueva bienvenida (paso de credenciales) y de la página de opciones sin PIN. También conviene recapturar `14-importar-todo.png` (ya no muestra el aviso del umbral).
 
 **Sobre los datos reales:** varias capturas se tomaron sobre causas reales de MEV y PJN. Se taparon con recuadros los datos más sensibles (carátulas, usuario de MEV, CUIT en PJN, nombres de los sets de búsqueda de MEV) en `05-guardar-credenciales.png`, `07-guardar-causa.png`, `08-menu-causa.png`, `09-alertas.png`, `13-importar-pjn-multipagina.png` y `14-importar-todo.png`. Quedan visibles a propósito, por ser menos identificatorios, algunos números de expediente sueltos (sin carátula) y nombres de juzgados/dependencias. Revisar con criterio propio antes de publicar; si se prefiere, se pueden reemplazar más adelante por capturas con datos ficticios.
 
@@ -442,4 +418,4 @@ Sesión de capturas del 2026-07-03: 16 de las 17 capturas ya están tomadas en v
 - **Mail**: blancoilariasistente@gmail.com
 - **GitHub**: https://github.com/blancoilari/procu-asist/issues
 
-*ProcuAsist v0.7.0 - Copiloto Legal para Abogados Argentinos*
+*ProcuAsist v0.8.0 - Copiloto Legal para Abogados Argentinos*

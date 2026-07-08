@@ -11,7 +11,6 @@ import type { PjnExpedienteData } from './pjn-parser';
 import {
   ICON_ALERT,
   ICON_CHECK,
-  ICON_EYE,
   ICON_FILE_PEN,
   ICON_LOADER,
   ICON_STAR,
@@ -28,7 +27,6 @@ import { isPjnNoteDay } from './pjn-note-days';
 const ACTION_BAR_ID = 'procu-asist-action-bar';
 const CONFIG_BUTTON_ID = 'procu-asist-config';
 const BOOKMARK_BUTTON_ID = 'procu-asist-pjn-bookmark';
-const MONITOR_BUTTON_ID = 'procu-asist-pjn-monitor';
 const LEAVE_NOTE_BUTTON_ID = 'procu-asist-pjn-leave-note';
 
 type LeaveNoteStatus = 'success' | 'duplicate';
@@ -43,10 +41,11 @@ export function mountPjnCaseActions(data: PjnExpedienteData, url: string): void 
       console.debug('[ProcuAsist PJN] could not store detected case', err);
     });
 
+  // "Guardar" incluye el monitoreo (guardar = monitorear): no hay botón
+  // Monitorear separado.
   const bar = ensurePjnActionBar();
   mountLeaveNoteButton(bar, caseData);
   mountBookmarkButton(bar, caseData);
-  mountMonitorButton(bar, caseData);
 }
 
 function buildPjnCase(data: PjnExpedienteData, url: string): Case | null {
@@ -95,7 +94,7 @@ function mountBookmarkButton(bar: HTMLDivElement, caseData: Case): void {
     id: BOOKMARK_BUTTON_ID,
     icon: ICON_STAR,
     label: 'Guardar',
-    title: `Guardar ${caseData.caseNumber} en marcadores`,
+    title: `Guardar y monitorear ${caseData.caseNumber}`,
     variant: 'secondary',
   });
 
@@ -225,58 +224,6 @@ function observeLeaveNotePortalStatus(
     subtree: true,
     characterData: true,
   });
-}
-
-function mountMonitorButton(bar: HTMLDivElement, caseData: Case): void {
-  if (document.getElementById(MONITOR_BUTTON_ID)) return;
-
-  const btn = createPortalActionButton({
-    id: MONITOR_BUTTON_ID,
-    icon: ICON_EYE,
-    label: 'Monitorear',
-    title: `Monitorear ${caseData.caseNumber}`,
-    variant: 'secondary',
-  });
-
-  chrome.runtime
-    .sendMessage({
-      type: 'IS_MONITORED',
-      portal: 'pjn',
-      caseNumber: caseData.caseNumber,
-    })
-    .then((r) => {
-      const resp = r as { success?: boolean; isMonitored?: boolean };
-      if (resp?.success && resp.isMonitored) {
-        setPortalActionButtonState(btn, ICON_EYE, 'Monitoreando', 'success');
-        btn.dataset.monitored = 'true';
-      }
-    })
-    .catch(() => undefined);
-
-  btn.addEventListener('click', async () => {
-    if (btn.dataset.monitored === 'true') return;
-
-    setPortalActionButtonState(btn, ICON_LOADER, 'Activando', 'muted');
-    btn.disabled = true;
-
-    try {
-      const response = (await chrome.runtime.sendMessage({
-        type: 'ADD_MONITOR',
-        caseData,
-      })) as { success?: boolean };
-
-      if (response?.success) {
-        setPortalActionButtonState(btn, ICON_EYE, 'Monitoreando', 'success');
-        btn.dataset.monitored = 'true';
-        return;
-      }
-      resetButtonAfterError(btn, ICON_EYE, 'Monitorear');
-    } catch {
-      resetButtonAfterError(btn, ICON_EYE, 'Monitorear');
-    }
-  });
-
-  bar.appendChild(btn);
 }
 
 function resetButtonAfterError(

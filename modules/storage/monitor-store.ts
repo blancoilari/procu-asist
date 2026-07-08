@@ -140,28 +140,6 @@ export async function removeMonitor(id: string): Promise<void> {
   await chrome.storage.local.set({ [ALERTS_KEY]: alerts });
 }
 
-/**
- * Pausar avisos de un conjunto de monitores (una sola escritura).
- * Usado por el asistente "Importar todo" cuando la corrida supera el umbral
- * anti-ruido: las causas quedan guardadas pero con monitoreo pausado.
- */
-export async function deactivateMonitors(ids: string[]): Promise<number> {
-  if (!ids.length) return 0;
-  const idSet = new Set(ids);
-  const monitors = await getMonitors();
-  let changed = 0;
-  for (const monitor of monitors) {
-    if (idSet.has(monitor.id) && monitor.isActive) {
-      monitor.isActive = false;
-      changed++;
-    }
-  }
-  if (changed > 0) {
-    await chrome.storage.local.set({ [MONITORS_KEY]: monitors });
-  }
-  return changed;
-}
-
 /** Toggle monitor active state */
 export async function toggleMonitor(
   id: string
