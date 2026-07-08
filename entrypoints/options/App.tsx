@@ -10,14 +10,6 @@ export default function App() {
   // Apply dark mode to the options page itself
   useDarkMode();
   const [activePage, setActivePage] = useState<Page>('credentials');
-  const [lockStatus, setLockStatus] = useState<{
-    pinConfigured: boolean;
-    unlocked: boolean;
-  } | null>(null);
-
-  useEffect(() => {
-    chrome.runtime.sendMessage({ type: 'GET_LOCK_STATUS' }, setLockStatus);
-  }, []);
 
   return (
     <div className="mx-auto flex min-h-screen max-w-4xl bg-bg text-text">
@@ -49,26 +41,11 @@ export default function App() {
             </li>
           ))}
         </ul>
-
-        {lockStatus && (
-          <div className="mt-6 rounded-lg border border-border p-3">
-            <div className="flex items-center gap-2">
-              <span
-                className={`h-2 w-2 rounded-full ${lockStatus.unlocked ? 'bg-success' : 'bg-danger'}`}
-              />
-              <span className="text-xs text-text-secondary">
-                {lockStatus.unlocked ? 'Desbloqueado' : 'Bloqueado'}
-              </span>
-            </div>
-          </div>
-        )}
       </nav>
 
       {/* Content */}
       <main className="flex-1 p-8">
-        {activePage === 'credentials' && (
-          <CredentialsPage lockStatus={lockStatus} />
-        )}
+        {activePage === 'credentials' && <CredentialsPage />}
         {activePage === 'monitoring' && <MonitoringPage />}
         {activePage === 'appearance' && <AppearancePage />}
       </main>
@@ -76,256 +53,29 @@ export default function App() {
   );
 }
 
-function CredentialsPage({
-  lockStatus,
-}: {
-  lockStatus: { pinConfigured: boolean; unlocked: boolean } | null;
-}) {
-  const [pin, setPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
-  const [pinMessage, setPinMessage] = useState('');
-  const [pinError, setPinError] = useState('');
-
-  const handleSetupPin = () => {
-    setPinError('');
-    setPinMessage('');
-    if (pin.length < 4) {
-      setPinError('El PIN debe tener al menos 4 dígitos');
-      return;
-    }
-    if (!lockStatus?.pinConfigured && pin !== confirmPin) {
-      setPinError('Los PINs no coinciden');
-      return;
-    }
-
-    const msgType = lockStatus?.pinConfigured ? 'UNLOCK_PIN' : 'SETUP_PIN';
-    chrome.runtime.sendMessage({ type: msgType, pin }, (response) => {
-      if (response?.success) {
-        setPinMessage(
-          lockStatus?.pinConfigured
-            ? 'Desbloqueado correctamente'
-            : 'PIN configurado correctamente'
-        );
-        setPin('');
-        setConfirmPin('');
-        // Refresh status after the user can read the success message —
-        // an immediate reload would wipe it before it ever renders.
-        setTimeout(() => window.location.reload(), 1200);
-      } else {
-        setPinError(
-          response?.error ??
-            (lockStatus?.pinConfigured
-              ? 'PIN incorrecto'
-              : 'Error al configurar PIN')
-        );
-      }
-    });
-  };
-
+function CredentialsPage() {
   return (
     <div>
       <h2 className="mb-6 text-2xl font-bold">Credenciales</h2>
       <p className="mb-6 text-sm text-text-secondary">
-        Tus credenciales se encriptan localmente con AES-256-GCM y nunca salen
-        de tu dispositivo.
+        Ingresá el usuario y la contraseña con los que entrás a cada portal
+        judicial. ProcuAsist los usa para el auto-login y la reconexión
+        automática. Se guardan encriptados (AES-256-GCM) en tu navegador y
+        nunca salen de tu dispositivo.
       </p>
 
-      {/* PIN Section */}
-      <section className="mb-8">
-        <h3 className="mb-3 text-lg font-semibold">PIN Maestro</h3>
-        {pinError && (
-          <p className="mb-2 text-sm text-danger">{pinError}</p>
-        )}
-        {pinMessage && (
-          <p className="mb-2 text-sm text-success">{pinMessage}</p>
-        )}
-
-        {!lockStatus?.unlocked && (
-          <div className="flex flex-col gap-3">
-            <input
-              type="password"
-              placeholder={
-                lockStatus?.pinConfigured
-                  ? 'Ingresá tu PIN'
-                  : 'Nuevo PIN (4-8 dígitos)'
-              }
-              maxLength={8}
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-              onKeyDown={(e) => e.key === 'Enter' && handleSetupPin()}
-              className="w-64 rounded-lg border border-border bg-bg-secondary px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-            {!lockStatus?.pinConfigured && (
-              <input
-                type="password"
-                placeholder="Confirmar PIN"
-                maxLength={8}
-                value={confirmPin}
-                onChange={(e) =>
-                  setConfirmPin(e.target.value.replace(/\D/g, ''))
-                }
-                onKeyDown={(e) => e.key === 'Enter' && handleSetupPin()}
-                className="w-64 rounded-lg border border-border bg-bg-secondary px-3 py-2 text-sm outline-none focus:border-primary"
-              />
-            )}
-            <button
-              onClick={handleSetupPin}
-              disabled={pin.length < 4}
-              className="w-fit rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
-            >
-              {lockStatus?.pinConfigured ? 'Desbloquear' : 'Configurar PIN'}
-            </button>
-          </div>
-        )}
-
-        {lockStatus?.unlocked && (
-          <p className="flex items-center gap-2 text-sm text-success">
-            <span className="h-2 w-2 rounded-full bg-success" />
-            PIN configurado y desbloqueado
-          </p>
-        )}
-      </section>
-
-      {lockStatus?.pinConfigured && <ResetPinSection />}
-
-      {/* Portal Credentials - Only show when unlocked */}
-      {lockStatus?.unlocked ? (
-        <>
-          <PortalCredentials
-            portal="mev"
-            label="MEV"
-            description="MEV - Mesa de Entradas Virtual - Provincia de Buenos Aires"
-          />
-          <MevDepartmentSelector />
-          <PortalCredentials
-            portal="pjn"
-            label="PJN"
-            description="PJN - Poder Judicial de la Nación (portal nacional + sistema de consultas web)"
-          />
-        </>
-      ) : (
-        <div className="rounded-lg border border-border bg-bg-secondary p-6 text-center">
-          <p className="text-sm text-text-secondary">
-            {lockStatus?.pinConfigured
-              ? 'Desbloqueá con tu PIN para ver y editar las credenciales.'
-              : 'Configurá un PIN maestro primero para guardar credenciales.'}
-          </p>
-        </div>
-      )}
+      <PortalCredentials
+        portal="mev"
+        label="MEV"
+        description="MEV - Mesa de Entradas Virtual - Provincia de Buenos Aires"
+      />
+      <MevDepartmentSelector />
+      <PortalCredentials
+        portal="pjn"
+        label="PJN"
+        description="PJN - Poder Judicial de la Nación (portal nacional + sistema de consultas web)"
+      />
     </div>
-  );
-}
-
-/**
- * Restablecer PIN olvidado. Doble confirmación explícita: el reseteo BORRA
- * las credenciales guardadas de los portales (sin el PIN viejo son
- * indescifrables, no hay recuperación posible con AES-GCM) y deja la
- * extensión lista para configurar un PIN nuevo. Marcadores, monitores,
- * alertas y plazos no se tocan.
- */
-function ResetPinSection() {
-  const [step, setStep] = useState<0 | 1 | 2>(0);
-  const [working, setWorking] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-
-  const handleReset = () => {
-    setWorking(true);
-    setError('');
-    chrome.runtime.sendMessage({ type: 'RESET_PIN' }, (response) => {
-      setWorking(false);
-      if (response?.success) {
-        setMessage(
-          'PIN restablecido y credenciales borradas. Configurá un PIN nuevo y volvé a cargar tus credenciales.'
-        );
-        setStep(0);
-        setTimeout(() => window.location.reload(), 2000);
-      } else {
-        setError(response?.error ?? 'No se pudo restablecer el PIN.');
-      }
-    });
-  };
-
-  return (
-    <section className="mb-8 rounded-lg border border-danger/40 p-4">
-      <h3 className="mb-2 text-lg font-semibold text-danger">
-        Restablecer PIN
-      </h3>
-
-      {message && <p className="mb-2 text-sm text-success">{message}</p>}
-      {error && <p className="mb-2 text-sm text-danger">{error}</p>}
-
-      {step === 0 && !message && (
-        <div className="flex flex-col gap-3">
-          <p className="text-xs text-text-secondary">
-            Si te olvidaste el PIN, no hay forma de recuperarlo ni de recuperar
-            las credenciales cifradas con él. La única salida es restablecer:
-            borrar y empezar de nuevo.
-          </p>
-          <button
-            onClick={() => setStep(1)}
-            className="w-fit rounded-lg border border-danger px-4 py-2 text-sm font-medium text-danger hover:bg-danger/10"
-          >
-            Restablecer PIN (borra las credenciales guardadas)
-          </button>
-        </div>
-      )}
-
-      {step === 1 && (
-        <div className="flex flex-col gap-3 rounded-lg bg-danger/5 p-3">
-          <p className="text-sm text-text">
-            Restablecer el PIN <strong>BORRA de forma definitiva</strong> todas
-            las credenciales de portales guardadas (MEV, PJN): sin el PIN
-            anterior no se pueden desencriptar, no existe recuperación. Tus
-            causas guardadas, alertas y plazos <strong>no se tocan</strong>.
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setStep(2)}
-              className="rounded-lg border border-danger px-4 py-2 text-sm font-medium text-danger hover:bg-danger/10"
-            >
-              Entiendo, continuar
-            </button>
-            <button
-              onClick={() => setStep(0)}
-              className="rounded-lg bg-bg-secondary px-4 py-2 text-sm text-text-secondary hover:bg-border"
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {step === 2 && (
-        <div className="flex flex-col gap-3 rounded-lg bg-danger/5 p-3">
-          <p className="text-sm text-text">
-            Confirmación final: se van a borrar el PIN actual y las
-            credenciales guardadas de todos los portales.{' '}
-            <strong>Esta acción no se puede deshacer.</strong> Después vas a
-            poder configurar un PIN nuevo y cargar las credenciales otra vez a
-            mano.
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={handleReset}
-              disabled={working}
-              className="rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-            >
-              {working
-                ? 'Restableciendo...'
-                : 'Borrar credenciales y restablecer PIN'}
-            </button>
-            <button
-              onClick={() => setStep(0)}
-              disabled={working}
-              className="rounded-lg bg-bg-secondary px-4 py-2 text-sm text-text-secondary hover:bg-border"
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -376,6 +126,29 @@ function PortalCredentials({
           setTimeout(() => setMessage(''), 3000);
         } else {
           setMessage(response?.error ?? 'Error al guardar');
+        }
+      }
+    );
+  };
+
+  const handleDelete = () => {
+    const confirmed = window.confirm(
+      `¿Borrar las credenciales guardadas de ${label}? El auto-login de ese portal deja de funcionar hasta que las vuelvas a cargar.`
+    );
+    if (!confirmed) return;
+
+    chrome.runtime.sendMessage(
+      { type: 'DELETE_CREDENTIALS', portal },
+      (response) => {
+        if (response?.success) {
+          setUsername('');
+          setPassword('');
+          setSaved(false);
+          setHasExisting(false);
+          setMessage('Credenciales borradas');
+          setTimeout(() => setMessage(''), 3000);
+        } else {
+          setMessage(response?.error ?? 'Error al borrar');
         }
       }
     );
@@ -432,13 +205,23 @@ function PortalCredentials({
             {showPassword ? 'Ocultar' : 'Mostrar'}
           </button>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saved}
-          className="w-fit rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
-        >
-          {saved ? 'Guardado' : 'Guardar Credenciales'}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSave}
+            disabled={saved}
+            className="w-fit rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+          >
+            {saved ? 'Guardado' : 'Guardar Credenciales'}
+          </button>
+          {hasExisting && (
+            <button
+              onClick={handleDelete}
+              className="w-fit rounded-lg border border-danger px-4 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+            >
+              Borrar
+            </button>
+          )}
+        </div>
       </div>
     </section>
   );
@@ -470,7 +253,9 @@ function MevDepartmentSelector() {
     <section className="mb-6 rounded-lg border border-border p-4">
       <h3 className="mb-1 text-lg font-semibold">Departamento Judicial</h3>
       <p className="mb-3 text-xs text-text-secondary">
-        Departamento por defecto para el auto-login en MEV
+        Departamento que ProcuAsist elige solo al reconectarte en MEV. Si lo
+        dejás en &quot;TODOS los Deptos&quot;, ProcuAsist aprende el que elijas
+        la próxima vez que entres a la MEV.
       </p>
       <select
         value={depto}

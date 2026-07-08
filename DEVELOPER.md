@@ -33,8 +33,7 @@ Toda la comunicacion entre content scripts, popup, sidepanel y background pasa p
 |-----------|----------|-------------|
 | **Sesion** | `SESSION_EXPIRED`, `LOGIN_SUCCESS` | Notificaciones de estado de sesion del portal |
 | **Causas** | `CASE_PAGE_DETECTED`, `SEARCH_RESULTS`, `PARSE_CASE_HTML` | Datos extraidos por content scripts |
-| **PIN/Crypto** | `SETUP_PIN`, `UNLOCK_PIN`, `LOCK`, `GET_LOCK_STATUS` | Gestion del PIN y vault |
-| **Credenciales** | `SAVE_CREDENTIALS`, `GET_CREDENTIALS` | Almacenamiento encriptado de credenciales |
+| **Credenciales** | `SAVE_CREDENTIALS`, `GET_CREDENTIALS`, `DELETE_CREDENTIALS` | Almacenamiento encriptado de credenciales |
 | **Marcadores** | `ADD_BOOKMARK`, `REMOVE_BOOKMARK`, `GET_BOOKMARKS`, `IS_BOOKMARKED` | CRUD de marcadores |
 | **Monitores** | `ADD_MONITOR`, `REMOVE_MONITOR`, `GET_MONITORS`, `TOGGLE_MONITOR`, `IS_MONITORED` | CRUD de monitores |
 | **Alertas** | `GET_ALERTS`, `MARK_ALERT_READ`, `MARK_ALL_ALERTS_READ`, `RUN_SCAN_NOW` | Gestion de notificaciones |
@@ -52,30 +51,28 @@ Toda la comunicacion entre content scripts, popup, sidepanel y background pasa p
 ## Flujo de Encriptacion
 
 ```
-Usuario ingresa PIN (4-8 digitos)
+Primera vez que hace falta la clave (guardar o leer credenciales)
         |
         v
-PBKDF2 (100,000 iteraciones, SHA-256)
-        |
-        v
-CryptoKey AES-GCM (256 bits)
+crypto.subtle.generateKey (AES-GCM 256, extractable)
         |
         ├── Se guarda en memoria (variable `currentKey`)
-        ├── Se pierde al reiniciar el service worker
-        └── Usuario debe re-ingresar PIN al reabrir Chrome
+        ├── Se persiste como JWK en chrome.storage.local (`tl_persisted_key`)
+        └── Tras un reinicio del SW/navegador se re-importa desde storage
 ```
+
+No hay PIN desde la v0.8.0: la clave de dispositivo se genera y persiste
+sola (decision deliberada de comodidad sobre seguridad; ver el comentario en
+`key-manager.ts`). Migracion: si `tl_persisted_key` ya existia (usuarios con
+"mantener sesion iniciada"), se adopta y las credenciales viejas siguen
+descifrando; los blobs cifrados con un PIN sin clave persistida se descartan
+al primer intento de lectura y el usuario recarga las credenciales.
 
 ### Archivos clave
 
-- `modules/crypto/aes-gcm.ts` — Funciones primitivas: `deriveKey()`, `encrypt()`, `decrypt()`, `generateSalt()`
-- `modules/crypto/key-manager.ts` — Lifecycle del CryptoKey: `setupPin()`, `unlock()`, `lock()`, `isUnlocked()`
+- `modules/crypto/aes-gcm.ts` — Funciones primitivas: `generateAesKey()`, `encrypt()`, `decrypt()`, export/import JWK
+- `modules/crypto/key-manager.ts` — Lifecycle del CryptoKey: `ensureKey()` (memoria → storage → generar), `cleanupLegacyVault()`
 - `modules/storage/credential-store.ts` — Almacena credenciales de portales encriptadas
-
-### Salt y verificacion
-
-- El salt se genera una vez en `setupPin()` y se guarda en `chrome.storage.local` como `tl_master_salt`
-- Para verificar el PIN, se encripta un texto conocido (`procu-asist-pin-ok`) y se guarda como `tl_pin_test`
-- En `unlock()`, se intenta desencriptar el test; si falla, el PIN es incorrecto
 
 ## Flujo OAuth
 
@@ -100,10 +97,10 @@ Claves en `chrome.storage.local`:
 | `tl_alerts` | `MovementAlert[]` | Alertas de movimientos nuevos |
 | `tl_settings` | `ProcuAsistSettings` | Preferencias del usuario |
 | `tl_user` | `UserProfile` | Perfil del usuario autenticado |
-| `tl_master_salt` | `string` (base64) | Salt para derivacion de clave |
-| `tl_pin_test` | `string` (base64) | Texto encriptado para verificar PIN |
-| `tl_credentials_mev` | `string` (base64) | Credenciales MEV encriptadas |
-| `tl_credentials_eje` | `string` (base64) | Credenciales JUSCABA encriptadas |
+| `tl_persisted_key` | `JsonWebKey` | Clave de dispositivo AES-GCM (auto-generada) |
+| `tl_cred_mev` | `EncryptedCredential` | Credenciales MEV encriptadas |
+| `tl_cred_pjn` | `EncryptedCredential` | Credenciales PJN encriptadas |
+| `tl_cred_eje` | `EncryptedCredential` | Credenciales JUSCABA encriptadas |
 | `tl_onboarding_done` | `boolean` | Si el usuario completo el onboarding |
 
 ## Como agregar soporte para un nuevo portal

@@ -2,6 +2,40 @@
 
 Todos los cambios notables del proyecto se documentan en este archivo.
 
+## [0.8.0] - 2026-07-07
+
+Version nacida del primer test de instalacion desde cero en una computadora limpia (feedback del titular, 7 puntos). Foco: que un colega recien instalado quede operativo sin fricciones.
+
+### Chau PIN: credenciales directas de los portales
+
+- Se elimino el sistema de PIN completo (PBKDF2, desbloqueo, restablecer PIN). Ahora se cargan directamente usuario y contraseña de MEV y PJN; se guardan cifradas (AES-256-GCM) con una clave generada automaticamente y persistida en el dispositivo. Nunca salen de la computadora.
+- Esto arregla de raiz el error "Vault is locked / ingresa tu PIN" al guardar credenciales en Ajustes: la clave vivia solo en memoria del service worker (muere a los ~30 segundos de inactividad) y el guardado fallaba aunque el PIN estuviera puesto.
+- Tambien arregla el "deslogueo" con el tiempo: la reconexion automatica dependia de esa clave en memoria; ahora la clave esta siempre disponible y el re-login automatico funciona tras cualquier reinicio del service worker o del navegador.
+- Migracion: quienes tenian "Mantener sesion iniciada" activado conservan sus credenciales tal cual. Quienes tenian PIN sin esa opcion deben recargarlas una vez (sin el PIN no hay forma tecnica de descifrarlas); la extension lo detecta y las pide de nuevo.
+- Opciones: la seccion Credenciales quedo siempre editable, con boton "Borrar" por portal. El popup ya no pide PIN.
+
+### Bienvenida que deja todo configurado
+
+- El onboarding ahora incluye la carga de credenciales de MEV y PJN ahi mismo, como paso destacado: no se puede avanzar sin guardarlas o tildar explicitamente "prefiero cargarlas mas tarde".
+- Paso "Abri tus portales": botones para abrir MEV y PJN en pestañas y verificar que el auto-login funcione, con la explicacion de que "Importar todo" necesita esas pestañas abiertas.
+- Cierre con "Acepto y quiero importar mis causas ahora": termina el onboarding y abre directo el asistente Importar todo.
+- Al instalar por primera vez, la bienvenida se abre sola en una pestaña.
+
+### Importacion multi-departamento MEV de verdad
+
+- Arreglado el recorrido "todos los departamentos" de los sets MEV, que en la practica solo importaba las causas del departamento judicial activo (el selector de departamento de la pagina del set no se detectaba; el dialogo nunca aparecia, pendiente tecnico documentado en el manual 0.7.0).
+- Deteccion robusta del selector de departamento (por name/id, por etiqueta en la fila y por nombres de departamentos conocidos en las opciones).
+- Plan B nuevo: si la pagina del set no ofrece selector de departamento, ProcuAsist cambia de departamento como lo haria el usuario (via la pagina de seleccion de departamento), repite la busqueda del set en cada uno y acumula resultados deduplicados. Aplica al asistente "Importar todo" (siempre recorre todo) y al boton "Importar set" (opcion "Todos los departamentos").
+- El departamento judicial que el usuario elige al entrar a MEV queda aprendido como preferido: la reconexion automatica ya no se queda a mitad de camino en la pantalla de seleccion de departamento.
+
+### Avisos activos siempre
+
+- Se elimino el umbral anti-ruido de "Importar todo" (avisos pausados al importar mas de 50 causas): TODAS las causas importadas quedan con avisos activos, sin excepciones. La pausa por causa sigue disponible desde la lista.
+
+### Un solo boton Guardar
+
+- En las paginas de causa de MEV y PJN (y en las tarjetas de EJE) se quito el boton "Monitorear": "Guardar" ya incluye el monitoreo (modelo guardar = monitorear de 0.7.0). Menos botones, misma funcion.
+
 ## [0.7.0] - 2026-06-12
 
 (publicada en Chrome Web Store: enviada a revision el 2026-07-02, aprobada el 2026-07-05)

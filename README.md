@@ -4,7 +4,7 @@ Extensión Chrome para abogados argentinos que automatiza la interacción con po
 
 > **Hecho por un abogado de la matrícula, para colegas. Es gratuito y sin fines de lucro.**
 
-**Versiones:** la versión publicada en Chrome Web Store es la **v0.7.0** (enviada a revisión el 2026-07-02, aprobada por Google el 2026-07-05). Este repositorio está en la misma versión.
+**Versiones:** la versión publicada en Chrome Web Store es la **v0.7.0** (enviada a revisión el 2026-07-02, aprobada por Google el 2026-07-05). Este repositorio está en la **v0.8.0** (pendiente de enviar a la Store).
 
 ---
 
@@ -43,8 +43,8 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 - **Selección de pasos procesales** a descargar antes de generar el ZIP
 - **Verificación automática** de la descarga con informe de errores
 - **Importación masiva** de causas desde resultados y sets de búsqueda MEV
-- **Onboarding wizard** para nuevos usuarios
-- **Encriptación local** de credenciales con AES-GCM y PIN
+- **Onboarding wizard** para nuevos usuarios, con carga de credenciales y "Importar todo" incluidos
+- **Encriptación local** de credenciales con AES-GCM (clave de dispositivo automática, sin PIN)
 
 ## Portales Soportados
 
@@ -58,7 +58,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 - **Framework**: [WXT](https://wxt.dev) 0.20 (Manifest V3)
 - **UI**: React 19 + TypeScript 5.9 (strict) + Tailwind CSS v4
 - **State**: chrome.storage.local (local-first)
-- **Crypto**: Web Crypto API (PBKDF2 + AES-GCM)
+- **Crypto**: Web Crypto API (AES-GCM con clave de dispositivo persistida)
 - **PDF**: jsPDF 4
 - **ZIP**: JSZip 3
 
@@ -114,8 +114,7 @@ procu-asist/
 │   ├── scba-notif.content.ts    # Content script para notificaciones SCBA
 │   ├── sidepanel/               # Panel lateral (dashboard principal)
 │   ├── popup/                   # Popup de la extensión
-│   ├── options/                 # Página de opciones
-│   └── offscreen/               # Documento offscreen para crypto
+│   └── options/                 # Página de opciones (credenciales)
 ├── modules/                     # Lógica de negocio
 │   ├── crypto/                  # Encriptación AES-GCM + gestión de claves
 │   ├── messages/                # Tipos de mensajes IPC

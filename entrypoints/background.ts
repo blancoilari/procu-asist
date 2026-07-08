@@ -3,14 +3,15 @@ import { setupMessageRouter } from './background/message-router';
 import { setupPjnTokenCapture } from './background/pjn-token-capture';
 import { installPjnDebugHelpers } from './background/pjn-debug-helpers';
 import { reconcileBookmarksAndMonitors } from './background/case-reconciler';
-import { ensureKey } from '@/modules/crypto/key-manager';
+import { ensureKey, cleanupLegacyVault } from '@/modules/crypto/key-manager';
 
 export default defineBackground(() => {
   console.debug('[ProcuAsist] Background service worker started');
 
-  // Restore the vault key after a service-worker restart so auto-login,
-  // keep-alive and monitoring keep working without re-prompting for the PIN.
+  // Warm the device key (creates it on first run) and drop the legacy
+  // PIN-vault material from pre-0.8.0 installs.
   void ensureKey();
+  void cleanupLegacyVault();
 
   // Marcador = monitoreo: converge los stores (idempotente).
   void reconcileBookmarksAndMonitors();
@@ -29,4 +30,15 @@ export default defineBackground(() => {
 
   // Open side panel on toolbar icon click
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+
+  // Primera instalación: abrir la bienvenida en una pestaña. El panel lateral
+  // no se puede abrir sin gesto del usuario, pero la misma página funciona
+  // como pestaña y ahí corre el onboarding (credenciales + importar todo).
+  chrome.runtime.onInstalled.addListener((details) => {
+    if (details.reason === 'install') {
+      void chrome.tabs.create({
+        url: chrome.runtime.getURL('/sidepanel.html'),
+      });
+    }
+  });
 });

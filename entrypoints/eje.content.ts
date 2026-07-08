@@ -25,7 +25,6 @@ import type { EjeCaseData, EjeActuacion, EjeActuacionesResponse, EjeEncabezadoRe
 import type { PortalId } from '@/modules/portals/types';
 import {
   ICON_STAR,
-  ICON_EYE,
   ICON_CHECK,
   ICON_X,
   ICON_LOADER,
@@ -274,7 +273,8 @@ function injectCardButtons(doc: Document, cases: EjeCaseData[]) {
       borderTop: '1px solid #e5e7eb',
     });
 
-    // Bookmark button
+    // Bookmark button ("Guardar" incluye el monitoreo cuando el portal lo
+    // permite: guardar = monitorear)
     const bookmarkBtn = createCardActionButton(ICON_STAR, 'Guardar');
     bookmarkBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -305,39 +305,7 @@ function injectCardButtons(doc: Document, cases: EjeCaseData[]) {
       );
     });
 
-    // Monitor button
-    const monitorBtn = createCardActionButton(ICON_EYE, 'Monitorear');
-    monitorBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      setPortalActionButtonState(monitorBtn, ICON_LOADER, 'Activando', 'muted');
-
-      const resp = (await chrome.runtime.sendMessage({
-        type: 'ADD_MONITOR',
-        caseData: {
-          id: caseData.expId || caseData.cuij,
-          portal: 'eje' as const,
-          caseNumber: caseData.cuij || caseData.numero,
-          title: caseData.caratula,
-          court: caseData.tribunal,
-          fuero: '',
-          portalUrl: window.location.href,
-          metadata: {
-            nidCausa: caseData.expId,
-          },
-        },
-      })) as { success: boolean };
-
-      setPortalActionButtonState(
-        monitorBtn,
-        resp?.success ? ICON_CHECK : ICON_X,
-        resp?.success ? 'Monitoreando' : 'Error',
-        resp?.success ? 'success' : 'danger'
-      );
-    });
-
     container.appendChild(bookmarkBtn);
-    container.appendChild(monitorBtn);
 
     // Append to card footer area
     const footer = card.querySelector('iol-expediente-tarjeta-pie') ?? card;

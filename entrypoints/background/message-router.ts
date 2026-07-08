@@ -6,18 +6,8 @@
 
 import type { ProcuAsistMessage } from '@/modules/messages/types';
 import {
-  setupPin,
-  unlockWithPin,
-  forgetPersistedKey,
-  ensureKey,
-  isPinSetup,
-  resetVault,
-  syncPersistedKeyWithSetting,
-} from '@/modules/crypto/key-manager';
-import {
   saveCredentials,
   getCredentials,
-  hasCredentials,
   deleteCredentials,
 } from '@/modules/storage/credential-store';
 import {
@@ -95,57 +85,6 @@ async function handleMessage(
   _sender: chrome.runtime.MessageSender
 ): Promise<unknown> {
   switch (message.type) {
-    // --- PIN Management ---
-    case 'SETUP_PIN': {
-      // Guard: re-running setup derives a new key with a new salt, leaving
-      // already-saved credentials permanently undecryptable. Only refuse when
-      // there are credentials to protect — with none saved, re-keying is
-      // harmless and keeps a recovery path for a forgotten PIN.
-      if (await isPinSetup()) {
-        const portals: Array<'mev' | 'pjn' | 'eje'> = ['mev', 'pjn', 'eje'];
-        const saved = await Promise.all(portals.map(hasCredentials));
-        if (saved.some(Boolean)) {
-          return {
-            success: false,
-            error:
-              'Ya hay un PIN configurado y credenciales guardadas. Usá "Desbloquear" con tu PIN actual.',
-          };
-        }
-      }
-      const success = await setupPin(message.pin);
-      return { success };
-    }
-
-    case 'UNLOCK_PIN': {
-      const success = await unlockWithPin(message.pin);
-      return { success };
-    }
-
-    case 'RESET_PIN': {
-      // Restablecer PIN olvidado: NO hay recuperación con AES-GCM. Se borran
-      // las credenciales cifradas (indescifrables sin el PIN viejo) y el
-      // material del vault; la extensión queda lista para un PIN nuevo.
-      // Marcadores, monitores, alertas y plazos no se tocan.
-      const portals: Array<'mev' | 'pjn' | 'eje'> = ['mev', 'pjn', 'eje'];
-      await Promise.all(portals.map(deleteCredentials));
-      await resetVault();
-      return { success: true };
-    }
-
-    case 'LOCK': {
-      await forgetPersistedKey();
-      return { success: true };
-    }
-
-    case 'GET_LOCK_STATUS': {
-      const pinConfigured = await isPinSetup();
-      const unlocked = !!(await ensureKey());
-      return {
-        pinConfigured,
-        unlocked,
-      };
-    }
-
     // --- Credential Management ---
     case 'SAVE_CREDENTIALS': {
       await saveCredentials(message.portal, {
@@ -156,21 +95,16 @@ async function handleMessage(
     }
 
     case 'GET_CREDENTIALS': {
-      try {
-        const creds = await getCredentials(message.portal);
-        if (!creds) {
-          return { success: false, reason: 'no_credentials' };
-        }
-        return { success: true, credentials: creds };
-      } catch {
-        // Distinguish a locked vault from a decryption failure (e.g. stale
-        // blob from an old key) so callers don't endlessly prompt for PIN.
-        const unlocked = !!(await ensureKey());
-        return {
-          success: false,
-          reason: unlocked ? 'decrypt_failed' : 'vault_locked',
-        };
+      const creds = await getCredentials(message.portal);
+      if (!creds) {
+        return { success: false, reason: 'no_credentials' };
       }
+      return { success: true, credentials: creds };
+    }
+
+    case 'DELETE_CREDENTIALS': {
+      await deleteCredentials(message.portal);
+      return { success: true };
     }
 
     // --- Session Management ---
@@ -275,10 +209,6 @@ async function handleMessage(
     case 'UPDATE_SETTINGS': {
       const partial = message.settings as Parameters<typeof updateSettings>[0];
       const updated = await updateSettings(partial);
-      // Toggling persistUnlock has a side-effect on the persisted key blob.
-      if (partial && 'persistUnlock' in partial) {
-        await syncPersistedKeyWithSetting();
-      }
       return { success: true, settings: updated };
     }
 
@@ -400,11 +330,6 @@ async function handleMessage(
       return { success: true, monitor: toggled };
     }
 
-    case 'IS_MONITORED': {
-      const monitored = await isMonitored(message.portal, message.caseNumber);
-      return { success: true, isMonitored: monitored };
-    }
-
     // --- Alerts ---
     case 'GET_ALERTS': {
       const alerts = message.monitorId
@@ -455,8 +380,7 @@ async function handleMessage(
     // --- Bulk Import ---
     case 'BULK_IMPORT': {
       // La lógica vive en modules/storage/bulk-import (compartida con el
-      // asistente "Importar todo"). newMonitorIds permite al asistente
-      // pausar los monitores creados si se supera el umbral anti-ruido.
+      // asistente "Importar todo").
       const summary = await runBulkImport(
         message.cases,
         message.source,

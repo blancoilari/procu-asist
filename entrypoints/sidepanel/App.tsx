@@ -51,13 +51,28 @@ export default function App() {
   const [portalFilter, setPortalFilter] = useState<PortalFilter>('all');
   const [unreadCount, setUnreadCount] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  // El onboarding puede pedir abrir el asistente "Importar todo" al terminar.
+  const [importAllRequested, setImportAllRequested] = useState(false);
 
   // Apply dark mode
   useDarkMode();
 
-  // Check onboarding status
+  // Check onboarding status. La bienvenida puede estar abierta a la vez en
+  // la pestaña post-instalación y en el panel lateral: si se completa en una,
+  // la otra se entera por storage y se cierra sola.
   useEffect(() => {
     isOnboardingDone().then((done) => setShowOnboarding(!done));
+
+    const listener = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      area: string
+    ) => {
+      if (area === 'local' && changes.tl_onboarding_done?.newValue === true) {
+        setShowOnboarding(false);
+      }
+    };
+    chrome.storage.onChanged.addListener(listener);
+    return () => chrome.storage.onChanged.removeListener(listener);
   }, []);
 
   // Fetch unread alert count
@@ -104,7 +119,14 @@ export default function App() {
 
   // Show onboarding for first-time users
   if (showOnboarding) {
-    return <Onboarding onComplete={() => setShowOnboarding(false)} />;
+    return (
+      <Onboarding
+        onComplete={(action) => {
+          if (action === 'import-all') setImportAllRequested(true);
+          setShowOnboarding(false);
+        }}
+      />
+    );
   }
 
   return (
@@ -172,7 +194,12 @@ export default function App() {
       {/* Content */}
       <main className="flex-1 overflow-y-auto">
         {activeTab === 'cases' && (
-          <CasesTab search={search} portalFilter={portalFilter} />
+          <CasesTab
+            search={search}
+            portalFilter={portalFilter}
+            autoOpenImportAll={importAllRequested}
+            onImportAllOpened={() => setImportAllRequested(false)}
+          />
         )}
         {activeTab === 'plazos' && <PlazosTab />}
         {activeTab === 'settings' && <SettingsTab />}
@@ -470,9 +497,14 @@ interface MergedCase {
 function CasesTab({
   search,
   portalFilter,
+  autoOpenImportAll = false,
+  onImportAllOpened,
 }: {
   search: string;
   portalFilter: PortalFilter;
+  /** Abrir el asistente "Importar todo" apenas cargue (pedido del onboarding). */
+  autoOpenImportAll?: boolean;
+  onImportAllOpened?: () => void;
 }) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [monitors, setMonitors] = useState<Monitor[]>([]);
@@ -485,9 +517,14 @@ function CasesTab({
   const [view, setView] = useState<'monitors' | 'alerts'>('monitors');
   const [alertsFromDate, setAlertsFromDate] = useState('');
   const [showImportAll, setShowImportAll] = useState(false);
-  const [pauseThreshold, setPauseThreshold] = useState(
-    DEFAULT_SETTINGS.importAllPauseThreshold
-  );
+
+  // El onboarding puede cerrar pidiendo abrir el asistente directamente.
+  useEffect(() => {
+    if (autoOpenImportAll) {
+      setShowImportAll(true);
+      onImportAllOpened?.();
+    }
+  }, [autoOpenImportAll, onImportAllOpened]);
 
   const loadData = useCallback(async () => {
     try {
@@ -658,19 +695,7 @@ function CasesTab({
     loadData();
   };
 
-  const handleOpenImportAll = async () => {
-    // El umbral configurado se muestra dentro del asistente, antes de
-    // ejecutar: leerlo fresco por si el usuario lo cambió en Ajustes.
-    try {
-      const resp = (await chrome.runtime.sendMessage({
-        type: 'GET_SETTINGS',
-      })) as { success: boolean; settings: ProcuAsistSettings };
-      if (resp?.success) {
-        setPauseThreshold(resp.settings.importAllPauseThreshold);
-      }
-    } catch {
-      // defaults ya cargados
-    }
+  const handleOpenImportAll = () => {
     setShowImportAll(true);
   };
 
@@ -820,7 +845,7 @@ function CasesTab({
               <LastScanInfo />
               <div className="flex items-center gap-1.5">
                 <button
-                  onClick={() => void handleOpenImportAll()}
+                  onClick={handleOpenImportAll}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-bg-secondary px-3 py-1 text-xs font-medium text-text-secondary hover:bg-border transition-colors"
                   title="Traer todas tus causas desde los portales con sesión activa"
                 >
@@ -985,7 +1010,6 @@ function CasesTab({
 
       {showImportAll && (
         <ImportAllWizard
-          pauseThreshold={pauseThreshold}
           onClose={() => {
             setShowImportAll(false);
             loadData();
@@ -1350,8 +1374,8 @@ function EmptyMonitors({ hasSearch }: { hasSearch: boolean }) {
       {!hasSearch && (
         <p className="mt-1 text-xs leading-relaxed text-text-secondary/80">
           O usá <strong>Importar todo</strong> para traerlas en bloque. Antes,
-          creá tu PIN y cargá tus credenciales en Ajustes, e ingresá a MEV o PJN
-          en una pestaña.
+          cargá tus credenciales en Ajustes e ingresá a MEV o PJN en una
+          pestaña.
         </p>
       )}
     </div>
@@ -1432,12 +1456,6 @@ function SettingsTab() {
         checked={settings.autoReconnect}
         onChange={(v) => handleToggle('autoReconnect', v)}
       />
-      <SettingToggle
-        label="Mantener sesión iniciada (no pedir PIN)"
-        description="Más cómodo, menos seguro: la clave queda guardada en este perfil de Chrome. Si lo apagás, te vuelve a pedir el PIN al reiniciar."
-        checked={settings.persistUnlock}
-        onChange={(v) => handleToggle('persistUnlock', v)}
-      />
 
       <hr className="my-2 border-border" />
 
@@ -1450,20 +1468,6 @@ function SettingsTab() {
         description="En MEV consulta las novedades de tus sets en una sola búsqueda y solo revisa causa por causa lo que se movió. Ante cualquier falla vuelve solo al escaneo completo. El botón Escanear ahora siempre revisa todo."
         checked={settings.mevScanBySets}
         onChange={(v) => handleToggle('mevScanBySets', v)}
-      />
-      <NumberSetting
-        label="Umbral de pausa al importar en masa"
-        description="Si importás más causas que este número con el asistente Importar todo, entran con los avisos pausados y activás el monitoreo solo en las que te interesan. Un umbral muy alto puede volver lento el escaneo y llenar el panel de alertas irrelevantes."
-        value={settings.importAllPauseThreshold}
-        min={1}
-        max={1000}
-        onCommit={async (value) => {
-          const response = (await chrome.runtime.sendMessage({
-            type: 'UPDATE_SETTINGS',
-            settings: { importAllPauseThreshold: value },
-          })) as { success: boolean; settings: ProcuAsistSettings };
-          if (response?.success) setSettings(response.settings);
-        }}
       />
 
       <hr className="my-2 border-border" />
@@ -1480,7 +1484,7 @@ function SettingsTab() {
         onClick={() => chrome.runtime.openOptionsPage()}
         className="rounded-lg bg-bg-secondary px-4 py-2.5 text-sm text-text-secondary hover:bg-border transition-colors"
       >
-        Configuración avanzada
+        Credenciales de portales y configuración avanzada
       </button>
 
       {/* Authoring + community block */}
@@ -1587,8 +1591,8 @@ function DataBackupSection() {
     <div className="flex flex-col gap-2">
       <p className="px-1 text-[10px] leading-relaxed text-text-secondary">
         Exportá tus marcadores, monitores, alertas y plazos a un archivo JSON
-        para resguardarlos o pasarlos a otra computadora. Las credenciales y
-        el PIN nunca se incluyen. Importar agrega sin borrar lo existente.
+        para resguardarlos o pasarlos a otra computadora. Las credenciales
+        nunca se incluyen. Importar agrega sin borrar lo existente.
       </p>
 
       {message && (
@@ -1631,67 +1635,6 @@ function DataBackupSection() {
 // ──────────────────────────────────────────────────────────
 // Reusable Components
 // ──────────────────────────────────────────────────────────
-
-/**
- * Ajuste numérico con estado local: se confirma al salir del campo o con
- * Enter, para no guardar valores a medio tipear (el background igual sanea
- * el rango).
- */
-function NumberSetting({
-  label,
-  description,
-  value,
-  min,
-  max,
-  onCommit,
-}: {
-  label: string;
-  description?: string;
-  value: number;
-  min: number;
-  max: number;
-  onCommit: (value: number) => void | Promise<void>;
-}) {
-  const [draft, setDraft] = useState(String(value));
-
-  useEffect(() => {
-    setDraft(String(value));
-  }, [value]);
-
-  const commit = () => {
-    const parsed = Number(draft);
-    if (!Number.isFinite(parsed)) {
-      setDraft(String(value));
-      return;
-    }
-    const clamped = Math.min(max, Math.max(min, Math.round(parsed)));
-    setDraft(String(clamped));
-    if (clamped !== value) void onCommit(clamped);
-  };
-
-  return (
-    <div className="flex items-start justify-between gap-3 rounded-lg px-1 py-2.5 hover:bg-bg-secondary/50 transition-colors">
-      <div className="min-w-0">
-        <span className="text-sm">{label}</span>
-        {description && (
-          <p className="text-[10px] text-text-secondary">{description}</p>
-        )}
-      </div>
-      <input
-        type="number"
-        min={min}
-        max={max}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-        }}
-        className="w-16 shrink-0 rounded-lg border border-border bg-bg-secondary px-2 py-1.5 text-right text-sm outline-none focus:border-primary"
-      />
-    </div>
-  );
-}
 
 function SettingToggle({
   label,

@@ -21,12 +21,6 @@ export interface BulkImportSummary {
   existing: number;
   monitored: number;
   failed: number;
-  /**
-   * IDs de monitores CREADOS en esta corrida (no los que ya existían).
-   * El asistente "Importar todo" los usa para pausar avisos si el total
-   * importado supera el umbral configurado.
-   */
-  newMonitorIds: string[];
 }
 
 export async function runBulkImport(
@@ -41,7 +35,6 @@ export async function runBulkImport(
   let existing = 0;
   let monitored = 0;
   let failed = 0;
-  const newMonitorIds: string[] = [];
 
   for (const c of cases) {
     try {
@@ -79,7 +72,7 @@ export async function runBulkImport(
             caseData.metadata?.pidJuzgado));
       if (canMonitor) {
         const wasMonitored = await isMonitored(portal, richCaseObj.caseNumber);
-        const created = await addMonitor({
+        await addMonitor({
           portal,
           caseNumber: richCaseObj.caseNumber,
           title: caseData.title,
@@ -90,10 +83,7 @@ export async function runBulkImport(
             pidJuzgado: caseData.metadata?.pidJuzgado,
           },
         });
-        if (!wasMonitored) {
-          monitored++;
-          newMonitorIds.push(created.id);
-        }
+        if (!wasMonitored) monitored++;
       }
     } catch (err) {
       // Skip the failing case but keep importing the rest.
@@ -105,5 +95,5 @@ export async function runBulkImport(
     }
   }
 
-  return { imported, existing, monitored, failed, newMonitorIds };
+  return { imported, existing, monitored, failed };
 }

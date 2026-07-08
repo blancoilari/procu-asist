@@ -10,13 +10,13 @@ ProcuAsist es una extension de Chrome para abogados argentinos que automatiza ta
 - Los datos se guardan localmente en el navegador del usuario mediante `chrome.storage.local`.
 - No se usan analytics, tracking, publicidad ni servicios de telemetria.
 - No se venden ni transfieren datos de usuarios a terceros.
-- Las credenciales se cifran localmente con AES-256-GCM y un PIN maestro definido por el usuario.
+- Las credenciales se cifran localmente con AES-256-GCM usando una clave generada automaticamente en el dispositivo del usuario.
 
 ## Datos que puede guardar la extension
 
 ProcuAsist puede almacenar localmente:
 
-1. **Credenciales de portales judiciales**: usuario y contrasena de los portales configurados por el usuario. Se guardan cifradas con AES-256-GCM. La clave se deriva del PIN maestro del usuario mediante PBKDF2. El PIN no se guarda en disco.
+1. **Credenciales de portales judiciales**: usuario y contrasena de los portales configurados por el usuario. Se guardan cifradas con AES-256-GCM. La clave de cifrado se genera automaticamente en el dispositivo y se guarda en el almacenamiento local del navegador; ni las credenciales ni la clave salen de la computadora del usuario.
 2. **Marcadores de causas**: portal, numero de expediente, caratula, juzgado, URL y metadatos necesarios para volver a abrir la causa.
 3. **Causas monitoreadas**: causas elegidas por el usuario para recibir alertas de movimientos.
 4. **Alertas y movimientos detectados**: informacion procesal visible en los portales judiciales, guardada localmente para mostrar novedades en el panel lateral.

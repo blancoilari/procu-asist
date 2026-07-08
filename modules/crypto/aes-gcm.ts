@@ -3,34 +3,16 @@
  * All operations are performed locally - no data leaves the device.
  */
 
-const PBKDF2_ITERATIONS = 100_000;
-const SALT_LENGTH = 16;
 const IV_LENGTH = 12;
 
-/** Derive an AES-256-GCM key from a PIN and salt using PBKDF2 */
-export async function deriveKey(
-  pin: string,
-  salt: Uint8Array
-): Promise<CryptoKey> {
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(pin),
-    'PBKDF2',
-    false,
-    ['deriveKey']
-  );
-
-  return crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: salt.buffer as ArrayBuffer,
-      iterations: PBKDF2_ITERATIONS,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
+/**
+ * Generate a random AES-256-GCM device key. Extractable so it can be
+ * persisted to chrome.storage.local and survive service-worker restarts.
+ */
+export async function generateAesKey(): Promise<CryptoKey> {
+  return crypto.subtle.generateKey(
     { name: 'AES-GCM', length: 256 },
-    true, // extractable: required so the key can be persisted across SW restarts
+    true,
     ['encrypt', 'decrypt']
   );
 }
@@ -88,11 +70,6 @@ export async function decrypt(
   );
 
   return decoder.decode(decrypted);
-}
-
-/** Generate a random salt for PBKDF2 */
-export function generateSalt(): Uint8Array {
-  return crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
 }
 
 // --- Base64 helpers ---
