@@ -231,9 +231,18 @@ async function handleLoginPage(doc: Document) {
   usuarioInput.value = username;
   claveInput.value = password;
 
-  // Set department to "TODOS" for initial login
+  // Si hay un departamento preferido (aprendido o configurado), loguear
+  // directo a ese departamento: se saltea POSloguin y la sesión queda
+  // operativa de una. Sin preferencia, "TODOS" deja elegir en POSloguin.
   if (deptoSelect) {
-    deptoSelect.value = 'aa';
+    const stored = await chrome.storage.local.get('tl_settings');
+    const settings = stored.tl_settings as Record<string, unknown> | undefined;
+    const preferred = (settings?.mevDepartamento as string) ?? 'aa';
+    deptoSelect.value = preferred;
+    if (deptoSelect.value !== preferred) {
+      // Código inexistente en el form de login: caer a "TODOS".
+      deptoSelect.value = 'aa';
+    }
   }
 
   // Small delay to mimic human interaction, then submit
@@ -258,6 +267,18 @@ async function handlePosLoginPage(doc: Document) {
   // nada en Opciones.
   installDepartmentLearner(doc);
 
+  // El auto-envío corre SOLO cuando POSloguin es parte del flujo de login
+  // (referrer = loguin.asp). Si el usuario llegó con "Cambiar Jurisdicción"
+  // o navegando a mano, vino a ELEGIR departamento: auto-enviar acá le
+  // secuestraría la pantalla (verificado en vivo 2026-07-08).
+  const cameFromLogin = /\/loguin\.asp/i.test(document.referrer);
+  if (!cameFromLogin) {
+    console.debug(
+      '[ProcuAsist] POSloguin abierto fuera del flujo de login — sin auto-submit.'
+    );
+    return;
+  }
+
   // Get preferred department from settings
   const stored = await chrome.storage.local.get('tl_settings');
   const settings = stored.tl_settings as Record<string, unknown> | undefined;
@@ -265,11 +286,14 @@ async function handlePosLoginPage(doc: Document) {
 
   // 'aa' = "TODOS los Deptos" is only valid for the first login form.
   // POSloguin.asp only has real department codes — if no specific dept is
-  // configured, don't auto-submit and let the user choose manually.
+  // configured, don't auto-submit: let the user choose (and learn it), with
+  // a hint explaining that ProcuAsist lo va a recordar.
   if (!preferredDepto || preferredDepto === 'aa') {
     console.debug(
-      '[ProcuAsist] No specific department configured — skipping auto-submit on POSloguin. ' +
-        'Configure a department in Options to enable full auto-login.'
+      '[ProcuAsist] No specific department configured — user picks on POSloguin (and we learn it).'
+    );
+    showPosLoginHint(
+      'Elegí tu Departamento Judicial habitual y tocá Aceptar. ProcuAsist lo va a recordar para loguearte directo la próxima vez.'
     );
     return;
   }
@@ -313,14 +337,19 @@ async function handlePosLoginPage(doc: Document) {
     console.debug(
       `[ProcuAsist] Selecting department: ${preferredDepto}, clicking Aceptar`
     );
+    programmaticPosLoginSubmit = true;
     aceptarBtn.click();
   }, 600);
 }
 
+/** Los envíos automáticos de POSloguin no deben "aprenderse" como elección. */
+let programmaticPosLoginSubmit = false;
+
 /**
  * Escucha el envío del formulario de POSloguin y guarda el departamento
- * elegido como preferido (settings.mevDepartamento). El último elegido gana:
- * la reconexión automática vuelve siempre al departamento habitual.
+ * elegido como preferido (settings.mevDepartamento). El último elegido por
+ * EL USUARIO gana: la reconexión automática vuelve siempre a su departamento
+ * habitual. Los clicks programáticos (auto-submit propio) se ignoran.
  */
 function installDepartmentLearner(doc: Document): void {
   const deptoSelect = doc.querySelector(
@@ -329,6 +358,10 @@ function installDepartmentLearner(doc: Document): void {
   if (!deptoSelect) return;
 
   const learn = () => {
+    if (programmaticPosLoginSubmit) {
+      programmaticPosLoginSubmit = false;
+      return;
+    }
     const value = deptoSelect.value;
     if (!value || value === 'aa') return;
     chrome.runtime
@@ -344,6 +377,35 @@ function installDepartmentLearner(doc: Document): void {
   ) as HTMLInputElement | null;
   aceptarBtn?.addEventListener('click', learn);
   deptoSelect.form?.addEventListener('submit', learn);
+}
+
+/** Aviso chico y descartable sobre POSloguin (no tapa el formulario). */
+function showPosLoginHint(message: string): void {
+  if (document.getElementById('procu-asist-poslogin-hint')) return;
+  const hint = document.createElement('div');
+  hint.id = 'procu-asist-poslogin-hint';
+  Object.assign(hint.style, {
+    position: 'fixed',
+    right: '20px',
+    bottom: '20px',
+    zIndex: '999999',
+    maxWidth: '300px',
+    padding: '12px 14px',
+    borderRadius: '10px',
+    backgroundColor: '#eff6ff',
+    border: '1px solid #bfdbfe',
+    color: MEV_COLORS.primary,
+    fontSize: '13px',
+    fontWeight: '600',
+    lineHeight: '1.45',
+    boxShadow: '0 10px 24px rgba(15, 23, 42, 0.16)',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    cursor: 'pointer',
+  } satisfies Partial<CSSStyleDeclaration>);
+  hint.textContent = message;
+  hint.title = 'Click para cerrar';
+  hint.addEventListener('click', () => hint.remove());
+  document.body.appendChild(hint);
 }
 
 // --- Búsqueda Page ---
@@ -746,7 +808,10 @@ function findChangeDepartmentLink(): HTMLElement | null {
     const text = ((el as HTMLInputElement).value || el.textContent || '')
       .replace(/\s+/g, ' ')
       .trim();
-    if (/cambi\w*\s+(de\s+)?(depto|departamento)/i.test(text)) return el;
+    // El portal lo llama "Cambiar Jurisdicción" (verificado en vivo).
+    if (/cambi\w*\s+(de\s+)?(depto|departamento|jurisdicci)/i.test(text)) {
+      return el;
+    }
     if (/posloguin/i.test(el.getAttribute('href') ?? '')) return el;
   }
   return null;

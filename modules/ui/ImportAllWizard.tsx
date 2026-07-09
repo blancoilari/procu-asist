@@ -260,6 +260,14 @@ export default function ImportAllWizard({ onClose }: { onClose: () => void }) {
                     La sesión de MEV no está iniciada o expiró. Ingresá al
                     portal y reintentá la detección.
                   </p>
+                ) : detection.mev.error === 'needs_department' ? (
+                  <p className="text-[11px] leading-snug text-text-secondary">
+                    Tu sesión de MEV está en la pantalla de selección de
+                    departamento y no se pudo avanzar en automático. En la
+                    pestaña de MEV, entrá a un Departamento Judicial
+                    (cualquiera: el recorrido cubre todos) y reintentá la
+                    detección.
+                  </p>
                 ) : detection.mev.sets.length === 0 ? (
                   <p className="text-[11px] leading-snug text-text-secondary">
                     No se encontraron sets de búsqueda guardados en tu cuenta
