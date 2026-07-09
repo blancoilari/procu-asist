@@ -44,16 +44,18 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [stepIndex, setStepIndex] = useState(0);
   const [mevSaved, setMevSaved] = useState(false);
   const [pjnSaved, setPjnSaved] = useState(false);
-  const [skipCredentials, setSkipCredentials] = useState(false);
+  const [skipMev, setSkipMev] = useState(false);
+  const [skipPjn, setSkipPjn] = useState(false);
   const [openedMev, setOpenedMev] = useState(false);
   const [openedPjn, setOpenedPjn] = useState(false);
 
   const step = STEP_ORDER[stepIndex];
   const isLast = stepIndex === STEP_ORDER.length - 1;
 
-  // El paso de credenciales no se puede saltear sin decidir: o guardaste al
-  // menos una, o tildás explícitamente que preferís cargarlas después.
-  const credentialsGate = mevSaved || pjnSaved || skipCredentials;
+  // El paso de credenciales no se puede saltear sin decidir POR PORTAL:
+  // muchos colegas usan uno solo (o MEV o PJN). Para cada portal: o
+  // guardaste las credenciales, o tildás explícitamente que no lo usás.
+  const credentialsGate = (mevSaved || skipMev) && (pjnSaved || skipPjn);
   const nextDisabled = step === 'credentials' && !credentialsGate;
 
   const finish = (action?: 'import-all') => {
@@ -100,8 +102,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               pjnSaved={pjnSaved}
               onMevSaved={() => setMevSaved(true)}
               onPjnSaved={() => setPjnSaved(true)}
-              skipChecked={skipCredentials}
-              onSkipChange={setSkipCredentials}
+              skipMev={skipMev}
+              skipPjn={skipPjn}
+              onSkipMevChange={setSkipMev}
+              onSkipPjnChange={setSkipPjn}
             />
           )}
           {step === 'portals' && (
@@ -126,9 +130,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         <div className="flex flex-col gap-2 px-6 pb-6 pt-3">
           {nextDisabled && (
             <p className="text-center text-[11px] font-semibold leading-snug text-red-600">
-              Para seguir: guardá las credenciales de al menos un portal
-              (pasos 1, 2 y 3) o tildá &quot;prefiero cargarlas más
-              tarde&quot;.
+              Para seguir: en cada portal, guardá las credenciales (pasos 1,
+              2 y 3) o tildá que no lo usás.
             </p>
           )}
           {isLast && (
@@ -238,15 +241,19 @@ function CredentialsStep({
   pjnSaved,
   onMevSaved,
   onPjnSaved,
-  skipChecked,
-  onSkipChange,
+  skipMev,
+  skipPjn,
+  onSkipMevChange,
+  onSkipPjnChange,
 }: {
   mevSaved: boolean;
   pjnSaved: boolean;
   onMevSaved: () => void;
   onPjnSaved: () => void;
-  skipChecked: boolean;
-  onSkipChange: (value: boolean) => void;
+  skipMev: boolean;
+  skipPjn: boolean;
+  onSkipMevChange: (value: boolean) => void;
+  onSkipPjnChange: (value: boolean) => void;
 }) {
   return (
     <>
@@ -262,6 +269,9 @@ function CredentialsStep({
           placeholderUser="Usuario MEV (ej. 20123456789)"
           saved={mevSaved}
           onSaved={onMevSaved}
+          skipChecked={skipMev}
+          onSkipChange={onSkipMevChange}
+          skipLabel="No uso la MEV, o prefiero cargar esta clave más tarde desde Ajustes"
         />
         <InlineCredentialForm
           portal="pjn"
@@ -269,21 +279,10 @@ function CredentialsStep({
           placeholderUser="Usuario PJN (CUIL/CUIT)"
           saved={pjnSaved}
           onSaved={onPjnSaved}
+          skipChecked={skipPjn}
+          onSkipChange={onSkipPjnChange}
+          skipLabel="No uso el PJN, o prefiero cargar esta clave más tarde desde Ajustes"
         />
-
-        <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border px-3 py-2 text-xs text-text-secondary">
-          <input
-            type="checkbox"
-            checked={skipChecked}
-            onChange={(e) => onSkipChange(e.target.checked)}
-            className="mt-0.5 shrink-0"
-          />
-          <span>
-            Prefiero cargar mis credenciales más tarde (después se puede desde
-            Ajustes). Entiendo que sin ellas no funciona el auto-login ni la
-            reconexión automática.
-          </span>
-        </label>
       </div>
     </>
   );
@@ -295,12 +294,18 @@ function InlineCredentialForm({
   placeholderUser,
   saved,
   onSaved,
+  skipChecked,
+  onSkipChange,
+  skipLabel,
 }: {
   portal: PortalId;
   label: string;
   placeholderUser: string;
   saved: boolean;
   onSaved: () => void;
+  skipChecked: boolean;
+  onSkipChange: (value: boolean) => void;
+  skipLabel: string;
 }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -349,13 +354,19 @@ function InlineCredentialForm({
   };
 
   // "A prueba de olvidos": pasos numerados 1-2-3 hasta que quede guardado, y
-  // aviso rojo si escribió las claves pero todavía no tocó GUARDAR.
-  const typedButNotSaved = !saved && Boolean(username) && Boolean(password);
+  // aviso rojo si escribió las claves pero todavía no tocó GUARDAR. Si tildó
+  // que no usa este portal, la guía se apaga y el form queda atenuado.
+  const showGuide = !saved && !skipChecked;
+  const typedButNotSaved = showGuide && Boolean(username) && Boolean(password);
 
   return (
     <div
       className={`rounded-lg border p-3 ${
-        saved ? 'border-success/60 bg-success/5' : 'border-red-300'
+        saved
+          ? 'border-success/60 bg-success/5'
+          : skipChecked
+            ? 'border-border opacity-60'
+            : 'border-red-300'
       }`}
     >
       <div className="mb-2 flex items-center justify-between">
@@ -369,7 +380,7 @@ function InlineCredentialForm({
       {error && <p className="mb-2 text-xs text-danger">{error}</p>}
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          {!saved && <StepArrow n={1} />}
+          {showGuide && <StepArrow n={1} />}
           <input
             type="text"
             placeholder={placeholderUser}
@@ -379,7 +390,7 @@ function InlineCredentialForm({
           />
         </div>
         <div className="flex items-center gap-2">
-          {!saved && <StepArrow n={2} />}
+          {showGuide && <StepArrow n={2} />}
           <input
             type="password"
             placeholder="Contraseña"
@@ -389,7 +400,7 @@ function InlineCredentialForm({
           />
         </div>
         <div className="flex items-center gap-2">
-          {!saved && <StepArrow n={3} />}
+          {showGuide && <StepArrow n={3} />}
           <button
             onClick={() => void handleSave()}
             disabled={saving || !username || !password}
@@ -406,6 +417,17 @@ function InlineCredentialForm({
           <p className="text-center text-xs font-bold text-red-600">
             ¡Falta el paso 3: tocá GUARDAR para que queden guardadas!
           </p>
+        )}
+        {!saved && (
+          <label className="flex cursor-pointer items-start gap-2 pt-1 text-[11px] leading-snug text-text-secondary">
+            <input
+              type="checkbox"
+              checked={skipChecked}
+              onChange={(e) => onSkipChange(e.target.checked)}
+              className="mt-0.5 shrink-0"
+            />
+            <span>{skipLabel}</span>
+          </label>
         )}
       </div>
     </div>

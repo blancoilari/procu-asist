@@ -152,6 +152,8 @@ export interface IsBookmarkedMessage {
   type: 'IS_BOOKMARKED';
   portal: PortalId;
   caseNumber: string;
+  /** id interno MEV: matchea causas importadas sin número formateado. */
+  nidCausa?: string;
 }
 
 // --- Settings Messages ---
