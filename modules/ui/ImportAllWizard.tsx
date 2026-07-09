@@ -30,6 +30,7 @@ import {
   type ImportAllRunProgress,
   type ImportAllSelection,
 } from '@/modules/messages/types';
+import StepArrow from './StepArrow';
 
 type Step = 'detect' | 'select' | 'run';
 
@@ -199,6 +200,13 @@ export default function ImportAllWizard({ onClose }: { onClose: () => void }) {
                 </p>
               )}
 
+              <div className="flex items-center gap-2">
+                <StepArrow n={1} />
+                <p className="text-xs font-semibold">
+                  Tildá qué querés importar de cada portal:
+                </p>
+              </div>
+
               {/* PJN */}
               <div>
                 <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-secondary">
@@ -314,19 +322,20 @@ export default function ImportAllWizard({ onClose }: { onClose: () => void }) {
                 </p>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => void runDetection()}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-bg-secondary px-3 py-2 text-xs text-text-secondary hover:bg-border"
                 >
                   <RefreshCw size={13} /> Reintentar detección
                 </button>
+                {!nothingSelected && <StepArrow n={2} />}
                 <button
                   onClick={() => void handleRun()}
                   disabled={nothingSelected}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-primary/90 disabled:opacity-50"
                 >
-                  <Download size={13} /> Importar
+                  <Download size={13} /> IMPORTAR
                 </button>
               </div>
             </div>

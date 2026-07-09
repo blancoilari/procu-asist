@@ -18,6 +18,7 @@ import {
   Scale,
 } from 'lucide-react';
 import type { PortalId } from '@/modules/portals/types';
+import StepArrow from './StepArrow';
 
 const ONBOARDING_KEY = 'tl_onboarding_done';
 
@@ -123,13 +124,24 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
         {/* Actions */}
         <div className="flex flex-col gap-2 px-6 pb-6 pt-3">
+          {nextDisabled && (
+            <p className="text-center text-[11px] font-semibold leading-snug text-red-600">
+              Para seguir: guardá las credenciales de al menos un portal
+              (pasos 1, 2 y 3) o tildá &quot;prefiero cargarlas más
+              tarde&quot;.
+            </p>
+          )}
           {isLast && (
-            <button
-              onClick={() => finish('import-all')}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
-            >
-              <Download size={15} /> Acepto y quiero importar mis causas ahora
-            </button>
+            <div className="flex items-center gap-2">
+              <StepArrow n={1} />
+              <button
+                onClick={() => finish('import-all')}
+                className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-bold text-white hover:bg-primary-hover transition-colors"
+              >
+                <Download size={15} /> Acepto y quiero importar mis causas
+                ahora
+              </button>
+            </div>
           )}
           <div className="flex items-center gap-3">
             {!isLast && (
@@ -241,7 +253,7 @@ function CredentialsStep({
       <StepHeader
         icon={<KeyRound size={32} className="text-primary" />}
         title="Tus claves de los portales"
-        description="Este es el paso clave: con tus credenciales, ProcuAsist te loguea solo en MEV y PJN y te reconecta cuando la sesión se cae. Se guardan encriptadas en tu navegador y nunca salen de tu computadora."
+        description="Este es el paso clave: con tus credenciales, ProcuAsist te loguea solo en MEV y PJN y te reconecta cuando la sesión se cae. Seguí los pasos 1, 2 y 3 de cada portal (¡el 3 es GUARDAR, no te lo saltees!). Se guardan encriptadas en tu navegador y nunca salen de tu computadora."
       />
       <div className="w-full space-y-3">
         <InlineCredentialForm
@@ -336,10 +348,14 @@ function InlineCredentialForm({
     }
   };
 
+  // "A prueba de olvidos": pasos numerados 1-2-3 hasta que quede guardado, y
+  // aviso rojo si escribió las claves pero todavía no tocó GUARDAR.
+  const typedButNotSaved = !saved && Boolean(username) && Boolean(password);
+
   return (
     <div
       className={`rounded-lg border p-3 ${
-        saved ? 'border-success/60 bg-success/5' : 'border-primary/50'
+        saved ? 'border-success/60 bg-success/5' : 'border-red-300'
       }`}
     >
       <div className="mb-2 flex items-center justify-between">
@@ -352,27 +368,45 @@ function InlineCredentialForm({
       </div>
       {error && <p className="mb-2 text-xs text-danger">{error}</p>}
       <div className="flex flex-col gap-2">
-        <input
-          type="text"
-          placeholder={placeholderUser}
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          className="rounded-lg border border-border bg-bg-secondary px-3 py-2 text-sm outline-none focus:border-primary"
-        />
-        <input
-          type="password"
-          placeholder="Contraseña"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="rounded-lg border border-border bg-bg-secondary px-3 py-2 text-sm outline-none focus:border-primary"
-        />
-        <button
-          onClick={() => void handleSave()}
-          disabled={saving || !username || !password}
-          className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white hover:bg-primary-hover disabled:opacity-50 transition-colors"
-        >
-          {saving ? 'Guardando...' : saved ? 'Actualizar' : 'Guardar'}
-        </button>
+        <div className="flex items-center gap-2">
+          {!saved && <StepArrow n={1} />}
+          <input
+            type="text"
+            placeholder={placeholderUser}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="min-w-0 flex-1 rounded-lg border border-border bg-bg-secondary px-3 py-2 text-sm outline-none focus:border-primary"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          {!saved && <StepArrow n={2} />}
+          <input
+            type="password"
+            placeholder="Contraseña"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="min-w-0 flex-1 rounded-lg border border-border bg-bg-secondary px-3 py-2 text-sm outline-none focus:border-primary"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          {!saved && <StepArrow n={3} />}
+          <button
+            onClick={() => void handleSave()}
+            disabled={saving || !username || !password}
+            className={`min-w-0 flex-1 rounded-lg px-3 py-2 text-sm font-bold text-white transition-colors disabled:opacity-50 ${
+              typedButNotSaved
+                ? 'animate-pulse bg-red-600 hover:bg-red-700'
+                : 'bg-primary hover:bg-primary-hover'
+            }`}
+          >
+            {saving ? 'Guardando...' : saved ? 'Actualizar' : 'GUARDAR'}
+          </button>
+        </div>
+        {typedButNotSaved && (
+          <p className="text-center text-xs font-bold text-red-600">
+            ¡Falta el paso 3: tocá GUARDAR para que queden guardadas!
+          </p>
+        )}
       </div>
     </div>
   );
@@ -394,31 +428,37 @@ function PortalsStep({
       <StepHeader
         icon={<ExternalLink size={30} className="text-primary" />}
         title="Abrí tus portales"
-        description="Para importar tus causas y monitorearlas, ProcuAsist necesita una pestaña abierta de cada portal con la sesión iniciada. Abrilos ahora y verificá que el auto-login funcione."
+        description="Para importar tus causas y monitorearlas, ProcuAsist necesita una pestaña abierta de cada portal con la sesión iniciada. Tocá los dos botones y verificá que el auto-login funcione."
       />
       <div className="w-full space-y-2">
-        <button
-          onClick={onOpenMev}
-          className={`flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
-            openedMev
-              ? 'border-success/60 bg-success/5 text-success'
-              : 'border-primary/50 hover:bg-primary/5'
-          }`}
-        >
-          <span>Abrir MEV (mev.scba.gov.ar)</span>
-          {openedMev ? <CheckCircle2 size={15} /> : <ExternalLink size={15} />}
-        </button>
-        <button
-          onClick={onOpenPjn}
-          className={`flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
-            openedPjn
-              ? 'border-success/60 bg-success/5 text-success'
-              : 'border-primary/50 hover:bg-primary/5'
-          }`}
-        >
-          <span>Abrir PJN (scw.pjn.gov.ar)</span>
-          {openedPjn ? <CheckCircle2 size={15} /> : <ExternalLink size={15} />}
-        </button>
+        <div className="flex items-center gap-2">
+          {!openedMev && <StepArrow n={1} />}
+          <button
+            onClick={onOpenMev}
+            className={`flex min-w-0 flex-1 items-center justify-between rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+              openedMev
+                ? 'border-success/60 bg-success/5 text-success'
+                : 'border-red-300 hover:bg-primary/5'
+            }`}
+          >
+            <span>Abrir MEV (mev.scba.gov.ar)</span>
+            {openedMev ? <CheckCircle2 size={15} /> : <ExternalLink size={15} />}
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          {!openedPjn && <StepArrow n={2} />}
+          <button
+            onClick={onOpenPjn}
+            className={`flex min-w-0 flex-1 items-center justify-between rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+              openedPjn
+                ? 'border-success/60 bg-success/5 text-success'
+                : 'border-red-300 hover:bg-primary/5'
+            }`}
+          >
+            <span>Abrir PJN (scw.pjn.gov.ar)</span>
+            {openedPjn ? <CheckCircle2 size={15} /> : <ExternalLink size={15} />}
+          </button>
+        </div>
         <p className="pt-1 text-xs leading-relaxed text-text-secondary">
           Con las credenciales guardadas, cada portal se debería loguear solo
           (en MEV, la primera vez tenés que elegir tu Departamento Judicial;
