@@ -34,6 +34,7 @@ import {
   type ImportAllSourceProgress,
 } from '@/modules/messages/types';
 import { runBulkImport } from '@/modules/storage/bulk-import';
+import { getSettings } from '@/modules/storage/settings-store';
 import { MEV_BASE_URL, MEV_URLS } from '@/modules/portals/mev-selectors';
 import {
   PJN_SCW_BASE_URL,
@@ -229,44 +230,113 @@ async function detectMev(): Promise<ImportAllDetectResult['mev']> {
     return { hasTab: false, hasSession: false, sets: [] };
   }
 
+  const settings = await getSettings();
+
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: async (baseUrl: string, busquedaPath: string) => {
-        try {
-          const url = new URL(busquedaPath, baseUrl).href;
-          const resp = await fetch(url, {
+      func: async (
+        baseUrl: string,
+        busquedaPath: string,
+        posLoginPath: string,
+        preferredDept: string
+      ) => {
+        const fetchHtml = async (
+          input: string,
+          init?: RequestInit
+        ): Promise<string | { error: string }> => {
+          const resp = await fetch(input, {
             credentials: 'include',
-            headers: { Accept: 'text/html' },
+            headers: { Accept: 'text/html', ...(init?.headers ?? {}) },
+            ...init,
           });
           if (!resp.ok) return { error: `HTTP ${resp.status}` };
-          const html = new TextDecoder('windows-1252').decode(
+          return new TextDecoder('windows-1252').decode(
             await resp.arrayBuffer()
           );
+        };
+        const isLoginHtml = (html: string) => {
           const low = html.toLowerCase();
-          if (
+          return (
             low.includes('ingrese los datos del usuario') ||
             (low.includes('name="usuario"') && low.includes('name="clave"'))
-          ) {
-            return { error: 'session_expired' };
-          }
+          );
+        };
+        const parseSets = (html: string) => {
           const doc = new DOMParser().parseFromString(html, 'text/html');
           const select = doc.querySelector("select[name='Set']");
-          const sets = select
+          return select
             ? Array.from((select as HTMLSelectElement).options)
                 .map((o) => ({
                   id: o.value,
                   nombre: (o.textContent ?? '').replace(/\s+/g, ' ').trim(),
                 }))
                 .filter((s) => s.id)
-            : [];
-          return { sets };
+            : null;
+        };
+
+        try {
+          const url = new URL(busquedaPath, baseUrl).href;
+          let html = await fetchHtml(url);
+          if (typeof html !== 'string') return html;
+          if (isLoginHtml(html)) return { error: 'session_expired' };
+
+          let sets = parseSets(html);
+
+          // Sesión logueada pero sin departamento elegido (POSloguin): la MEV
+          // no muestra la búsqueda hasta entrar a un departamento. Entrar
+          // automáticamente (preferido o el primero real) y reintentar; para
+          // importar da igual el departamento, el recorrido cubre todos.
+          if (!sets && html.includes('DtoJudElegido')) {
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const deptSelect = doc.querySelector(
+              "select[name='DtoJudElegido']"
+            ) as HTMLSelectElement | null;
+            const codes = deptSelect
+              ? Array.from(deptSelect.options)
+                  .map((o) => o.value)
+                  .filter((v) => v && v !== 'aa')
+              : [];
+            const target = codes.includes(preferredDept)
+              ? preferredDept
+              : codes[0];
+            if (!target) return { error: 'needs_department' };
+
+            const postResult = await fetchHtml(
+              new URL(posLoginPath, baseUrl).href,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                  TipoDto: 'CC',
+                  DtoJudElegido: target,
+                  Aceptar: 'Aceptar',
+                }),
+              }
+            );
+            if (typeof postResult !== 'string') return postResult;
+
+            html = await fetchHtml(url);
+            if (typeof html !== 'string') return html;
+            if (isLoginHtml(html)) return { error: 'session_expired' };
+            sets = parseSets(html);
+            if (!sets) return { error: 'needs_department' };
+          }
+
+          return { sets: sets ?? [] };
         } catch (e) {
           return { error: String(e) };
         }
       },
-      args: [MEV_BASE_URL, MEV_URLS.busqueda],
+      args: [
+        MEV_BASE_URL,
+        MEV_URLS.busqueda,
+        MEV_URLS.posLogin,
+        settings.mevDepartamento,
+      ],
     });
 
     const result = results[0]?.result as

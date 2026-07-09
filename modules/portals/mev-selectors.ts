@@ -31,8 +31,9 @@ export const MEV_SELECTORS = {
     tipoFamilia: "input[name='TipoF']",
     tipoPenal: "input[name='TipoP']",
     aceptar: "input[type='submit'][value='Aceptar']",
-    // Radio button to select "Departamento Judicial" as organism type
-    deptJudRadio: "input[type='radio'][value='DJ']",
+    // Radio "Departamento Judicial" (verificado en vivo 2026-07-08: el name
+    // es TipoDto y el value CC; viene tildado por defecto).
+    deptJudRadio: "input[type='radio'][name='TipoDto'][value='CC']",
   },
   busqueda: {
     radioNumero: "input[name='radio'][value='xNc']",
