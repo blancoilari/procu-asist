@@ -251,9 +251,36 @@ async function handleLoginPage(doc: Document) {
     if (form) {
       console.debug('[ProcuAsist] Submitting login form');
       recordAutoLoginAttempt();
+      markLoginFlow();
       form.submit();
     }
   }, 500);
+}
+
+// Marca "estoy en el flujo de login" para que POSloguin sepa distinguir el
+// paso posterior al login de una visita manual (Cambiar Jurisdicción). El
+// referrer no alcanza: según cómo redirija el portal puede llegar vacío.
+const MEV_LOGIN_FLOW_KEY = 'procu_asist_login_flow';
+const MEV_LOGIN_FLOW_TTL_MS = 2 * 60 * 1000;
+
+function markLoginFlow(): void {
+  try {
+    sessionStorage.setItem(MEV_LOGIN_FLOW_KEY, String(Date.now()));
+  } catch {
+    // sessionStorage no disponible
+  }
+}
+
+/** Consume la marca de flujo de login (una sola lectura). */
+function consumeLoginFlow(): boolean {
+  try {
+    const raw = sessionStorage.getItem(MEV_LOGIN_FLOW_KEY);
+    if (!raw) return false;
+    sessionStorage.removeItem(MEV_LOGIN_FLOW_KEY);
+    return Date.now() - Number(raw) < MEV_LOGIN_FLOW_TTL_MS;
+  } catch {
+    return false;
+  }
 }
 
 // --- Post-Login Page (Department Selection) ---
@@ -268,29 +295,24 @@ async function handlePosLoginPage(doc: Document) {
   installDepartmentLearner(doc);
 
   // El auto-envío corre SOLO cuando POSloguin es parte del flujo de login
-  // (referrer = loguin.asp). Si el usuario llegó con "Cambiar Jurisdicción"
-  // o navegando a mano, vino a ELEGIR departamento: auto-enviar acá le
+  // (marca en sessionStorage puesta al enviar loguin.asp, con el referrer
+  // como respaldo). Si el usuario llegó con "Cambiar Jurisdicción" o
+  // navegando a mano, vino a ELEGIR departamento: auto-enviar acá le
   // secuestraría la pantalla (verificado en vivo 2026-07-08).
-  const cameFromLogin = /\/loguin\.asp/i.test(document.referrer);
-  if (!cameFromLogin) {
-    console.debug(
-      '[ProcuAsist] POSloguin abierto fuera del flujo de login — sin auto-submit.'
-    );
-    return;
-  }
+  const cameFromLogin =
+    consumeLoginFlow() || /\/loguin\.asp/i.test(document.referrer);
 
   // Get preferred department from settings
   const stored = await chrome.storage.local.get('tl_settings');
   const settings = stored.tl_settings as Record<string, unknown> | undefined;
   const preferredDepto = (settings?.mevDepartamento as string) ?? 'aa';
+  const hasPreference = Boolean(preferredDepto) && preferredDepto !== 'aa';
 
-  // 'aa' = "TODOS los Deptos" is only valid for the first login form.
-  // POSloguin.asp only has real department codes — if no specific dept is
-  // configured, don't auto-submit: let the user choose (and learn it), with
-  // a hint explaining that ProcuAsist lo va a recordar.
-  if (!preferredDepto || preferredDepto === 'aa') {
+  // Sin auto-envío posible (visita manual, o sin departamento aprendido):
+  // guiar con un aviso; el learner registra lo que el usuario elija.
+  if (!cameFromLogin || !hasPreference) {
     console.debug(
-      '[ProcuAsist] No specific department configured — user picks on POSloguin (and we learn it).'
+      `[ProcuAsist] POSloguin sin auto-submit (login=${cameFromLogin}, pref=${hasPreference}) — elige el usuario.`
     );
     showPosLoginHint(
       'Elegí tu Departamento Judicial habitual y tocá Aceptar. ProcuAsist lo va a recordar para loguearte directo la próxima vez.'

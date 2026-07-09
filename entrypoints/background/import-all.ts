@@ -284,13 +284,25 @@ async function detectMev(): Promise<ImportAllDetectResult['mev']> {
 
           let sets = parseSets(html);
 
-          // Sesión logueada pero sin departamento elegido (POSloguin): la MEV
-          // no muestra la búsqueda hasta entrar a un departamento. Entrar
-          // automáticamente (preferido o el primero real) y reintentar; para
-          // importar da igual el departamento, el recorrido cubre todos.
-          if (!sets && html.includes('DtoJudElegido')) {
-            const doc = new DOMParser().parseFromString(html, 'text/html');
-            const deptSelect = doc.querySelector(
+          // Sesión logueada pero sin departamento elegido: busqueda.asp
+          // devuelve un cascarón VACÍO (solo título y analytics, verificado
+          // en vivo 2026-07-08), sin ningún marcador. Ante la falta de sets,
+          // ir directo a POSloguin (que siempre trae el select de
+          // departamentos), entrar a uno (preferido o el primero) por POST y
+          // reintentar; para importar da igual cuál, el recorrido cubre
+          // todos los departamentos.
+          if (!sets) {
+            const posHtml = await fetchHtml(
+              new URL(posLoginPath, baseUrl).href
+            );
+            if (typeof posHtml !== 'string') return posHtml;
+            if (isLoginHtml(posHtml)) return { error: 'session_expired' };
+
+            const posDoc = new DOMParser().parseFromString(
+              posHtml,
+              'text/html'
+            );
+            const deptSelect = posDoc.querySelector(
               "select[name='DtoJudElegido']"
             ) as HTMLSelectElement | null;
             const codes = deptSelect
