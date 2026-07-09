@@ -12,6 +12,8 @@ import {
 } from '@/modules/storage/credential-store';
 import {
   addBookmark,
+  backfillBookmarkFromDetection,
+  getCaseNid,
   removeBookmark,
   getBookmarks,
   updateBookmark,
@@ -140,7 +142,8 @@ async function handleMessage(
     case 'ADD_BOOKMARK': {
       const existing = await isBookmarked(
         message.caseData.portal,
-        message.caseData.caseNumber
+        message.caseData.caseNumber,
+        message.caseData.metadata?.nidCausa
       );
       const bookmark = await addBookmark(message.caseData);
 
@@ -172,6 +175,16 @@ async function handleMessage(
     }
 
     case 'REMOVE_BOOKMARK': {
+      // El nid se lee ANTES de borrar: la cascada al monitor matchea por
+      // número normalizado O por nidCausa (las causas importadas de sets MEV
+      // pueden tener el id interno como número).
+      const allBookmarks = await getBookmarks();
+      const target = allBookmarks.find(
+        (b) =>
+          b.portal === message.portal && b.caseNumber === message.caseNumber
+      );
+      const nid = target ? getCaseNid(target) : '';
+
       await removeBookmark(message.portal, message.caseNumber);
       // Marcador = monitoreo: eliminar la causa también quita su monitor
       // y sus alertas (removeMonitor cascadea las alertas).
@@ -180,7 +193,8 @@ async function handleMessage(
       const orphan = allMonitors.find(
         (m) =>
           m.portal === message.portal &&
-          m.caseNumber.replace(/\s+/g, '').toUpperCase() === normalized
+          (m.caseNumber.replace(/\s+/g, '').toUpperCase() === normalized ||
+            (nid && m.nidCausa === nid))
       );
       if (orphan) {
         await removeMonitor(orphan.id);
@@ -196,7 +210,11 @@ async function handleMessage(
     }
 
     case 'IS_BOOKMARKED': {
-      const result = await isBookmarked(message.portal, message.caseNumber);
+      const result = await isBookmarked(
+        message.portal,
+        message.caseNumber,
+        message.nidCausa
+      );
       return { success: true, isBookmarked: result };
     }
 
@@ -219,6 +237,10 @@ async function handleMessage(
       await chrome.storage.session.set({
         lastDetectedCase: message.caseData,
       });
+      // Mejorar el marcador con los datos reales de la página de la causa
+      // (número de expediente formateado, carátula, juzgado): las causas
+      // importadas desde sets MEV entran con el id interno como número.
+      await backfillBookmarkFromDetection(message.caseData);
       await backfillMonitorMetadata({
         portal: message.caseData.portal,
         caseNumber: message.caseData.caseNumber,

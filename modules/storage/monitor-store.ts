@@ -43,6 +43,7 @@ export async function addMonitor(
       existing.caseNumber = caseData.caseNumber;
       changed = true;
     }
+    if (upgradeCaseNumber(existing, caseData.caseNumber)) changed = true;
     if (!existing.portalUrl && caseData.portalUrl) {
       existing.portalUrl = caseData.portalUrl;
       changed = true;
@@ -100,6 +101,7 @@ export async function backfillMonitorMetadata(
     existing.caseNumber = caseData.caseNumber;
     changed = true;
   }
+  if (upgradeCaseNumber(existing, caseData.caseNumber)) changed = true;
   if (!existing.portalUrl && caseData.portalUrl) {
     existing.portalUrl = caseData.portalUrl;
     changed = true;
@@ -237,6 +239,28 @@ function isSameMonitorCase(
 
 function normalizeCaseNumber(value: string): string {
   return value.replace(/\s+/g, '').toUpperCase();
+}
+
+/**
+ * Las causas MEV importadas desde sets entran con el id interno (nidCausa)
+ * como caseNumber; cuando llega el número real formateado (al abrir la causa
+ * en el portal), se actualiza. Devuelve true si cambió.
+ */
+function upgradeCaseNumber(
+  monitor: Monitor,
+  incoming: string | undefined
+): boolean {
+  if (!incoming || !monitor.caseNumber) return false;
+  const isNidLike = (v: string) => /^\d+$/.test(v.trim());
+  if (
+    monitor.caseNumber !== incoming &&
+    isNidLike(monitor.caseNumber) &&
+    !isNidLike(incoming)
+  ) {
+    monitor.caseNumber = incoming;
+    return true;
+  }
+  return false;
 }
 
 function getQueryParam(url: string, param: string): string {

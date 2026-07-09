@@ -2062,12 +2062,14 @@ function injectBookmarkButton(caseData: {
     variant: 'secondary',
   });
 
-  // Check if already bookmarked
+  // Check if already bookmarked (el nidCausa matchea causas importadas
+  // desde sets, que entran sin el número de expediente formateado)
   chrome.runtime
     .sendMessage({
       type: 'IS_BOOKMARKED',
       portal: 'mev',
       caseNumber: caseData.numero,
+      nidCausa: caseData.nidCausa,
     })
     .then((r) => {
       const resp = r as { success: boolean; isBookmarked: boolean };

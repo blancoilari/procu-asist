@@ -424,6 +424,7 @@ function QuickAddBanner({
         type: 'IS_BOOKMARKED',
         portal: caseData.portal,
         caseNumber: caseData.caseNumber,
+        nidCausa: caseData.metadata?.nidCausa,
       })
       .then((r) => {
         const resp = r as { success: boolean; isBookmarked: boolean };
