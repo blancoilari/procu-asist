@@ -17,11 +17,10 @@ Background Service Worker
         ├── auto-reconnect.ts  (re-login automatico)
         └── case-monitor.ts    (escaneo de movimientos)
         |
-        ├── chrome.storage.local  (fuente de verdad local)
-        └── Supabase (sync remoto)
+        └── chrome.storage.local  (fuente de verdad; unico almacenamiento)
 ```
 
-La extension sigue una arquitectura **local-first**: todos los datos se guardan primero en `chrome.storage.local` y luego se sincronizan a Supabase cuando el usuario esta autenticado.
+La extension sigue una arquitectura **local-first sin backend**: todos los datos viven en `chrome.storage.local` del navegador del usuario. La integracion Supabase/OAuth del diseño original se abandono antes de publicar y no existe en el codigo (esta guia la describia todavia; corregida el 19/07/2026). No hay sincronizacion remota ni cuentas de usuario. La app aparte `apps/procu-estudio` (ProcuEstudio, scaffold) si usa Supabase: es otro producto.
 
 ## Sistema de Mensajes (IPC)
 
@@ -32,15 +31,13 @@ Toda la comunicacion entre content scripts, popup, sidepanel y background pasa p
 | Categoria | Mensajes | Descripcion |
 |-----------|----------|-------------|
 | **Sesion** | `SESSION_EXPIRED`, `LOGIN_SUCCESS` | Notificaciones de estado de sesion del portal |
-| **Causas** | `CASE_PAGE_DETECTED`, `SEARCH_RESULTS`, `PARSE_CASE_HTML` | Datos extraidos por content scripts |
+| **Causas** | `CASE_PAGE_DETECTED`, `SEARCH_RESULTS` | Datos extraidos por content scripts |
 | **Credenciales** | `SAVE_CREDENTIALS`, `GET_CREDENTIALS`, `DELETE_CREDENTIALS` | Almacenamiento encriptado de credenciales |
 | **Marcadores** | `ADD_BOOKMARK`, `REMOVE_BOOKMARK`, `GET_BOOKMARKS`, `IS_BOOKMARKED` | CRUD de marcadores |
 | **Monitores** | `ADD_MONITOR`, `REMOVE_MONITOR`, `GET_MONITORS`, `TOGGLE_MONITOR`, `IS_MONITORED` | CRUD de monitores |
 | **Alertas** | `GET_ALERTS`, `MARK_ALERT_READ`, `MARK_ALL_ALERTS_READ`, `RUN_SCAN_NOW` | Gestion de notificaciones |
 | **Settings** | `UPDATE_SETTINGS`, `GET_SETTINGS` | Preferencias del usuario |
-| **Auth** | `SIGN_IN`, `SIGN_OUT`, `GET_USER` | Autenticacion OAuth |
-| **Sync** | `SYNC_DATA` | Sincronizacion push/pull con Supabase |
-| **UI** | `OPEN_SIDEPANEL`, `GENERATE_PDF`, `DOWNLOAD_ATTACHMENT`, `BULK_IMPORT` | Acciones de UI |
+| **UI y descargas** | `OPEN_SIDEPANEL`, `GENERATE_ZIP`, `DOWNLOAD_ATTACHMENT`, `BULK_IMPORT`, `PJN_GENERATE_ZIP`, `PJN_DOWNLOAD_PDF` | Acciones de UI y descargas |
 
 ### Como agregar un nuevo mensaje
 
@@ -74,18 +71,6 @@ al primer intento de lectura y el usuario recarga las credenciales.
 - `modules/crypto/key-manager.ts` — Lifecycle del CryptoKey: `ensureKey()` (memoria → storage → generar), `cleanupLegacyVault()`
 - `modules/storage/credential-store.ts` — Almacena credenciales de portales encriptadas
 
-## Flujo OAuth
-
-```
-1. Usuario hace click en "Iniciar sesion con Google"
-2. Mensaje SIGN_IN → background
-3. Background llama supabase.auth.signInWithOAuth({ provider: 'google' })
-4. Se abre chrome.identity.launchWebAuthFlow()
-5. Google muestra pantalla de consentimiento
-6. Callback retorna token → Supabase valida y crea sesion
-7. Se guarda perfil en chrome.storage.local como tl_user
-```
-
 ## Estructura de Storage
 
 Claves en `chrome.storage.local`:
@@ -96,7 +81,6 @@ Claves en `chrome.storage.local`:
 | `tl_monitors` | `Monitor[]` | Causas monitoreadas |
 | `tl_alerts` | `MovementAlert[]` | Alertas de movimientos nuevos |
 | `tl_settings` | `ProcuAsistSettings` | Preferencias del usuario |
-| `tl_user` | `UserProfile` | Perfil del usuario autenticado |
 | `tl_persisted_key` | `JsonWebKey` | Clave de dispositivo AES-GCM (auto-generada) |
 | `tl_cred_mev` | `EncryptedCredential` | Credenciales MEV encriptadas |
 | `tl_cred_pjn` | `EncryptedCredential` | Credenciales PJN encriptadas |
