@@ -6,8 +6,9 @@ Este roadmap marca prioridades, no promesas cerradas. El orden puede cambiar seg
 
 ## Version actual
 
-- Publicada en Chrome Web Store: **v0.7.0** (enviada a revision el 2026-07-02, aprobada el 2026-07-05).
-- En este repositorio: **v0.7.0** (misma version).
+- Publicada en Chrome Web Store: **v0.8.0** (publicada; confirmado por Patricio el 2026-07-19).
+- En este repositorio: **v0.8.0** (misma version).
+- Ideas para la proxima version: Patricio las anota en `D:\OneDrive\Escritorio\Mejorar ProcuAsist.docx`.
 
 Lo que ya existe:
 
