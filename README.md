@@ -4,7 +4,7 @@ Extensión Chrome para abogados argentinos que automatiza la interacción con po
 
 > **Hecho por un abogado de la matrícula, para colegas. Es gratuito y sin fines de lucro.**
 
-**Versiones:** la versión publicada en Chrome Web Store es la **v0.7.0** (enviada a revisión el 2026-07-02, aprobada por Google el 2026-07-05). Este repositorio está en la **v0.8.0** (pendiente de enviar a la Store).
+**Versiones:** la versión publicada en Chrome Web Store es la **v0.8.0** (publicada; confirmado el 2026-07-19). Este repositorio está en la **v0.8.0** (misma versión).
 
 ---
 
