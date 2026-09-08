@@ -2,6 +2,13 @@
 
 Todos los cambios notables del proyecto se documentan en este archivo.
 
+## [Sin version] - Mantenimiento 2026-09-08
+
+Limpieza de auditoria, sin cambios de producto.
+
+- Se borro `.env` (566 bytes, credenciales viejas de la integracion Supabase/OAuth abandonada; nunca estuvo trackeado por git, no lo lee ningun codigo vivo).
+- Se borraron `apps/procu-estudio/node_modules`, `apps/procu-estudio/.next` y los zips de `.output` anteriores a la 0.8.0 (scaffold de ProcuEstudio, regenerables, ignorados por git).
+
 ## [0.8.0] - 2026-07-07
 
 Version nacida del primer test de instalacion desde cero en una computadora limpia (feedback del titular, 7 puntos). Foco: que un colega recien instalado quede operativo sin fricciones.

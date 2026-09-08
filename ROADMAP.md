@@ -20,7 +20,7 @@ Lo que ya existe:
 - **Credenciales locales**: cifrado AES-GCM con clave de dispositivo automatica (sin PIN desde la 0.8.0).
 - **Modelo local-first**: los datos se guardan en el navegador; no hay backend obligatorio.
 
-Nuevo en la v0.8.0 (en repo, pendiente de publicacion):
+Publicado en la v0.8.0 (Store, confirmado el 19/07/2026):
 
 - **Sin PIN**: credenciales directas de los portales, cifradas con clave de dispositivo automatica; auto-login y reconexion que no se caen.
 - **Onboarding operativo**: carga de credenciales, apertura de portales e "Importar todo" desde la bienvenida.
@@ -35,30 +35,11 @@ Publicado en la v0.7.0 (Store, 2026-07-05):
 - **Backup local**: exportar e importar datos a JSON desde Ajustes (sin credenciales ni PIN).
 - **Importacion completa**: sets MEV multi-departamento y listados PJN multi-pagina.
 
+## Ya hecho (v0.6.x a v0.8.0)
+
+Las metas de saneamiento publico y Store (v0.6.x), UI unificada en portales (v0.7.0) y SCBA/MEV mas solido (v0.8.0) ya se cumplieron y estan publicadas en la Store. Ver [CHANGELOG.md](CHANGELOG.md) para el detalle de cada version.
+
 ## Prioridad inmediata: ProcuAsist gratis estable
-
-### v0.6.x - Saneamiento publico y Store
-
-- Mantener checklist QA antes de cada envio a Chrome Web Store.
-- Mejorar capturas y textos de la ficha publica.
-- Pulir mensajes de sesion, errores y estados de carga.
-- Dejar claro que ProcuAsist gratis no requiere cuentas ni servidores.
-
-### v0.7.0 - UI unificada en portales
-
-- Unificar la botonera de acciones en MEV, PJN y EJE.
-- Usar un mismo lenguaje visual para Configuracion, ZIP, Guardar y Monitorear.
-- Agregar en PJN los botones flotantes Guardar y Monitorear, ademas de ZIP.
-- Alinear estados de carga, exito, error y progreso.
-- Tomar como base el estilo mas sobrio de PJN.
-- Separar o filtrar las causas del panel lateral por portal/jurisdiccion para no mezclar MEV, PJN y EJE.
-
-### v0.8.0 - SCBA / MEV mas solido
-
-- Mejorar importaciones desde resultados y sets de busqueda MEV.
-- Mantener `notificaciones.scba.gov.ar` fuera del flujo gratuito hasta resolver diferencias de login y sincronizacion con MEV.
-- Revisar monitoreo, frecuencia, mensajes y casos de sesion vencida.
-- Mejorar errores y diagnostico para soporte.
 
 ### v0.9.0 - PJN mas solido
 
