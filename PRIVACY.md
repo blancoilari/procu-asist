@@ -1,8 +1,8 @@
 # Politica de Privacidad - ProcuAsist
 
-**Ultima actualizacion:** 2026-04-29
+**Ultima actualizacion:** 2026-09-08
 
-ProcuAsist es una extension de Chrome para abogados argentinos que automatiza tareas repetitivas en portales judiciales: MEV/SCBA, PJN/SCW y JUSCABA/EJE. Esta politica explica que datos maneja la extension, donde se guardan y como se protegen.
+ProcuAsist es una extension de Chrome para abogados argentinos que automatiza tareas repetitivas en portales judiciales: MEV/SCBA y PJN/SCW (JUSCABA/EJE en revision). Esta politica explica que datos maneja la extension, donde se guardan y como se protegen.
 
 ## Resumen rapido
 
@@ -35,7 +35,6 @@ Ninguno de estos datos se envia a servidores de ProcuAsist.
 | `sidePanel` | Mostrar el panel lateral de ProcuAsist con marcadores, monitoreo y ajustes. |
 | `activeTab` | Leer o interactuar con la pestana activa solo cuando el usuario inicia una accion desde la extension. |
 | `scripting` | Inyectar scripts de contenido en los portales judiciales declarados para leer causas, completar login o descargar documentos. |
-| `offscreen` | Ejecutar operaciones de cifrado y descifrado fuera del service worker. |
 | `tabs` | Abrir pestanas de portales judiciales cuando el usuario hace click en una causa o accion. |
 | `downloads` | Descargar al disco del usuario los ZIP/PDF generados por la extension. |
 | `webRequest` | Leer, de forma restringida, el encabezado de autorizacion enviado por PJN a `https://api.pjn.gov.ar/*` para reutilizar el token contra la API oficial. |
@@ -46,7 +45,7 @@ ProcuAsist solo se activa en los portales judiciales declarados en el manifest:
 
 - `https://mev.scba.gov.ar/*`
 - `https://docs.scba.gov.ar/*`
-- `https://eje.jus.gov.ar/*`
+- `https://eje.jus.gov.ar/*` (soporte en revision)
 - `https://sso.pjn.gov.ar/*`
 - `https://portalpjn.pjn.gov.ar/*`
 - `https://api.pjn.gov.ar/*`
@@ -71,7 +70,7 @@ Las comunicaciones externas ocurren solo cuando el usuario usa funciones de la e
 
 - MEV/SCBA y documentos asociados para consultar causas y descargar adjuntos.
 - PJN/SCW y API oficial de PJN para consultar listados, novedades y documentos permitidos por el portal.
-- JUSCABA/EJE con soporte basico.
+- JUSCABA/EJE, soporte en revision.
 - Cafecito.app solo si el usuario hace click voluntariamente en el boton "Invitame un cafecito".
 
 ## Borrado de datos
