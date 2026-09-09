@@ -106,3 +106,27 @@ test('htmlLooksLikeChallenge solo dispara con frase explícita', () => {
   // frase conocida no alcanza para acusar verificación.
   assert.equal(htmlLooksLikeChallenge('<html></html>'), false);
 });
+
+test('el mensaje de página inesperada dice que se saltea ese documento, no que se corta todo', () => {
+  // La distinción importa: el desafío es del portal y corta la descarga entera,
+  // porque va a afectar a todos los pedidos que vengan. Una página inesperada es
+  // de ESE documento (otro formato, un error puntual) y no puede dejar al usuario
+  // sin el resto del expediente ni echarle la culpa a una verificación que puede
+  // no existir. Quien decide es fetchMevPageContent, que solo marca challenge
+  // cuando el veredicto es 'desafio'; acá se fija que los textos no se contradigan.
+  const inesperada = detectMevChallenge({
+    htmlLength: 40000,
+    bodyTextSample: 'Mesa de Entradas Virtual. Menú principal del portal.',
+    hasProveidoStructure: false,
+  });
+  const desafio = detectMevChallenge({
+    htmlLength: 900,
+    bodyTextSample: 'Validando acceso, verificando si está siendo navegado por un ser humano',
+    hasProveidoStructure: false,
+  });
+  assert.equal(inesperada.status, 'respuesta-inesperada');
+  assert.equal(desafio.status, 'desafio');
+  assert.match(messageForVerdict(inesperada), /se saltea|salteado/i);
+  assert.doesNotMatch(messageForVerdict(inesperada), /La descarga se detuvo/i);
+  assert.match(messageForVerdict(desafio), /verificaci[oó]n/i);
+});

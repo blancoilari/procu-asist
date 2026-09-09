@@ -523,7 +523,16 @@ export async function fetchMevPageContent(
           `[ProcuAsist] La MEV no devolvió el proveído (${verdict.status}${verdict.marker ? ': ' + verdict.marker : ''}):`,
           fullUrl
         );
-        return { error: messageForVerdict(verdict), challenge: true };
+        // Solo el desafío corta la descarga entera: es del portal y afecta a todos
+        // los pedidos que vengan. Una página inesperada (un proveído con otro
+        // formato, un error puntual del portal) es de ESE documento: se informa
+        // como falla suya, queda su _ERROR.txt y el resto del expediente se baja
+        // igual. Cortar todo por uno solo dejaba al usuario sin nada y le echaba
+        // la culpa a una verificación que podía no existir.
+        return {
+          error: messageForVerdict(verdict),
+          challenge: verdict.status === 'desafio',
+        };
       }
     }
 

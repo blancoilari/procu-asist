@@ -72,9 +72,11 @@ export const MEV_CHALLENGE_MESSAGE =
   'expediente en pantalla y volvé a intentar la descarga.';
 
 export const MEV_UNEXPECTED_PAGE_MESSAGE =
-  'La MEV devolvió una página que no es la del proveído. La descarga se detuvo ' +
-  'para no generar un PDF sin los despachos. Fijate en la pestaña de la MEV que la ' +
-  'sesión siga abierta y que el expediente se vea, y volvé a intentar.';
+  'La MEV devolvió una página que no es la del proveído. Ese documento se saltea ' +
+  'para no meterlo en el PDF sin su despacho; el resto del expediente se baja igual ' +
+  'y el documento salteado queda anotado en el archivo de errores. Si se saltean ' +
+  'muchos, fijate en la pestaña de la MEV que la sesión siga abierta y que el ' +
+  'expediente se vea.';
 
 /** Marcas de combinación Unicode (los acentos que deja NFD). */
 const COMBINING_MARKS = new RegExp('[\\u0300-\\u036f]', 'g');
