@@ -64,7 +64,7 @@ Novedades de la v0.7.0:
 
 ## 5. Screenshots
 
-Las capturas de la v0.6.1 (`docs/store-assets/v0.6.1/screenshots-1280x800`) quedaron desactualizadas en dos pantallas clave. Antes de publicar hay que rehacer al menos:
+Las capturas de la v0.6.1 (`docs/store-assets/v0.6.1/screenshots-1280x800`) quedaron desactualizadas en dos pantallas clave. **(BORRADAS del repositorio el 09/09/2026: mostraban nombres de partes, numeros de expediente y cedulas de causas reales en el unico repositorio publico del ecosistema. Las reemplazan las maquetas con datos ficticios de `docs/store-assets/v0.8.1`.)** Antes de publicar hay que rehacer al menos:
 
 - [ ] Panel lateral con la nueva pestana "Causas" (sub-vistas Causas y Alertas agrupadas por expediente). Reemplaza a `02_Menu_procu_Asist_.png` y `05_b_marcadores_.png`.
 - [ ] Nueva pestana "Plazos" con la calculadora y la lista de vencimientos.

@@ -45,7 +45,7 @@ ProcuAsist se ofrece "tal cual", sin garantias. No reemplaza el control manual d
 
 Carpeta fuente: `D:\Descargas`
 
-Copias normalizadas para Chrome Web Store: `docs/store-assets/v0.6.1/screenshots-1280x800`
+Copias normalizadas para Chrome Web Store: `docs/store-assets/v0.6.1/screenshots-1280x800` **(BORRADAS del repositorio el 09/09/2026: mostraban nombres de partes, numeros de expediente y cedulas de causas reales en el unico repositorio publico del ecosistema. Las reemplazan las maquetas con datos ficticios de `docs/store-assets/v0.8.1`.)**
 
 - [x] `01_mev_inicio_.png` - MEV / SCBA como portal principal.
 - [x] `02_Menu_procu_Asist_.png` - Panel lateral de ProcuAsist.
