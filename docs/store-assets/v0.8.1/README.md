@@ -83,12 +83,16 @@ completo del titular de la matricula.
 
 ### Manual de usuario
 
-`docs/tutorial/` tiene dieciseis capturas del manual tomadas del uso real
-(`git ls-files docs/tutorial | wc -l`, 09/09/2026). No se revisaron una por una
-en este paquete: hay que revisarlas con el mismo criterio antes de reemplazar
-las del manual. Dos de ellas (`04-configurar-pin.png` y
-`06-restablecer-pin.png`) ademas quedaron obsoletas: muestran el PIN maestro,
-eliminado en la 0.8.0.
+`docs/tutorial/` tiene dieciseis capturas del manual tomadas del uso real.
+Se revisaron una por una el 09/09/2026 y se taparon con rectangulo opaco los
+datos identificables que quedaban: numero de receptoria, numero de expediente,
+juzgado y departamento judicial en `07-guardar-causa.png`, y dos numeros de
+cedula electronica en `11-modal-zip-pjn.png`. La regla, el detalle por captura
+y la herramienta (`scripts/tapar-capturas-tutorial.mjs`) estan en
+`docs/tutorial/README.md`. Tapadas no dejan de ser capturas de causas reales:
+si en algun momento hay que rehacerlas, se rehacen con esta maqueta. Dos de
+ellas (`04-configurar-pin.png` y `06-restablecer-pin.png`) ademas quedaron
+obsoletas: muestran el PIN maestro, eliminado en la 0.8.0.
 
 ## Como se regeneran
 
