@@ -89,6 +89,8 @@ npm run zip
 npm run compile
 
 # Tests (runner de node, sin dependencias extra)
+# Requiere Node 22.6 o mayor: los tests son .ts y se apoyan en que node
+# quite los tipos solo. Con una version anterior fallan al importar.
 npm test
 ```
 
@@ -175,8 +177,13 @@ Lo que hace la extensión hoy (`modules/portals/mev-challenge.ts`):
 
 - Antes de armar el PDF de un paso procesal, mira la respuesta: largo del HTML, muestra acotada del texto visible y si están las marcas estructurales de un proveído. Si la página no es un proveído, la descarga se **detiene** y se avisa por pantalla, en vez de generar un documento incompleto con apariencia de completo.
 - La detección es angosta a propósito: una página que trae estructura de proveído nunca se marca, aunque su texto contenga alguna de las frases buscadas. La frase sola decide únicamente cuando la página además carece de esa estructura.
-- Lo mismo en la descarga de adjuntos (una respuesta HTML con la frase corta la descarga entera y no gasta reintentos) y en el escaneo del monitoreo (si no se parseó ningún movimiento y el HTML trae la frase, la causa no se anota como "sin novedades": se avisa).
+- Lo mismo en la descarga de adjuntos (una respuesta HTML con la frase corta la descarga entera y no gasta reintentos) y en el escaneo del monitoreo (si no se parseó ningún movimiento y el HTML trae la frase, la causa no se anota como "sin novedades": se avisa, y el resto del barrido MEV de esa corrida no se hace, para no seguir pidiendo contra un portal que está filtrando).
 - Tests: `npm test` (runner de node, sin dependencias nuevas).
+
+Lo que **todavía no** detecta la verificación (brecha conocida al 09/09/2026):
+
+- La búsqueda de causas en la MEV y la importación masiva (`import-all`) siguen distinguiendo solo la pantalla de login. Frente a la verificación degradan sin decirlo: la búsqueda informa "formulario no encontrado" y el asistente de importación puede mostrar cero causas o cero sets, que se lee como "no hay nada" en vez de "no pude leer". Ninguno de los dos escribe datos ni baja la línea de base, pero tampoco avisa. Se corrige inyectando la misma comprobación de frase dentro de esas funciones; no se hizo en este cambio.
+- La detección por frase se apoya en que el HTML servido traiga los textos que se ven en pantalla. Si no los trae, en la descarga de proveídos queda la red estructural (sin campos de proveído la descarga se detiene igual); en adjuntos, búsqueda, importación y monitoreo no hay red: ahí la verificación pasaría sin detectarse.
 
 Camino de salida, **diseñado y no implementado**:
 

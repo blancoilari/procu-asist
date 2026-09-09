@@ -226,23 +226,34 @@ export function generateProveidoPdf(input: ProveidoPdfInput): Blob {
     // Render all fields from rawFields (captures everything in REFERENCIAS)
     if (refs!.rawFields && refs!.rawFields.length > 0) {
       for (const field of refs!.rawFields) {
-        y = ensureSpace(8, y);
         if (field.value) {
           // Key-value pair
           doc.setFont('helvetica', 'bold');
-          doc.setTextColor(...DARK);
           const label = sanitizeForPdf(`${field.label}:`);
-          doc.text(label, ML + 2, y + 4);
           // El ancho se mide con la fuente en negrita, que es con la que se
           // dibujó la etiqueta: medirlo después de pasar a normal lo subestima
           // y el valor termina pegado a los dos puntos.
-          const labelW = Math.min(doc.getTextWidth(label) + 3, 60);
+          const labelW = doc.getTextWidth(label) + 3;
+          // Una etiqueta más ancha que la sangría máxima no deja lugar al
+          // valor en el mismo renglón: antes se lo dibujaba igual a 60 mm del
+          // margen y quedaba impreso ENCIMA de la etiqueta, ilegible. Cuando
+          // no entra, el valor baja al renglón siguiente y usa todo el ancho.
+          const enLinea = labelW <= 60;
+          y = ensureSpace(enLinea ? 8 : 12, y);
+          doc.setTextColor(...DARK);
+          doc.text(label, ML + 2, y + 4);
           doc.setFont('helvetica', 'normal');
-          const valLines = doc.splitTextToSize(sanitizeForPdf(field.value), CW - labelW - 4) as string[];
-          doc.text(valLines, ML + 2 + labelW, y + 4);
-          y += valLines.length * 3.5 + 3;
+          const valueX = enLinea ? ML + 2 + labelW : ML + 2;
+          const valueY = enLinea ? y + 4 : y + 8;
+          const valLines = doc.splitTextToSize(
+            sanitizeForPdf(field.value),
+            ML + CW - valueX - 2
+          ) as string[];
+          doc.text(valLines, valueX, valueY);
+          y += (enLinea ? 0 : 4) + valLines.length * 3.5 + 3;
         } else {
           // Sub-section header (e.g., "NOTIFICACION ELECTRONICA")
+          y = ensureSpace(8, y);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(...GRAY);
           doc.text(sanitizeForPdf(field.label), ML + 2, y + 4);
@@ -411,16 +422,19 @@ export function generateTextReportPdf(title: string, lines: string[]): Blob {
   return doc.output('blob');
 }
 
-/** Sanitize text for jsPDF's built-in helvetica font (WinAnsiEncoding) */
+/** Sanitize text for jsPDF's built-in helvetica font (WinAnsiEncoding).
+ *  Los caracteres van escapados (\uXXXX) a propósito: el archivo se compila y
+ *  se empaqueta en varias etapas, y un escape no depende de que todas ellas
+ *  respeten la codificación del fuente. */
 export function sanitizeForPdf(text: string): string {
   return text
-    .replace(/º/g, '°')    // ordinal masculino -> grado (mejor soporte de fuente)
-    .replace(/ª/g, 'a.')        // ordinal femenino
-    .replace(/[‘’]/g, "'") // comillas tipograficas -> rectas
-    .replace(/[“”]/g, '"')
-    .replace(/–/g, '-')         // raya corta
-    .replace(/—/g, '--')        // raya larga
-    .replace(/…/g, '...');      // puntos suspensivos
+    .replace(/\u00ba/g, '\u00b0')    // ordinal masculino -> grado (mejor soporte de fuente)
+    .replace(/\u00aa/g, 'a.')        // ordinal femenino
+    .replace(/[\u2018\u2019]/g, "'") // comillas tipograficas -> rectas
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/\u2013/g, '-')         // raya corta
+    .replace(/\u2014/g, '--')        // raya larga
+    .replace(/\u2026/g, '...');      // puntos suspensivos
 }
 
 /** Convert dd/mm/yyyy or dd-mm-yyyy to yyyy-mm-dd (ISO) for correct alphabetical sorting */

@@ -115,6 +115,12 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
   let missingIds = 0;
   let missingTabs = 0;
   let skippedBySet = 0;
+  let skippedByChallenge = 0;
+  // Una vez que la MEV contestó con su pantalla de verificación, seguir
+  // pidiendo causa por causa solo suma pedidos contra un portal que ya está
+  // filtrando, y todas van a fallar igual. Se corta el resto del barrido MEV;
+  // las causas de PJN siguen porque son otro portal.
+  let mevChallengeHit = false;
   const touchedMonitorIds: string[] = [];
   const matchedMovements: ScanMovement[] = [];
 
@@ -125,6 +131,11 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
     for (const monitor of batch) {
       let fetched = false;
       try {
+        if (monitor.portal === 'mev' && mevChallengeHit) {
+          skippedByChallenge++;
+          continue;
+        }
+
         const tabId = getScanTabId(monitor, { mevTabId, pjnTabId });
         if (!tabId && monitor.portal !== 'pjn') {
           missingTabs++;
@@ -157,6 +168,9 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
       } catch (err) {
         totalErrors++;
         if (monitor.portal === 'mev') mevErrors++;
+        if (err instanceof Error && err.message === 'mev_challenge') {
+          mevChallengeHit = true;
+        }
         console.error(
           `[ProcuAsist] Error scanning ${monitor.caseNumber}:`,
           err
@@ -189,13 +203,21 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
     missingIds,
     missingTabs,
     skippedBySet: skippedBySet || undefined,
+    skippedByChallenge: skippedByChallenge || undefined,
     skippedReason:
-      missingTabs === monitors.length ? 'no_tab' : undefined,
+      missingTabs === monitors.length
+        ? 'no_tab'
+        : mevChallengeHit
+          ? 'mev_challenge'
+          : undefined,
   };
 
   console.debug(
     `[ProcuAsist] Scan complete: ${result.scanned} cases, ${result.newMovements} new movements, ${result.errors} errors` +
-      (skippedBySet ? `, ${skippedBySet} resueltas por novedades de set` : '')
+      (skippedBySet ? `, ${skippedBySet} resueltas por novedades de set` : '') +
+      (skippedByChallenge
+        ? `, ${skippedByChallenge} sin escanear por la verificación de la MEV`
+        : '')
   );
 
   await storeScanResult(result, options.fromDate, matchedMovements);
@@ -222,6 +244,10 @@ export interface ScanResult {
   missingTabs?: number;
   /** Causas MEV resueltas por la búsqueda de novedades de set (sin re-leer). */
   skippedBySet?: number;
+  /** Causas MEV que no se llegaron a escanear porque el portal pidió
+   *  verificación en medio del barrido. No se leyeron: no dicen nada sobre
+   *  si tienen novedades. */
+  skippedByChallenge?: number;
   skippedReason?: string;
 }
 
