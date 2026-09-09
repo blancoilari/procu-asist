@@ -87,6 +87,11 @@ npm run zip
 
 # Verificar tipos TypeScript
 npm run compile
+
+# Tests (runner de node, sin dependencias extra)
+# Requiere Node 22.6 o mayor: los tests son .ts y se apoyan en que node
+# quite los tipos solo. Con una version anterior fallan al importar.
+npm test
 ```
 
 ## Cargar en Chrome (modo desarrollador)
@@ -125,6 +130,7 @@ procu-asist/
 │   └── ui/                      # Componentes compartidos (onboarding)
 ├── public/icon/                 # Iconos de la extensión (16-128px + SVG)
 ├── assets/styles/               # Estilos globales (Tailwind)
+├── tests/                       # Tests puros (node --test), fuera del build
 ├── docs/                        # Documentación
 │   └── manual-usuario.md        # Manual para usuarios no técnicos
 ├── wxt.config.ts                # Configuración WXT + manifest
@@ -146,6 +152,44 @@ expediente_AL-12345-2025.zip
 ```
 
 Cada PDF de paso procesal incluye: juzgado, datos del expediente (carátula, fecha inicio, receptoría, estado), información del paso (trámite, firmado, fojas), REFERENCIAS con adjuntos clickables, DATOS DE PRESENTACIÓN, y el texto completo del proveído.
+
+Los PDF salen **sin marca**: sin logo, sin color corporativo y sin el nombre de la extensión en el encabezado o el pie. Son piezas de trabajo del expediente y se leen como tales. Lo único que se imprime es contenido (número, carátula, fechas, juzgado, movimientos, referencias y texto), en negro sobre blanco, con grises solo para separar jerarquías. No hay opción de configuración: es el único formato.
+
+## Verificación de la MEV ("Validando acceso")
+
+**Estado al 09/09/2026. Todo lo que sigue está sin confirmar contra el portal.**
+
+Lo observado:
+
+- El 08/09/2026 la MEV mostró en el navegador una pantalla intermedia con los textos "Validando acceso" y "verificando si está siendo navegado por un ser humano" antes de dejar ver el sitio.
+- Esa pantalla se sirve con HTTP 200. Para un `fetch()` es una respuesta buena: `resp.ok` da true y el código sigue como si tuviera la página pedida.
+- La consecuencia observable es un PDF armado y descargado, pero con los despachos vacíos: el parser no encuentra ninguno de los campos que busca y no se queja.
+- Un lector automatizado ajeno a esta extensión seguía leyendo bien las fichas de expediente en esas mismas fechas, así que el filtro no bloquea todo. En cambio `VerMasTramitacion.asp` devuelve HTTP 500 desde el 21/08/2026, o sea desde antes de que apareciera la pantalla: son dos cosas distintas y no hay que confundirlas.
+
+Lo que **no** se sabe:
+
+- Si la pantalla aparece siempre, por ráfagas o solo para ciertos pedidos.
+- Si el HTML que se sirve contiene los mismos textos que se ven en pantalla (la detección está escrita sobre esa suposición).
+- Si resolver la verificación en la pestaña deja una cookie que sirva para los `fetch` posteriores de la extensión.
+- Qué dispara el filtro: cantidad de pedidos, cadencia, agente, o nada de eso.
+
+Lo que hace la extensión hoy (`modules/portals/mev-challenge.ts`):
+
+- Antes de armar el PDF de un paso procesal, mira la respuesta: largo del HTML, muestra acotada del texto visible y si están las marcas estructurales de un proveído. Si la página no es un proveído, la descarga se **detiene** y se avisa por pantalla, en vez de generar un documento incompleto con apariencia de completo.
+- La detección es angosta a propósito: una página que trae estructura de proveído nunca se marca, aunque su texto contenga alguna de las frases buscadas. La frase sola decide únicamente cuando la página además carece de esa estructura.
+- Lo mismo en la descarga de adjuntos (una respuesta HTML con la frase corta la descarga entera y no gasta reintentos) y en el escaneo del monitoreo (si no se parseó ningún movimiento y el HTML trae la frase, la causa no se anota como "sin novedades": se avisa, y el resto del barrido MEV de esa corrida no se hace, para no seguir pidiendo contra un portal que está filtrando).
+- Tests: `npm test` (runner de node, sin dependencias nuevas).
+
+Lo que **todavía no** detecta la verificación (brecha conocida al 09/09/2026):
+
+- La búsqueda de causas en la MEV y la importación masiva (`import-all`) siguen distinguiendo solo la pantalla de login. Frente a la verificación degradan sin decirlo: la búsqueda informa "formulario no encontrado" y el asistente de importación puede mostrar cero causas o cero sets, que se lee como "no hay nada" en vez de "no pude leer". Ninguno de los dos escribe datos ni baja la línea de base, pero tampoco avisa. Se corrige inyectando la misma comprobación de frase dentro de esas funciones; no se hizo en este cambio.
+- La detección por frase se apoya en que el HTML servido traiga los textos que se ven en pantalla. Si no los trae, en la descarga de proveídos queda la red estructural (sin campos de proveído la descarga se detiene igual); en adjuntos, búsqueda, importación y monitoreo no hay red: ahí la verificación pasaría sin detectarse.
+
+Camino de salida, **diseñado y no implementado**:
+
+- Reemplazar el `fetch` en el mundo MAIN por una navegación real de la pestaña de la MEV a la URL del proveído y leer el DOM ya renderizado. Es lo que hace una persona y lo que el filtro espera; también es el camino que sobrevive si mañana la pantalla exige ejecutar JavaScript. Cuesta caro: hay que tomar prestada la pestaña del usuario (o abrir una propia), esperar el `load`, devolverla a donde estaba y manejar el caso de varias descargas en fila.
+- Alternativa más barata: ante una detección, esperar y reintentar una vez, apostando a que la verificación ya dejó su cookie. No se implementó porque no hay ninguna evidencia de que esa cookie exista ni de cuánto dura, y un reintento a ciegas contra un portal que está filtrando empeora las cosas.
+- Nada de esto se puede probar sin sesión y con el portal filtrando. Queda para una sesión con el titular delante, mirando la pantalla real.
 
 ## Precio
 

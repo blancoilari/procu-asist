@@ -2543,6 +2543,7 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
         success: boolean;
         filename?: string;
         error?: string;
+        challenge?: boolean;
         stats?: {
           totalMovements: number;
           proveidosDownloaded: number;
@@ -2581,6 +2582,14 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
         if (s && !s.allSuccessful && s.failedItems.length > 0) {
           showVerificationOverlay(s.failedItems);
         }
+      } else if (response?.challenge) {
+        // La MEV devolvió su pantalla de verificación. No hay archivo a
+        // propósito: se le explica al usuario qué pasó y qué hacer.
+        setPortalActionButtonState(btn, ICON_X, 'Verificación', 'warning');
+        progressLabel.textContent = 'La MEV pidió verificación. No se generó ningún archivo.';
+        progressFill.style.backgroundColor = DANGER_COLOR;
+        progressFill.style.width = '100%';
+        showChallengeOverlay(response.error ?? '');
       } else {
         setPortalActionButtonState(btn, ICON_X, 'Error', 'danger');
         progressLabel.textContent = response?.error ?? 'Error';
@@ -2608,6 +2617,64 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
 }
 
 // --- Verification Error Overlay ---
+
+/**
+ * Aviso de que la MEV interpuso su pantalla de verificación y la descarga se
+ * detuvo sin generar archivo. Es deliberado: un expediente sin los despachos,
+ * con apariencia de completo, es peor que no tener nada.
+ */
+function showChallengeOverlay(detalle: string) {
+  const overlay = document.createElement('div');
+  Object.assign(overlay.style, {
+    position: 'fixed', inset: '0', backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: '9999999', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  });
+
+  const modal = document.createElement('div');
+  Object.assign(modal.style, {
+    backgroundColor: 'white', borderRadius: '12px', padding: '24px',
+    maxWidth: '520px', width: '90%', display: 'flex', flexDirection: 'column',
+    gap: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+  });
+
+  const title = document.createElement('h3');
+  title.textContent = 'La MEV pidió verificación: descarga detenida';
+  Object.assign(title.style, {
+    margin: '0', color: '#b45309', fontSize: '16px',
+  });
+
+  const body = document.createElement('p');
+  // textContent: el detalle viene del service worker, nunca se interpreta HTML.
+  body.textContent = detalle || 'La MEV no devolvió la página del expediente.';
+  Object.assign(body.style, {
+    margin: '0', color: '#374151', fontSize: '13px', lineHeight: '1.5',
+  });
+
+  const nota = document.createElement('p');
+  nota.textContent =
+    'No se generó ningún archivo. Es a propósito: si la descarga siguiera, el PDF ' +
+    'saldría sin los despachos y con apariencia de estar completo.';
+  Object.assign(nota.style, {
+    margin: '0', color: '#6b7280', fontSize: '12px', lineHeight: '1.5',
+  });
+
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = 'Entendido';
+  Object.assign(closeBtn.style, {
+    padding: '8px 20px', borderRadius: '8px', border: 'none',
+    backgroundColor: '#7c3aed', color: 'white', fontSize: '13px',
+    fontWeight: '600', cursor: 'pointer', alignSelf: 'flex-end',
+  });
+  closeBtn.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  modal.appendChild(title);
+  modal.appendChild(body);
+  modal.appendChild(nota);
+  modal.appendChild(closeBtn);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+}
 
 function showVerificationOverlay(
   failedItems: Array<{ type: string; index: number; date: string; description: string; url: string; error: string }>

@@ -1,10 +1,14 @@
 /**
  * PDF generator for judicial case files (expedientes).
  * Uses jsPDF to create a structured PDF document with:
- * - Header with ProcuAsist branding
  * - Case metadata (carátula, juzgado, número, estado, fecha)
  * - Full movements table (fecha, descripción, tipo)
  * - Attachment list (if any)
+ *
+ * El documento sale sin marca: ni logo, ni color corporativo, ni el nombre de
+ * la extensión en el encabezado o el pie. Es una pieza de trabajo del
+ * expediente y se lee como tal (decisión del 09/09/2026). Lo único que se
+ * imprime es contenido: número, carátula, fechas, movimientos y documentos.
  *
  * Runs in the background service worker (jsPDF doesn't need DOM).
  */
@@ -51,15 +55,15 @@ const MARGIN_TOP = 20;
 const MARGIN_BOTTOM = 20;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
 
+// Paleta neutra en grises: nada de color corporativo. Los grises están para
+// separar jerarquías y para que una tabla larga se siga leyendo, no para
+// decorar.
 const COLORS = {
-  primary: [37, 99, 235] as [number, number, number], // #2563eb
-  dark: [30, 30, 30] as [number, number, number],
-  gray: [100, 100, 100] as [number, number, number],
-  lightGray: [200, 200, 200] as [number, number, number],
-  headerBg: [240, 245, 255] as [number, number, number],
-  rowEven: [248, 250, 252] as [number, number, number],
-  white: [255, 255, 255] as [number, number, number],
-  green: [22, 163, 74] as [number, number, number],
+  dark: [20, 20, 20] as [number, number, number],
+  gray: [90, 90, 90] as [number, number, number],
+  lightGray: [190, 190, 190] as [number, number, number],
+  headerBg: [232, 232, 232] as [number, number, number],
+  rowEven: [246, 246, 246] as [number, number, number],
 };
 
 /**
@@ -81,7 +85,7 @@ function createPdfDoc(data: PdfCaseData): jsPDF {
   });
 
   let y = MARGIN_TOP;
-  y = drawHeader(doc, data, y);
+  y = drawHeader(doc, y);
   y = drawCaseMetadata(doc, data, y);
 
   if (data.movements.length > 0) {
@@ -105,18 +109,17 @@ function createPdfDoc(data: PdfCaseData): jsPDF {
 // Drawing Functions
 // ────────────────────────────────────────────────────────
 
-function drawHeader(doc: jsPDF, data: PdfCaseData, y: number): number {
-  // Blue header bar
-  doc.setFillColor(...COLORS.primary);
-  doc.rect(0, 0, PAGE_WIDTH, 14, 'F');
-
-  doc.setTextColor(...COLORS.white);
-  doc.setFontSize(11);
+function drawHeader(doc: jsPDF, y: number): number {
+  // Sin barra de marca. Solo el título del documento y la fecha en que se
+  // armó, en gris chico, como una impresión del portal.
+  doc.setTextColor(...COLORS.dark);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text('ProcuAsist — Expediente Digital', MARGIN_LEFT, 9);
+  doc.text('Expediente', MARGIN_LEFT, 12);
 
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...COLORS.gray);
   const dateStr = new Date().toLocaleDateString('es-AR', {
     day: '2-digit',
     month: '2-digit',
@@ -124,9 +127,12 @@ function drawHeader(doc: jsPDF, data: PdfCaseData, y: number): number {
     hour: '2-digit',
     minute: '2-digit',
   });
-  doc.text(`Generado: ${dateStr}`, PAGE_WIDTH - MARGIN_RIGHT, 9, {
+  doc.text(`Generado: ${dateStr}`, PAGE_WIDTH - MARGIN_RIGHT, 12, {
     align: 'right',
   });
+
+  doc.setDrawColor(...COLORS.lightGray);
+  doc.line(MARGIN_LEFT, 14.5, PAGE_WIDTH - MARGIN_RIGHT, 14.5);
 
   doc.setTextColor(...COLORS.dark);
   return y + 2;
@@ -137,17 +143,19 @@ function drawCaseMetadata(
   data: PdfCaseData,
   y: number
 ): number {
-  // Measure the carátula and metadata FIRST: the background box must be
-  // drawn at its final size before any text, otherwise a long title forces
-  // a second filled rect that paints over the already-written content.
+  // Sin recuadro de color: el bloque es texto sobre blanco, cerrado por una
+  // línea fina. Igual se mide primero, porque de esa medida sale dónde
+  // termina el bloque y arranca la tabla.
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   const titleLines = doc.splitTextToSize(
     data.title || 'Sin carátula',
-    CONTENT_WIDTH - 30
+    CONTENT_WIDTH - 22
   ) as string[];
 
+  // El portal deja de ser una insignia de color y pasa a ser un dato más.
   const metaItems: string[] = [];
+  if (data.portal) metaItems.push(`Portal: ${data.portal.toUpperCase()}`);
   if (data.court) metaItems.push(`Juzgado: ${data.court}`);
   if (data.fechaInicio) metaItems.push(`Inicio: ${data.fechaInicio}`);
   if (data.estadoPortal) metaItems.push(`Estado: ${data.estadoPortal}`);
@@ -155,50 +163,38 @@ function drawCaseMetadata(
   const col1 = metaItems.slice(0, 2).join('  |  ');
   const col2 = metaItems.slice(2).join('  |  ');
 
-  const metaY = y + 15 + titleLines.length * 4 + 2;
-  const contentBottom = metaItems.length > 0 ? metaY + (col2 ? 4 : 0) : metaY - 6;
-  const boxHeight = Math.max(40, contentBottom - y + 6);
-
-  // Background box (single draw, final size)
-  doc.setFillColor(...COLORS.headerBg);
-  doc.roundedRect(MARGIN_LEFT, y, CONTENT_WIDTH, boxHeight, 2, 2, 'F');
-
-  // Case number (big)
-  doc.setTextColor(...COLORS.primary);
+  // Número de expediente
+  doc.setTextColor(...COLORS.dark);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text(data.caseNumber || 'Sin número', MARGIN_LEFT + 5, y + 8);
-
-  // Measure width at 14pt bold BEFORE changing font settings
-  const caseNumberWidth = doc.getTextWidth(data.caseNumber || 'Sin número');
-
-  // Portal badge
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  const portalLabel = data.portal.toUpperCase();
-  const badgeX = MARGIN_LEFT + 5 + caseNumberWidth + 4;
-  doc.setFillColor(...COLORS.primary);
-  doc.roundedRect(badgeX, y + 3, doc.getTextWidth(portalLabel) + 4, 6, 1, 1, 'F');
-  doc.setTextColor(...COLORS.white);
-  doc.text(portalLabel, badgeX + 2, y + 7.5);
+  doc.text(data.caseNumber || 'Sin número', MARGIN_LEFT, y + 6);
 
   // Carátula
-  doc.setTextColor(...COLORS.dark);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.text('Carátula:', MARGIN_LEFT + 5, y + 15);
+  doc.text('Carátula:', MARGIN_LEFT, y + 14);
   doc.setFont('helvetica', 'normal');
-  doc.text(titleLines, MARGIN_LEFT + 25, y + 15);
+  doc.text(titleLines, MARGIN_LEFT + 20, y + 14);
 
-  // Metadata row
+  let bottom = y + 14 + titleLines.length * 4;
+
+  // Metadatos
   if (metaItems.length > 0) {
     doc.setFontSize(8);
     doc.setTextColor(...COLORS.gray);
-    doc.text(col1, MARGIN_LEFT + 5, metaY);
-    if (col2) doc.text(col2, MARGIN_LEFT + 5, metaY + 4);
+    doc.text(col1, MARGIN_LEFT, bottom + 1);
+    bottom += 1;
+    if (col2) {
+      doc.text(col2, MARGIN_LEFT, bottom + 4);
+      bottom += 4;
+    }
   }
 
-  return y + boxHeight + 4;
+  // Línea de cierre del bloque
+  doc.setDrawColor(...COLORS.lightGray);
+  doc.line(MARGIN_LEFT, bottom + 3, PAGE_WIDTH - MARGIN_RIGHT, bottom + 3);
+
+  return bottom + 7;
 }
 
 function drawMovementsTable(
@@ -220,9 +216,9 @@ function drawMovementsTable(
   const colDesc = CONTENT_WIDTH - colDate - colFojas - colFirma;
 
   const drawTableHeader = (yPos: number) => {
-    doc.setFillColor(...COLORS.primary);
+    doc.setFillColor(...COLORS.headerBg);
     doc.rect(MARGIN_LEFT, yPos, CONTENT_WIDTH, 7, 'F');
-    doc.setTextColor(...COLORS.white);
+    doc.setTextColor(...COLORS.dark);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.text('Fecha', MARGIN_LEFT + 2, yPos + 5);
@@ -277,7 +273,7 @@ function drawMovementsTable(
 
     // Firma indicator (text, no emoji)
     if (mov.type === 'firmado') {
-      doc.setTextColor(...COLORS.green);
+      doc.setTextColor(...COLORS.dark);
       doc.text('Firm.', MARGIN_LEFT + colDate + colFojas + 2, y + 4);
     }
 
@@ -302,8 +298,10 @@ function drawAttachmentsList(
 ): number {
   if (attachments.length === 0) return y;
 
-  // Check page break
-  if (y + 20 > PAGE_HEIGHT - MARGIN_BOTTOM) {
+  // Salto de página: hay que reservar el título, la aclaración y al menos dos
+  // renglones. Con menos, el título quedaba solo al pie de una hoja y la lista
+  // empezaba en la siguiente.
+  if (y + 34 > PAGE_HEIGHT - MARGIN_BOTTOM) {
     doc.addPage();
     y = MARGIN_TOP;
   }
@@ -333,8 +331,8 @@ function drawAttachmentsList(
       y = MARGIN_TOP;
     }
 
-    // Bullet + name (no emoji — jsPDF Helvetica doesn't support them)
-    doc.setTextColor(...COLORS.primary);
+    // Bullet + name (no emoji: jsPDF Helvetica doesn't support them)
+    doc.setTextColor(...COLORS.dark);
     const label = att.movementDate
       ? `[doc] ${att.name} (${att.movementDate})`
       : `[doc] ${att.name}`;
@@ -363,11 +361,8 @@ function drawFooter(
   doc.setFontSize(7);
   doc.setTextColor(...COLORS.gray);
   doc.setFont('helvetica', 'normal');
-  doc.text(
-    `ProcuAsist — ${caseNumber}`,
-    MARGIN_LEFT,
-    footerY + 1
-  );
+  // El pie lleva el número de expediente, que es contenido. Nada más.
+  doc.text(caseNumber, MARGIN_LEFT, footerY + 1);
   doc.text(
     `Página ${pageNum} de ${pageCount}`,
     PAGE_WIDTH - MARGIN_RIGHT,

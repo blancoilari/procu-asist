@@ -11,6 +11,14 @@
  */
 
 import { MEV_BASE_URL } from '@/modules/portals/mev-selectors';
+import {
+  detectMevChallenge,
+  htmlLooksLikeChallenge,
+  messageForVerdict,
+  MEV_CHALLENGE_MESSAGE,
+  MEV_PROBE_SAMPLE_LENGTH,
+  type MevPageProbe,
+} from '@/modules/portals/mev-challenge';
 
 export interface DownloadedAttachment {
   name: string;
@@ -24,6 +32,13 @@ export interface AttachmentDownloadResult {
   success: boolean;
   attachment?: DownloadedAttachment;
   error?: string;
+  /**
+   * true cuando la MEV devolvió su pantalla de verificación en vez del archivo.
+   * Quien llama tiene que cortar la descarga entera: reintentar solo suma
+   * pedidos a un portal que ya está filtrando, y seguir de largo produce un
+   * documento incompleto con apariencia de completo.
+   */
+  challenge?: boolean;
 }
 
 /** Full data extracted from a MEV proveido page */
@@ -58,6 +73,12 @@ export interface ProveidoPageData {
     nroPresentacionElectronica?: string;
     presentadoPor?: string;
   };
+  /**
+   * Señales de la respuesta cruda (largo, muestra de texto, estructura), para
+   * decidir afuera si la MEV devolvió el proveído o su pantalla de
+   * verificación. La decide detectMevChallenge, no el código inyectado.
+   */
+  probe?: MevPageProbe;
 }
 
 /**
@@ -96,7 +117,7 @@ export async function downloadMevAttachment(
       const results = await chrome.scripting.executeScript({
         target: { tabId },
         world: 'MAIN',
-        func: async (url: string) => {
+        func: async (url: string, sampleLength: number) => {
           try {
             const resp = await fetch(url, {
               credentials: 'include',
@@ -107,6 +128,20 @@ export async function downloadMevAttachment(
             const contentType =
               resp.headers.get('content-type') || 'application/pdf';
             const buffer = await resp.arrayBuffer();
+
+            // Una respuesta HTML nunca es el adjunto. Puede ser la pantalla de
+            // verificación de la MEV, la de login o un error del servidor: se
+            // devuelve una muestra acotada para que el llamador distinga cuál.
+            if (contentType.includes('text/html')) {
+              const sample = new TextDecoder('windows-1252')
+                .decode(buffer.slice(0, 8000))
+                .replace(/\s+/g, ' ')
+                .slice(0, sampleLength * 4);
+              return {
+                error: 'El servidor devolvió una página HTML en vez del archivo',
+                htmlSample: sample,
+              };
+            }
 
             // Convert ArrayBuffer to base64
             const bytes = new Uint8Array(buffer);
@@ -125,16 +160,21 @@ export async function downloadMevAttachment(
             return { error: String(e) };
           }
         },
-        args: [fullUrl],
+        args: [fullUrl, MEV_PROBE_SAMPLE_LENGTH],
       });
 
       const result = results[0]?.result as
         | { base64: string; mimeType: string; sizeBytes: number }
-        | { error: string }
+        | { error: string; htmlSample?: string }
         | null;
 
       if (!result || 'error' in result) {
         lastError = result?.error ?? 'No result from fetch';
+        if (result && 'htmlSample' in result && result.htmlSample
+            && htmlLooksLikeChallenge(result.htmlSample)) {
+          console.warn('[ProcuAsist] La MEV pidió verificación al bajar un adjunto:', fullUrl);
+          return { success: false, error: MEV_CHALLENGE_MESSAGE, challenge: true };
+        }
         continue;
       }
 
@@ -203,7 +243,7 @@ export async function downloadMevAttachments(
 export async function fetchMevPageContent(
   tabId: number,
   url: string
-): Promise<ProveidoPageData | { error: string }> {
+): Promise<ProveidoPageData | { error: string; challenge?: boolean }> {
   const fullUrl = url.startsWith('http')
     ? url
     : `${MEV_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
@@ -212,7 +252,7 @@ export async function fetchMevPageContent(
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: async (pageUrl: string) => {
+      func: async (pageUrl: string, sampleLength: number) => {
         try {
           const resp = await fetch(pageUrl, { credentials: 'include' });
           if (!resp.ok) return { error: `HTTP ${resp.status}` };
@@ -428,7 +468,29 @@ export async function fetchMevPageContent(
           // ── Adjunto URLs for download ──
           const adjuntoUrls = adjuntos.map(a => a.url);
 
+          // ── Sonda para detectar la pantalla de verificación ──
+          // Marcas estructurales que una página de proveído de la MEV siempre
+          // trae: el div del texto, la carátula, el bloque REFERENCIAS o el
+          // combo de pasos procesales. Si no hay ninguna, esto no es un
+          // proveído. La decisión la toma detectMevChallenge afuera.
+          const hasProveidoStructure =
+            !!contentDiv ||
+            !!selectEl ||
+            allTds.some((td) =>
+              /^car[aá]tula\s*:/i.test(td.textContent?.trim() ?? '')
+            ) ||
+            allTds.some((td) => (td.textContent?.trim() ?? '') === 'REFERENCIAS');
+          const bodyTextSample = (doc.body?.textContent ?? '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, sampleLength);
+
           return {
+            probe: {
+              htmlLength: html.length,
+              bodyTextSample,
+              hasProveidoStructure,
+            },
             text,
             adjuntoUrls,
             juzgadoName,
@@ -442,12 +504,29 @@ export async function fetchMevPageContent(
           return { error: String(e) };
         }
       },
-      args: [fullUrl],
+      args: [fullUrl, MEV_PROBE_SAMPLE_LENGTH],
     });
 
     const result = results[0]?.result as ProveidoPageData | { error: string } | null;
 
     if (!result) return { error: 'No result from executeScript' };
+    if ('error' in result) return result;
+
+    // La respuesta llegó con HTTP 200, pero eso no prueba que sea el proveído:
+    // la pantalla de verificación de la MEV también viene con 200. Si no es el
+    // proveído se corta acá, en vez de devolver campos vacíos que después
+    // terminan en un PDF sin despacho.
+    if (result.probe) {
+      const verdict = detectMevChallenge(result.probe);
+      if (verdict.status !== 'ok') {
+        console.warn(
+          `[ProcuAsist] La MEV no devolvió el proveído (${verdict.status}${verdict.marker ? ': ' + verdict.marker : ''}):`,
+          fullUrl
+        );
+        return { error: messageForVerdict(verdict), challenge: true };
+      }
+    }
+
     return result;
   } catch (err) {
     return { error: err instanceof Error ? err.message : String(err) };

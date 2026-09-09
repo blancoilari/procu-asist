@@ -323,11 +323,11 @@ function generateResumenPdf(input: ResumenInput): Blob {
   const CW = 210 - ML - MR;
   const PH = 297;
   const MB = 20;
-  const primary: [number, number, number] = [42, 93, 159]; // azul ProcuAsist
-  const dark: [number, number, number] = [30, 30, 30];
-  const gray: [number, number, number] = [100, 100, 100];
-  const white: [number, number, number] = [255, 255, 255];
-  const headerBg: [number, number, number] = [238, 244, 252];
+  // Paleta neutra: el PDF que baja el usuario no lleva marca (09/09/2026).
+  const dark: [number, number, number] = [20, 20, 20];
+  const gray: [number, number, number] = [90, 90, 90];
+  const lightGray: [number, number, number] = [190, 190, 190];
+  const headerBg: [number, number, number] = [232, 232, 232];
 
   const ensureSpace = (needed: number, currentY: number): number => {
     if (currentY + needed > PH - MB) {
@@ -337,34 +337,32 @@ function generateResumenPdf(input: ResumenInput): Blob {
     return currentY;
   };
 
-  // ── Header bar ──
-  doc.setFillColor(...primary);
-  doc.rect(0, 0, 210, 12, 'F');
-  doc.setTextColor(...white);
+  // ── Encabezado sobrio, sin barra de color ni nombre de la extensión ──
+  doc.setTextColor(...dark);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text('ProcuAsist — Resumen de expediente PJN', ML, 8);
+  doc.text('Resumen de expediente', ML, 10);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
+  doc.setTextColor(...gray);
   doc.text(
-    new Date().toLocaleDateString('es-AR'),
+    `Generado: ${new Date().toLocaleDateString('es-AR')}`,
     210 - MR,
-    8,
+    10,
     { align: 'right' }
   );
+  doc.setDrawColor(...lightGray);
+  doc.line(ML, 12.5, 210 - MR, 12.5);
 
   let y = 20;
 
   // ── Datos generales ──
   const dg = input.datosGenerales;
   if (dg) {
-    doc.setFillColor(...headerBg);
-    doc.roundedRect(ML, y, CW, 40, 2, 2, 'F');
-
-    doc.setTextColor(...primary);
+    doc.setTextColor(...dark);
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text(sanitize(dg.expediente || 'Expediente PJN'), ML + 4, y + 7);
+    doc.text(sanitize(dg.expediente || 'Expediente PJN'), ML, y + 7);
 
     doc.setTextColor(...dark);
     doc.setFontSize(8);
@@ -379,16 +377,16 @@ function generateResumenPdf(input: ResumenInput): Blob {
     for (const [label, value] of fields) {
       if (!value) continue;
       doc.setFont('helvetica', 'bold');
-      doc.text(`${label}:`, ML + 4, yBox);
+      doc.text(`${label}:`, ML, yBox);
       doc.setFont('helvetica', 'normal');
       const valueLines = doc.splitTextToSize(sanitize(value), CW - 36) as string[];
-      doc.text(valueLines, ML + 32, yBox);
+      doc.text(valueLines, ML + 28, yBox);
       yBox += valueLines.length * 3.5 + 1.5;
     }
     y += 44;
   } else {
     // Sin datos generales (venimos de actuacionesHistoricas.seam). Mínimo título.
-    doc.setTextColor(...primary);
+    doc.setTextColor(...dark);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('Expediente PJN', ML, y + 4);
@@ -412,7 +410,7 @@ function generateResumenPdf(input: ResumenInput): Blob {
   y = ensureSpace(12, y);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...primary);
+  doc.setTextColor(...dark);
   doc.text('Actuaciones', ML, y + 4);
   y += 8;
 
@@ -596,7 +594,7 @@ function generateTextReportPdf(title: string, lines: string[]): Blob {
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.setTextColor(220, 38, 38);
+  doc.setTextColor(20, 20, 20);
   doc.text(sanitize(title), ML, 18);
 
   doc.setFont('helvetica', 'normal');

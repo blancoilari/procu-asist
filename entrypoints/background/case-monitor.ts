@@ -18,6 +18,7 @@
 
 import type { Monitor } from '@/modules/portals/types';
 import { MEV_BASE_URL, MEV_URLS } from '@/modules/portals/mev-selectors';
+import { htmlLooksLikeChallenge } from '@/modules/portals/mev-challenge';
 import { getEvents, type PjnEvent } from '@/modules/portals/pjn-api-client';
 import {
   getActiveMonitors,
@@ -114,6 +115,12 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
   let missingIds = 0;
   let missingTabs = 0;
   let skippedBySet = 0;
+  let skippedByChallenge = 0;
+  // Una vez que la MEV contestó con su pantalla de verificación, seguir
+  // pidiendo causa por causa solo suma pedidos contra un portal que ya está
+  // filtrando, y todas van a fallar igual. Se corta el resto del barrido MEV;
+  // las causas de PJN siguen porque son otro portal.
+  let mevChallengeHit = false;
   const touchedMonitorIds: string[] = [];
   const matchedMovements: ScanMovement[] = [];
 
@@ -124,6 +131,11 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
     for (const monitor of batch) {
       let fetched = false;
       try {
+        if (monitor.portal === 'mev' && mevChallengeHit) {
+          skippedByChallenge++;
+          continue;
+        }
+
         const tabId = getScanTabId(monitor, { mevTabId, pjnTabId });
         if (!tabId && monitor.portal !== 'pjn') {
           missingTabs++;
@@ -156,6 +168,9 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
       } catch (err) {
         totalErrors++;
         if (monitor.portal === 'mev') mevErrors++;
+        if (err instanceof Error && err.message === 'mev_challenge') {
+          mevChallengeHit = true;
+        }
         console.error(
           `[ProcuAsist] Error scanning ${monitor.caseNumber}:`,
           err
@@ -188,13 +203,21 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
     missingIds,
     missingTabs,
     skippedBySet: skippedBySet || undefined,
+    skippedByChallenge: skippedByChallenge || undefined,
     skippedReason:
-      missingTabs === monitors.length ? 'no_tab' : undefined,
+      missingTabs === monitors.length
+        ? 'no_tab'
+        : mevChallengeHit
+          ? 'mev_challenge'
+          : undefined,
   };
 
   console.debug(
     `[ProcuAsist] Scan complete: ${result.scanned} cases, ${result.newMovements} new movements, ${result.errors} errors` +
-      (skippedBySet ? `, ${skippedBySet} resueltas por novedades de set` : '')
+      (skippedBySet ? `, ${skippedBySet} resueltas por novedades de set` : '') +
+      (skippedByChallenge
+        ? `, ${skippedByChallenge} sin escanear por la verificación de la MEV`
+        : '')
   );
 
   await storeScanResult(result, options.fromDate, matchedMovements);
@@ -221,6 +244,10 @@ export interface ScanResult {
   missingTabs?: number;
   /** Causas MEV resueltas por la búsqueda de novedades de set (sin re-leer). */
   skippedBySet?: number;
+  /** Causas MEV que no se llegaron a escanear porque el portal pidió
+   *  verificación en medio del barrido. No se leyeron: no dicen nada sobre
+   *  si tienen novedades. */
+  skippedByChallenge?: number;
   skippedReason?: string;
 }
 
@@ -598,6 +625,18 @@ async function scanSingleCase(
     throw new Error('session_expired');
   }
 
+  // La pantalla de verificación de la MEV también llega con HTTP 200 y sin
+  // tabla de movimientos. Sin este corte, un escaneo bloqueado se lee igual
+  // que una causa sin novedades. Solo se evalúa cuando no se parseó ningún
+  // movimiento: una página con movimientos es una página legítima.
+  if (result.movements.length === 0 && htmlLooksLikeChallenge(html)) {
+    console.warn(
+      `[ProcuAsist] La MEV pidió verificación durante el escaneo de ${monitor.caseNumber}`
+    );
+    await notifyMevChallenge();
+    throw new Error('mev_challenge');
+  }
+
   return persistScanMovements(monitor, result.movements, fromDate);
 }
 
@@ -792,6 +831,30 @@ async function sendMovementNotification(
     title,
     message,
     priority: 2,
+  });
+}
+
+/**
+ * Aviso de que la MEV interpuso su pantalla de verificación durante el
+ * escaneo. Se avisa como máximo una vez por hora, igual que la falta de
+ * sesión: el escaneo recorre muchas causas y todas verían lo mismo.
+ */
+async function notifyMevChallenge() {
+  const key = 'lastMevChallengeNotify';
+  const stored = await chrome.storage.session.get(key);
+  const last = stored[key] as number | undefined;
+  if (last && Date.now() - last < 3600_000) return;
+
+  await chrome.storage.session.set({ [key]: Date.now() });
+
+  await chrome.notifications.create('monitor-mev-challenge', {
+    type: 'basic',
+    iconUrl: chrome.runtime.getURL('icon/128.png'),
+    title: 'ProcuAsist: la MEV pidió verificación',
+    message:
+      'La MEV respondió con su pantalla de verificación. Abrí la MEV en una pestaña, ' +
+      'resolvé la verificación y el monitoreo sigue en el próximo escaneo.',
+    priority: 1,
   });
 }
 
