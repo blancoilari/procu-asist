@@ -81,14 +81,14 @@ async function handleKeycloakLogin(doc: Document) {
   );
   if (loginError?.textContent?.trim()) {
     console.warn(
-      `[ProcuAsist] Keycloak muestra un error de login ("${loginError.textContent.trim().slice(0, 80)}") — no se intenta el auto-login`
+      `[ProcuAsist] Keycloak muestra un error de login ("${loginError.textContent.trim().slice(0, 80)}"): no se intenta el auto-login`
     );
     return;
   }
 
   if (!canAttemptKeycloakLogin()) {
     console.warn(
-      '[ProcuAsist] Límite de intentos de auto-login de Keycloak alcanzado — entrá a mano'
+      '[ProcuAsist] Límite de intentos de auto-login de Keycloak alcanzado, entrá a mano'
     );
     return;
   }

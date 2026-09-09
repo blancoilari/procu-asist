@@ -13,9 +13,13 @@ puede quedar varios dias en revision antes de publicarse, y mientras tanto la
 haga falta publicar un arreglo urgente.
 
 Segundo punto: la 0.8.1 sube la herramienta de empaquetado (`wxt`) de la linea
-0.20 a la 0.21. La build local sale limpia y el `manifest.json` generado es
-identico campo por campo al de la 0.20, pero eso no reemplaza probar la
-extension cargada. Antes de subir, cargar `.output/chrome-mv3` desde
+0.20 a la 0.21. La build local sale limpia y el `manifest.json` generado se
+comparo campo por campo contra el de la 0.8.0 (que salio de wxt 0.20): la unica
+diferencia que no viene de esta version es un campo que agrega la herramienta,
+`options_ui.open_in_tab: false`, que es el valor por defecto de Chrome cuando el
+campo no esta. No cambia permisos ni comportamiento declarado, pero tampoco
+reemplaza probar la extension cargada: lo verificado es la build, no la
+extension corriendo. Antes de subir, cargar `.output/chrome-mv3` desde
 `chrome://extensions` y recorrer el checklist de la seccion 5.
 
 ## 1. Que cambia respecto de la 0.8.0
@@ -98,10 +102,20 @@ Sin cambios en el flujo de trabajo: causas, alertas, plazos, descargas e importa
 - [x] `npm run compile` sin errores.
 - [x] `npm run build` sin errores.
 - [x] `npm run zip` genera `.output/procu-asist-0.8.1-chrome.zip`.
-- [x] `npm audit`: 18 vulnerabilidades (3 criticas) antes, 0 despues.
+- [x] `npm audit`: 18 vulnerabilidades (1 baja, 4 medias, 10 altas, 3 criticas)
+      antes, 0 despues. `npm audit fix` solo cerraba siete; las once restantes
+      necesitaron subir `wxt` y `sharp`, ambas devDependencies.
 - [x] El `manifest.json` generado no menciona el dominio retirado y queda con
       seis `host_permissions`.
-- [x] Ni el bundle ni el manifest contienen restos del portal retirado.
+- [x] Ni el bundle ni el manifest contienen `eje.jus`, `juscaba` ni `iol-api`.
+      Si quedan, deliberadas, las dos claves de storage del portal retirado
+      (`tl-keepalive-eje` y `tl_cred_eje`) que el codigo de limpieza borra al
+      arrancar.
+
+Lo que NO esta verificado: nada de esto prueba que la extension cargada
+funcione. No hay suite de tests en el repositorio (`package.json` no declara
+script `test`), asi que la unica verificacion de comportamiento posible es la
+manual de 5.2.
 
 ### 5.2 Manual sobre la extension cargada (pendiente, lo hace quien publica)
 

@@ -110,8 +110,8 @@ procu-asist/
 │   │   ├── keep-alive.ts        # Mantener sesiones activas
 │   │   └── message-router.ts    # Router de mensajes IPC
 │   ├── mev.content.ts           # Content script para MEV
+│   ├── pjn.content.ts           # Content script para PJN (SCW y portal PJN)
 │   ├── sso.content.ts           # Content script para el SSO Keycloak del PJN
-│   ├── scba-notif.content.ts    # Content script para notificaciones SCBA
 │   ├── sidepanel/               # Panel lateral (dashboard principal)
 │   ├── popup/                   # Popup de la extensión
 │   └── options/                 # Página de opciones (credenciales)

@@ -83,9 +83,12 @@ completo del titular de la matricula.
 
 ### Manual de usuario
 
-`docs/tutorial/` tiene diecisiete capturas del manual tomadas del uso real. No
-se revisaron una por una en este paquete: hay que revisarlas con el mismo
-criterio antes de reemplazar las del manual.
+`docs/tutorial/` tiene dieciseis capturas del manual tomadas del uso real
+(`git ls-files docs/tutorial | wc -l`, 09/09/2026). No se revisaron una por una
+en este paquete: hay que revisarlas con el mismo criterio antes de reemplazar
+las del manual. Dos de ellas (`04-configurar-pin.png` y
+`06-restablecer-pin.png`) ademas quedaron obsoletas: muestran el PIN maestro,
+eliminado en la 0.8.0.
 
 ## Como se regeneran
 
