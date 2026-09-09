@@ -12,8 +12,12 @@
  */
 
 import JSZip from 'jszip';
-import { jsPDF } from 'jspdf';
 import { generateCasePdfBlob, type PdfCaseData } from './case-pdf-generator';
+import {
+  generateProveidoPdf,
+  generateTextReportPdf,
+  convertToIsoDate,
+} from './proveido-pdf-generator';
 import {
   fetchMevPageContent,
   downloadMevAttachment,
@@ -60,6 +64,13 @@ export interface ZipGenerationResult {
   blob?: Blob;
   filename?: string;
   error?: string;
+  /**
+   * true cuando la descarga se abortó porque la MEV devolvió su pantalla de
+   * verificación. No hay archivo: es a propósito. Un expediente al que le
+   * faltan los despachos, con cara de expediente completo, es peor que no
+   * tener nada.
+   */
+  challenge?: boolean;
   stats?: {
     totalMovements: number;
     proveidosDownloaded: number;
@@ -166,6 +177,16 @@ export async function generateCaseZip(
     // Fetch the proveido content (text + adjunto URLs), parsed inside the MEV tab
     const pageResult = await fetchMevPageContent(mevTabId, url);
 
+    if ('error' in pageResult && pageResult.challenge) {
+      // La MEV interpuso su pantalla de verificación. Cortar acá: seguir
+      // produciría un ZIP o un PDF con los pasos vacíos y sin aviso.
+      return {
+        success: false,
+        error: pageResult.error,
+        challenge: true,
+      };
+    }
+
     if ('error' in pageResult) {
       proveidosFailed++;
       failedItems.push({
@@ -250,7 +271,22 @@ export async function generateCaseZip(
         const settled = batchResults[j];
         const adjResult = settled.status === 'fulfilled'
           ? settled.value
-          : { success: false as const, error: String((settled as PromiseRejectedResult).reason) };
+          : {
+              success: false as const,
+              error: String((settled as PromiseRejectedResult).reason),
+              attachment: undefined,
+              challenge: false,
+            };
+
+        if (adjResult.challenge) {
+          // Mismo criterio que con los proveídos: si el portal está pidiendo
+          // verificación, la descarga entera se detiene sin dejar archivo.
+          return {
+            success: false,
+            error: adjResult.error ?? 'La MEV pidió verificación.',
+            challenge: true,
+          };
+        }
 
         if (adjResult.success && adjResult.attachment) {
           const att = adjResult.attachment;
@@ -395,419 +431,7 @@ async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(parts.join(''));
 }
 
-/** Render a plain-text report (e.g. the verification log) as a simple PDF. */
-function generateTextReportPdf(title: string, lines: string[]): Blob {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const ML = 15;
-  const CW = 210 - ML * 2;
-  const PH = 297;
-  const MB = 15;
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(220, 38, 38);
-  doc.text(sanitizeForPdf(title), ML, 18);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(30, 30, 30);
-
-  let y = 28;
-  for (const rawLine of lines) {
-    const wrapped = doc.splitTextToSize(sanitizeForPdf(rawLine) || ' ', CW) as string[];
-    for (const line of wrapped) {
-      if (y + 4 > PH - MB) {
-        doc.addPage();
-        y = 18;
-      }
-      doc.text(line, ML, y);
-      y += 4;
-    }
-  }
-
-  return doc.output('blob');
-}
-
-// ── Proveido PDF Generator ───────────────────────────────
-
-interface ProveidoPdfInput {
-  date: string;
-  fojas?: string;
-  description: string;
-  caseNumber: string;
-  title: string;
-  court: string;
-  content: string;
-  sourceUrl: string;
-  // Extended metadata from ProveidoPageData
-  juzgadoName?: string;
-  departamento?: string;
-  datosExpediente?: {
-    caratula: string;
-    fechaInicio: string;
-    nroReceptoria: string;
-    nroExpediente: string;
-    estado: string;
-  };
-  pasoProcesal?: {
-    fecha: string;
-    tramite: string;
-    firmado: boolean;
-    fojas: string;
-  };
-  referencias?: {
-    adjuntos: Array<{ nombre: string; url: string }>;
-    despacho?: string;
-    observacion?: string;
-    observacionProfesional?: string;
-    rawFields?: Array<{ label: string; value: string }>;
-  };
-  datosPresentacion?: {
-    fechaEscrito?: string;
-    firmadoPor?: string;
-    nroPresentacionElectronica?: string;
-    presentadoPor?: string;
-  };
-}
-
-function generateProveidoPdf(input: ProveidoPdfInput): Blob {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
-  const ML = 15;
-  const MR = 15;
-  const CW = 210 - ML - MR;
-  const PH = 297;
-  const MB = 20;
-  const primary: [number, number, number] = [37, 99, 235];
-  const dark: [number, number, number] = [30, 30, 30];
-  const gray: [number, number, number] = [100, 100, 100];
-  const white: [number, number, number] = [255, 255, 255];
-  const headerBg: [number, number, number] = [240, 245, 255];
-  const lightGray: [number, number, number] = [200, 200, 200];
-
-  /** Check page break and add page if needed */
-  const ensureSpace = (needed: number, currentY: number): number => {
-    if (currentY + needed > PH - MB) {
-      doc.addPage();
-      return 20;
-    }
-    return currentY;
-  };
-
-  // ── 1. Header bar ──
-  doc.setFillColor(...primary);
-  doc.rect(0, 0, 210, 12, 'F');
-  doc.setTextColor(...white);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ProcuAsist — Paso Procesal', ML, 8);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.text(
-    `${input.fojas ? 'fs ' + input.fojas : ''} — ${convertToIsoDate(input.date)}`,
-    210 - MR,
-    8,
-    { align: 'right' }
-  );
-
-  let y = 16;
-
-  // ── 2. Juzgado + Departamento ──
-  if (input.juzgadoName) {
-    doc.setTextColor(...dark);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    const juzLine = input.departamento
-      ? `${sanitizeForPdf(input.juzgadoName)}  —  ${sanitizeForPdf(input.departamento)}`
-      : sanitizeForPdf(input.juzgadoName);
-    const juzLines = doc.splitTextToSize(juzLine, CW) as string[];
-    doc.text(juzLines, ML, y + 4);
-    y += juzLines.length * 4 + 4;
-  }
-
-  // ── 3. Datos del Expediente box ──
-  const datos = input.datosExpediente;
-  // Calculate box height dynamically
-  let boxContentH = 8; // base padding
-  const caratulaText = sanitizeForPdf(datos?.caratula || input.title || 'Sin caratula');
-  doc.setFontSize(8);
-  const caratulaLines = doc.splitTextToSize(caratulaText, CW - 30) as string[];
-  boxContentH += caratulaLines.length * 3.5 + 2;
-
-  // Metadata items
-  const metaItemsStr: string[] = [];
-  if (datos?.fechaInicio) metaItemsStr.push(`Inicio: ${sanitizeForPdf(datos.fechaInicio)}`);
-  if (datos?.estado) metaItemsStr.push(`Estado: ${sanitizeForPdf(datos.estado)}`);
-  if (datos?.nroReceptoria) metaItemsStr.push(`Receptoria: ${sanitizeForPdf(datos.nroReceptoria)}`);
-  if (datos?.nroExpediente) metaItemsStr.push(`Expediente: ${sanitizeForPdf(datos.nroExpediente)}`);
-  if (metaItemsStr.length > 0) boxContentH += 8;
-
-  const boxH = Math.max(28, boxContentH + 10);
-  y = ensureSpace(boxH, y);
-  doc.setFillColor(...headerBg);
-  doc.roundedRect(ML, y, CW, boxH, 2, 2, 'F');
-
-  // Case number
-  doc.setTextColor(...primary);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text(input.caseNumber, ML + 4, y + 7);
-
-  // Caratula
-  doc.setTextColor(...dark);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Caratula:', ML + 4, y + 13);
-  doc.setFont('helvetica', 'normal');
-  doc.text(caratulaLines, ML + 22, y + 13);
-
-  // Metadata row
-  const metaRowY = y + 13 + caratulaLines.length * 3.5 + 3;
-  if (metaItemsStr.length > 0) {
-    doc.setFontSize(7.5);
-    doc.setTextColor(...gray);
-    const metaLine = metaItemsStr.join('  |  ');
-    const metaLines = doc.splitTextToSize(metaLine, CW - 8) as string[];
-    doc.text(metaLines, ML + 4, metaRowY);
-  }
-
-  y += boxH + 3;
-
-  // ── 4. Paso procesal info ──
-  const paso = input.pasoProcesal;
-  if (paso && paso.tramite) {
-    y = ensureSpace(12, y);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...dark);
-    doc.text('Paso procesal:', ML, y + 4);
-    doc.setFont('helvetica', 'normal');
-
-    let pasoText = '';
-    if (paso.fecha) pasoText += `Fecha: ${paso.fecha}`;
-    pasoText += ` — Tramite: ${sanitizeForPdf(paso.tramite)}`;
-    if (paso.firmado) pasoText += ' (FIRMADO)';
-    if (paso.fojas) pasoText += ` — Fojas: ${paso.fojas}`;
-
-    const pasoLines = doc.splitTextToSize(pasoText, CW - 30) as string[];
-    doc.text(pasoLines, ML + 30, y + 4);
-    y += pasoLines.length * 3.5 + 4;
-  } else {
-    // Fallback: show basic info
-    y = ensureSpace(8, y);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...dark);
-    doc.text('Desc.:', ML, y + 4);
-    doc.setFont('helvetica', 'normal');
-    const descFallback = doc.splitTextToSize(sanitizeForPdf(input.description), CW - 20) as string[];
-    doc.text(descFallback, ML + 18, y + 4);
-    y += descFallback.length * 3.5 + 2;
-    doc.setFontSize(7.5);
-    doc.setTextColor(...gray);
-    doc.text(`Fojas: ${input.fojas ?? '-'}  |  Juzgado: ${input.court}`, ML, y + 4);
-    y += 6;
-  }
-
-  // ── 5. REFERENCIAS ──
-  const refs = input.referencias;
-  const hasRefContent = refs && (
-    refs.adjuntos.length > 0 ||
-    (refs.rawFields && refs.rawFields.length > 0) ||
-    refs.despacho || refs.observacion || refs.observacionProfesional
-  );
-  if (hasRefContent) {
-    y = ensureSpace(10, y);
-
-    // Section separator
-    doc.setDrawColor(...lightGray);
-    doc.line(ML, y, ML + CW, y);
-    y += 3;
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...dark);
-    doc.text('REFERENCIAS', ML, y + 4);
-    y += 8;
-
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-
-    // Adjuntos with clickable links
-    for (const adj of refs!.adjuntos) {
-      y = ensureSpace(6, y);
-      doc.setTextColor(...primary);
-      const adjLabel = sanitizeForPdf(`${adj.nombre}  VER ADJUNTO`);
-      doc.text(adjLabel, ML + 2, y + 4);
-      const textWidth = doc.getTextWidth(adjLabel);
-      doc.link(ML + 2, y, textWidth, 5, { url: adj.url });
-      y += 6;
-    }
-
-    // Render all fields from rawFields (captures everything in REFERENCIAS)
-    if (refs!.rawFields && refs!.rawFields.length > 0) {
-      for (const field of refs!.rawFields) {
-        y = ensureSpace(8, y);
-        if (field.value) {
-          // Key-value pair
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(...dark);
-          const label = sanitizeForPdf(`${field.label}:`);
-          doc.text(label, ML + 2, y + 4);
-          doc.setFont('helvetica', 'normal');
-          const labelW = Math.min(doc.getTextWidth(label) + 3, 60);
-          const valLines = doc.splitTextToSize(sanitizeForPdf(field.value), CW - labelW - 4) as string[];
-          doc.text(valLines, ML + 2 + labelW, y + 4);
-          y += valLines.length * 3.5 + 3;
-        } else {
-          // Sub-section header (e.g., "NOTIFICACION ELECTRONICA")
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(...gray);
-          doc.text(sanitizeForPdf(field.label), ML + 2, y + 4);
-          y += 6;
-        }
-      }
-    } else {
-      // Fallback: render legacy fields if rawFields is empty
-      if (refs!.despacho) {
-        y = ensureSpace(8, y);
-        doc.setTextColor(...dark);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Despachado en:', ML + 2, y + 4);
-        doc.setFont('helvetica', 'normal');
-        const despLines = doc.splitTextToSize(sanitizeForPdf(refs!.despacho), CW - 30) as string[];
-        doc.text(despLines, ML + 30, y + 4);
-        y += despLines.length * 3.5 + 3;
-      }
-      if (refs!.observacion) {
-        y = ensureSpace(8, y);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Observacion:', ML + 2, y + 4);
-        doc.setFont('helvetica', 'normal');
-        const obsLines = doc.splitTextToSize(sanitizeForPdf(refs!.observacion), CW - 28) as string[];
-        doc.text(obsLines, ML + 28, y + 4);
-        y += obsLines.length * 3.5 + 3;
-      }
-      if (refs!.observacionProfesional) {
-        y = ensureSpace(8, y);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Obs. Profesional:', ML + 2, y + 4);
-        doc.setFont('helvetica', 'normal');
-        const obsPLines = doc.splitTextToSize(sanitizeForPdf(refs!.observacionProfesional), CW - 34) as string[];
-        doc.text(obsPLines, ML + 34, y + 4);
-        y += obsPLines.length * 3.5 + 3;
-      }
-    }
-  }
-
-  // ── 6. DATOS DE PRESENTACIÓN ──
-  const pres = input.datosPresentacion;
-  if (pres) {
-    y = ensureSpace(10, y);
-
-    doc.setDrawColor(...lightGray);
-    doc.line(ML, y, ML + CW, y);
-    y += 3;
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...dark);
-    doc.text('DATOS DE PRESENTACION', ML, y + 4);
-    y += 8;
-
-    doc.setFontSize(8);
-
-    const presFields: Array<[string, string | undefined]> = [
-      ['Fecha del Escrito:', pres.fechaEscrito],
-      ['Firmado por:', pres.firmadoPor],
-      ['Nro. Presentacion Electronica:', pres.nroPresentacionElectronica],
-      ['Presentado por:', pres.presentadoPor],
-    ];
-
-    for (const [label, value] of presFields) {
-      if (!value) continue;
-      y = ensureSpace(6, y);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...dark);
-      doc.text(label, ML + 2, y + 4);
-      doc.setFont('helvetica', 'normal');
-      const labelW = doc.getTextWidth(label) + 3;
-      const valLines = doc.splitTextToSize(sanitizeForPdf(value), CW - labelW - 4) as string[];
-      doc.text(valLines, ML + 2 + labelW, y + 4);
-      y += valLines.length * 3.5 + 2;
-    }
-  }
-
-  // ── 7. "Texto del Proveído" section ──
-  y = ensureSpace(10, y);
-  doc.setDrawColor(...lightGray);
-  doc.line(ML, y, ML + CW, y);
-  y += 3;
-
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...dark);
-  doc.text('Texto del Proveido', ML, y + 4);
-  y += 8;
-
-  // ── 8. Content text ──
-  doc.setTextColor(...dark);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-
-  const sanitizedContent = sanitizeForPdf(input.content);
-  const paragraphs = sanitizedContent.split('\n').filter((l) => l.trim().length > 0);
-
-  // Render line by line: a paragraph taller than one page would otherwise be
-  // drawn past the bottom margin and silently lost.
-  for (const para of paragraphs) {
-    const lines = doc.splitTextToSize(para.trim(), CW) as string[];
-    for (const line of lines) {
-      y = ensureSpace(4, y);
-      doc.text(line, ML, y);
-      y += 4;
-    }
-    y += 2;
-  }
-
-  // ── 9. Source URL footer note ──
-  y = ensureSpace(10, y);
-  y += 4;
-  doc.setFontSize(6.5);
-  doc.setTextColor(...gray);
-  const urlLines = doc.splitTextToSize(`Fuente: ${input.sourceUrl}`, CW) as string[];
-  doc.text(urlLines, ML, y);
-
-  // ── 10. Page numbers ──
-  const pageCount = doc.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(6.5);
-    doc.setTextColor(...gray);
-    doc.text(
-      `${input.caseNumber} — ${input.fojas ? 'fs ' + input.fojas : convertToIsoDate(input.date)} — Pag. ${i}/${pageCount}`,
-      210 - MR,
-      PH - 5,
-      { align: 'right' }
-    );
-  }
-
-  return doc.output('blob');
-}
-
 // ── Helpers ──────────────────────────────────────────────
-
-/** Sanitize text for jsPDF's built-in helvetica font (WinAnsiEncoding) */
-function sanitizeForPdf(text: string): string {
-  return text
-    .replace(/\u00ba/g, '\u00b0')    // º (ordinal) -> ° (degree, better font support)
-    .replace(/\u00aa/g, 'a.')        // ª -> a.
-    .replace(/[\u2018\u2019]/g, "'") // smart quotes -> straight
-    .replace(/[\u201c\u201d]/g, '"')
-    .replace(/\u2013/g, '-')        // en-dash
-    .replace(/\u2014/g, '--')       // em-dash
-    .replace(/\u2026/g, '...');     // ellipsis
-}
 
 function buildFilename(date: string, description: string, fojas?: string): string {
   const isoDate = convertToIsoDate(date);
@@ -823,15 +447,6 @@ function buildFilename(date: string, description: string, fojas?: string): strin
     return `fs-${safeFojas}_${isoDate}_${safeDesc}`;
   }
   return `${isoDate}_${safeDesc}`;
-}
-
-/** Convert dd/mm/yyyy or dd-mm-yyyy to yyyy-mm-dd (ISO) for correct alphabetical sorting */
-function convertToIsoDate(dateStr: string): string {
-  const parts = dateStr.split(/[\/\-]/);
-  if (parts.length === 3 && parts[0].length <= 2) {
-    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-  }
-  return dateStr.replace(/\//g, '-');
 }
 
 function toAbsoluteUrl(url: string): string {

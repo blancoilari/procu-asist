@@ -272,7 +272,13 @@ async function handleMessage(
         );
 
         if (!result.success || !result.blob) {
-          return { success: false, error: result.error ?? 'Error al generar la descarga' };
+          return {
+            success: false,
+            error: result.error ?? 'Error al generar la descarga',
+            // La pantalla de verificación de la MEV no es un error más: la
+            // UI la explica aparte y no ofrece reintento automático.
+            challenge: result.challenge === true,
+          };
         }
 
         // Convert Blob to base64 data URI for chrome.downloads

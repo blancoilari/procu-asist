@@ -2,6 +2,29 @@
 
 Todos los cambios notables del proyecto se documentan en este archivo.
 
+## [Sin version] - 2026-09-09
+
+Dos cambios sobre la descarga de expedientes: cortar cuando la MEV interpone su pantalla de verificacion, y sacarle la marca al PDF que baja el usuario.
+
+### La descarga se detiene si la MEV pide verificacion
+
+- Sintoma: el expediente baja y el PDF sale sin los despachos. Hipotesis (leyendo el codigo, sin poder probar contra el portal): la pantalla intermedia "Validando acceso" se sirve con HTTP 200, asi que `fetchMevPageContent` la toma por buena (`resp.ok` da true), el parser no encuentra ningun campo y el documento se arma vacio. El punto exacto es `modules/pdf/attachment-downloader.ts`: el `fetch(pageUrl, { credentials: 'include' })` que corre en el mundo MAIN de la pestaña de la MEV.
+- Nuevo `modules/portals/mev-challenge.ts`: modulo puro (sin chrome.*, sin DOM) que juzga una respuesta a partir de una sonda (largo del HTML, muestra acotada del texto visible y presencia de las marcas estructurales de un proveido). Deteccion angosta y con red de seguridad: una pagina con estructura de proveido nunca se marca, aunque su texto contenga alguna de las frases buscadas.
+- `fetchMevPageContent` devuelve `challenge: true` cuando la respuesta no es el proveido, y `generateCaseZip` aborta la descarga entera sin dejar archivo. Un documento incompleto con apariencia de completo es peor que un error.
+- La descarga de adjuntos corta igual cuando la respuesta es HTML con la frase de verificacion, y no gasta los tres reintentos contra un portal que ya esta filtrando.
+- El escaneo del monitoreo (`case-monitor.ts`) deja de leer una pantalla de verificacion como "causa sin novedades": si no se parseo ningun movimiento y el HTML trae la frase, avisa por notificacion (como maximo una vez por hora) y cuenta el escaneo como error.
+- En la MEV, la pantalla muestra un aviso explicando que hay que resolver la verificacion en la pestaña y volver a intentar.
+- Tests: `npm test` (runner de node, sin dependencias nuevas), `tests/mev-challenge.test.ts`. Los HTML de muestra son inventados.
+- Lo que queda sin verificar (no hay sesion ni forma de probarlo sin el portal): si el HTML servido contiene los mismos textos que se ven en pantalla, si la pantalla aparece siempre o por rafagas, y si resolver la verificacion deja una cookie que sirva para los `fetch` de la extension. El camino de salida (navegar la pestaña y leer el DOM en vez de hacer `fetch`) queda diseñado y escrito en el README, sin implementar.
+
+### El PDF descargado sale sin marca
+
+- Se van la barra azul con "ProcuAsist", la insignia de portal, el color corporativo y el pie con el nombre de la extension, en los tres documentos que genera la descarga: resumen del expediente, PDF por paso procesal e informe de verificacion. Tambien en el resumen de PJN.
+- Queda contenido y nada mas, en negro sobre blanco, con grises solo para separar jerarquias: numero de expediente, caratula, juzgado, fechas, estado, receptoria, portal como dato, movimientos, referencias, datos de presentacion y texto del proveido. No hay opcion de configuracion: es el unico formato.
+- El generador del PDF de paso procesal salio de `case-zip-generator.ts` a `modules/pdf/proveido-pdf-generator.ts` (mudanza, sin cambios de logica mas alla del diseño): al no depender de chrome.* ni del DOM, el documento se puede generar y mirar fuera del navegador.
+- Dos correcciones de legibilidad que aparecieron al revisar el resultado: el ancho de las etiquetas en negrita se media con la fuente ya cambiada a normal, asi que el valor quedaba pegado a los dos puntos; y el titulo de "Documentos del expediente" podia quedar solo al pie de una hoja con la lista empezando en la siguiente.
+- El panel de la extension no se toca: el cambio es solo sobre el PDF que se descarga.
+
 ## [Sin version] - Mantenimiento 2026-09-08
 
 Limpieza de auditoria, sin cambios de producto.

@@ -18,6 +18,7 @@
 
 import type { Monitor } from '@/modules/portals/types';
 import { MEV_BASE_URL, MEV_URLS } from '@/modules/portals/mev-selectors';
+import { htmlLooksLikeChallenge } from '@/modules/portals/mev-challenge';
 import { getEvents, type PjnEvent } from '@/modules/portals/pjn-api-client';
 import {
   getActiveMonitors,
@@ -598,6 +599,18 @@ async function scanSingleCase(
     throw new Error('session_expired');
   }
 
+  // La pantalla de verificación de la MEV también llega con HTTP 200 y sin
+  // tabla de movimientos. Sin este corte, un escaneo bloqueado se lee igual
+  // que una causa sin novedades. Solo se evalúa cuando no se parseó ningún
+  // movimiento: una página con movimientos es una página legítima.
+  if (result.movements.length === 0 && htmlLooksLikeChallenge(html)) {
+    console.warn(
+      `[ProcuAsist] La MEV pidió verificación durante el escaneo de ${monitor.caseNumber}`
+    );
+    await notifyMevChallenge();
+    throw new Error('mev_challenge');
+  }
+
   return persistScanMovements(monitor, result.movements, fromDate);
 }
 
@@ -792,6 +805,30 @@ async function sendMovementNotification(
     title,
     message,
     priority: 2,
+  });
+}
+
+/**
+ * Aviso de que la MEV interpuso su pantalla de verificación durante el
+ * escaneo. Se avisa como máximo una vez por hora, igual que la falta de
+ * sesión: el escaneo recorre muchas causas y todas verían lo mismo.
+ */
+async function notifyMevChallenge() {
+  const key = 'lastMevChallengeNotify';
+  const stored = await chrome.storage.session.get(key);
+  const last = stored[key] as number | undefined;
+  if (last && Date.now() - last < 3600_000) return;
+
+  await chrome.storage.session.set({ [key]: Date.now() });
+
+  await chrome.notifications.create('monitor-mev-challenge', {
+    type: 'basic',
+    iconUrl: chrome.runtime.getURL('icon/128.png'),
+    title: 'ProcuAsist: la MEV pidió verificación',
+    message:
+      'La MEV respondió con su pantalla de verificación. Abrí la MEV en una pestaña, ' +
+      'resolvé la verificación y el monitoreo sigue en el próximo escaneo.',
+    priority: 1,
   });
 }
 
