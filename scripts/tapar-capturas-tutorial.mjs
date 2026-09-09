@@ -56,6 +56,10 @@ const MANIFIESTO = [
     rects: [
       { x: 383, y: 422, w: 98, h: 18, motivo: 'numero de cedula electronica (fila 31/03)' },
       { x: 383, y: 710, w: 98, h: 18, motivo: 'numero de cedula electronica (fila 09/03)' },
+      { x: 318, y: 522, w: 332, h: 20, motivo: 'juzgado y secretaria de la causa mostrada (fila RECEPCION PASE 26/03)' },
+      { x: 318, y: 552, w: 332, h: 20, motivo: 'juzgado y secretaria de la causa mostrada (fila PASE 19/03)' },
+      { x: 318, y: 612, w: 410, h: 20, motivo: 'camara y oficina de origen de la causa mostrada (fila RECEPCION PASE 19/03)' },
+      { x: 318, y: 642, w: 410, h: 20, motivo: 'camara y oficina de origen de la causa mostrada (fila PASE 17/03)' },
     ],
   },
 ];
@@ -74,9 +78,16 @@ const PATRONES = [
   { nombre: 'etiqueta de receptoria con valor', re: /Receptor[ií]a\s*:?\s*[A-Z0-9]/gi },
 ];
 
-/** Numeros largos que si pueden aparecer: son parte del texto de la interfaz
- *  o de una norma citada por el portal, no identifican una causa. */
-const PERMITIDOS = [/^25344$/, /^256$/];
+/**
+ * Escotilla para textos que coinciden con un patron y que igual pueden quedar:
+ * numeros de norma citados por el portal, numeros de version, etc. Hoy esta
+ * vacia a proposito. Ojo al agregar: se compara contra la coincidencia
+ * completa del patron, no contra una subcadena, asi que un numero de ley de
+ * cinco digitos ("LEY 25344") no necesita entrada porque ningun patron lo
+ * atrapa. Una entrada que no puede coincidir con ningun patron es ruido y
+ * hace creer que hay una excepcion viva donde no la hay.
+ */
+const PERMITIDOS = [];
 
 /**
  * OCR de una imagen. Se duplica la escala antes de pasarla a tesseract: a
@@ -176,7 +187,10 @@ const comando = argv[2];
 if (comando === 'tapar') {
   await tapar(argv.includes('--dry-run'));
 } else if (comando === 'verificar') {
-  await verificar();
+  // Sale con codigo 1 si encontro algo: si no, un hook o una tarea que llame a
+  // este comando ve verde con las coincidencias impresas en pantalla.
+  const hallazgos = await verificar();
+  if (hallazgos) exit(1);
 } else {
   console.error(
     'Uso: node scripts/tapar-capturas-tutorial.mjs <tapar|verificar> [--dry-run]'

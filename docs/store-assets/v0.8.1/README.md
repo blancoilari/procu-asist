@@ -87,7 +87,8 @@ completo del titular de la matricula.
 Se revisaron una por una el 09/09/2026 y se taparon con rectangulo opaco los
 datos identificables que quedaban: numero de receptoria, numero de expediente,
 juzgado y departamento judicial en `07-guardar-causa.png`, y dos numeros de
-cedula electronica en `11-modal-zip-pjn.png`. La regla, el detalle por captura
+cedula electronica mas cuatro filas de pase con el juzgado, la secretaria y la
+camara de origen en `11-modal-zip-pjn.png`. La regla, el detalle por captura
 y la herramienta (`scripts/tapar-capturas-tutorial.mjs`) estan en
 `docs/tutorial/README.md`. Tapadas no dejan de ser capturas de causas reales:
 si en algun momento hay que rehacerlas, se rehacen con esta maqueta. Dos de
