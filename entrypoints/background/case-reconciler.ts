@@ -4,9 +4,10 @@
  * marcador. Corre al iniciar el service worker; es idempotente y barato.
  *
  * Excepciones:
- *  - MEV sin nidCausa/pidJuzgado: no se puede escanear — queda guardada
- *    como causa "sin escaneo" hasta que el usuario la abra en MEV.
- *  - eje (oculto de la UI): no se monitorea.
+ *  - MEV sin nidCausa/pidJuzgado: no se puede escanear (queda guardada
+ *    como causa "sin escaneo" hasta que el usuario la abra en MEV).
+ *  - Portales retirados: una causa guardada con un portal que la version
+ *    actual ya no soporta no se monitorea.
  */
 
 import {
@@ -15,7 +16,19 @@ import {
   getCaseNid,
 } from '@/modules/storage/bookmark-store';
 import { getMonitors, addMonitor } from '@/modules/storage/monitor-store';
-import type { Bookmark } from '@/modules/portals/types';
+import type { Bookmark, PortalId } from '@/modules/portals/types';
+
+/**
+ * Portales que esta version sabe escanear. El storage del usuario puede traer
+ * causas guardadas con portales retirados (EJE/JusCABA salio en la 0.8.1):
+ * esas causas siguen listandose, pero no se les crea monitor, porque el
+ * escaneo no tiene camino para ellas y quedarian contadas como escaneadas.
+ */
+const SCANNABLE_PORTALS: readonly PortalId[] = ['mev', 'pjn'];
+
+function isScannablePortal(portal: string): portal is PortalId {
+  return (SCANNABLE_PORTALS as readonly string[]).includes(portal);
+}
 
 function caseKey(portal: string, caseNumber: string): string {
   return `${portal}:${caseNumber.replace(/\s+/g, '').toUpperCase()}`;
@@ -92,7 +105,7 @@ export async function reconcileBookmarksAndMonitors(): Promise<void> {
     // Cada marcador escaneable → monitor.
     for (const b of bookmarks) {
       if (monitorKeys.has(caseKey(b.portal, b.caseNumber))) continue;
-      if (b.portal === 'eje') continue;
+      if (!isScannablePortal(b.portal)) continue;
       if (
         b.portal === 'mev' &&
         !(b.metadata?.nidCausa && b.metadata?.pidJuzgado)

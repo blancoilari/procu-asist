@@ -21,7 +21,6 @@ export default defineConfig({
     host_permissions: [
       'https://mev.scba.gov.ar/*',
       'https://docs.scba.gov.ar/*',
-      'https://eje.jus.gov.ar/*',
       'https://sso.pjn.gov.ar/*',
       'https://portalpjn.pjn.gov.ar/*',
       'https://api.pjn.gov.ar/*',
@@ -34,10 +33,7 @@ export default defineConfig({
     web_accessible_resources: [
       {
         resources: ['assets/*'],
-        matches: [
-          'https://mev.scba.gov.ar/*',
-          'https://eje.jus.gov.ar/*',
-        ],
+        matches: ['https://mev.scba.gov.ar/*'],
       },
     ],
   },

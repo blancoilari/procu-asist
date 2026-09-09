@@ -8,13 +8,11 @@ import type { PortalId } from '@/modules/portals/types';
 
 const PORTAL_TAB_PATTERNS: Record<PortalId, string> = {
   mev: 'https://mev.scba.gov.ar/*',
-  eje: 'https://eje.jus.gov.ar/*',
   pjn: 'https://scw.pjn.gov.ar/*',
 };
 
 const PORTAL_HEARTBEAT_URLS: Record<PortalId, string> = {
   mev: 'https://mev.scba.gov.ar/busqueda.asp',
-  eje: 'https://eje.jus.gov.ar/iol-api/session',
   pjn: 'https://scw.pjn.gov.ar/scw/homePrivado.seam',
 };
 
@@ -24,7 +22,6 @@ export async function keepAlive(portal: PortalId): Promise<void> {
   const settings = stored.tl_settings as Record<string, unknown> | undefined;
 
   if (portal === 'mev' && settings?.keepAliveMev === false) return;
-  if (portal === 'eje' && settings?.keepAliveEje === false) return;
   if (portal === 'pjn' && settings?.keepAlivePjn === false) return;
 
   // Find open tabs matching the portal

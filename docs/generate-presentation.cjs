@@ -187,8 +187,7 @@ async function buildPresentation() {
 
   const portals = [
     { name: "MEV", full: "Mesa de Entradas Virtual", org: "Suprema Corte de Buenos Aires", url: "mev.scba.gov.ar", features: "Auto-login, extraccion de causas, monitoreo de movimientos, generacion de PDF, descarga de adjuntos, seleccion de departamento judicial" },
-    { name: "PJN", full: "Poder Judicial de la Nacion", org: "Justicia Nacional y Federal", url: "eje.jus.gov.ar", features: "Auto-login, extraccion de causas, monitoreo de movimientos, keep-alive de sesion" },
-    { name: "SCBA Notif.", full: "SCBA Notificaciones", org: "Suprema Corte de Buenos Aires", url: "notificaciones.scba.gov.ar", features: "Importacion de notificaciones al panel lateral, acceso rapido desde marcadores" },
+    { name: "PJN", full: "Poder Judicial de la Nacion", org: "Justicia Nacional y Federal", url: "scw.pjn.gov.ar", features: "Auto-login SSO, extraccion de causas, monitoreo de movimientos, descarga del expediente en ZIP, keep-alive de sesion" },
   ];
 
   portals.forEach((p, i) => {

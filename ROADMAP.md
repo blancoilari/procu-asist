@@ -7,7 +7,7 @@ Este roadmap marca prioridades, no promesas cerradas. El orden puede cambiar seg
 ## Version actual
 
 - Publicada en Chrome Web Store: **v0.8.0** (publicada; confirmado por Patricio el 2026-07-19).
-- En este repositorio: **v0.8.0** (misma version).
+- En este repositorio: **v0.8.1** (armada, pendiente de subir a la Store).
 - Ideas para la proxima version: Patricio las anota en `D:\OneDrive\Escritorio\Mejorar ProcuAsist.docx`.
 
 Lo que ya existe:
@@ -16,9 +16,14 @@ Lo que ya existe:
 - **MEV sets de busqueda**: importacion masiva desde resultados y sets del portal MEV.
 - **PJN**: auto-login SSO, lectura de listados y favoritos, descarga ZIP de expedientes desde SCW.
 - **PJN monitoreo inicial**: importacion de listados SCW, paso a monitoreo y escaneo por feed o listado abierto.
-- **JUSCABA / EJE**: auto-login y extraccion basica de causas.
 - **Credenciales locales**: cifrado AES-GCM con clave de dispositivo automatica (sin PIN desde la 0.8.0).
 - **Modelo local-first**: los datos se guardan en el navegador; no hay backend obligatorio.
+
+Preparado en la v0.8.1 (sin publicar):
+
+- **Sin JusCABA/EJE**: se retiro el soporte del portal EJE. Salieron el permiso de host `https://eje.jus.gov.ar/*`, el content script, los parsers y selectores, el keep-alive, el color y la etiqueta de portal. El auto-login SSO contra Keycloak, que compartia archivo con EJE, quedo en `entrypoints/sso.content.ts` y sigue sirviendo a PJN.
+- **Credenciales de portales retirados**: al arrancar, la extension borra las credenciales guardadas de EJE (`tl_cred_eje`), que ya no pueden usarse, y la alarma de keep-alive de ese portal.
+- **Dependencias de desarrollo al dia**: `npm audit` de 18 vulnerabilidades (3 criticas) a 0, sin cambios en lo que se instala en el navegador.
 
 Publicado en la v0.8.0 (Store, confirmado el 19/07/2026):
 
@@ -82,7 +87,7 @@ ProcuEstudio sera una app web nueva y separada de la extension gratis.
 Idea central:
 
 - no pedirle al abogado que cargue todo de cero
-- usar ProcuAsist como conector judicial con MEV, PJN y EJE
+- usar ProcuAsist como conector judicial con MEV y PJN
 - importar causas, movimientos, documentos y datos detectables desde los portales
 - dejar los datos dudosos como sugerencias para confirmar
 - convertir cada causa en un expediente vivo del estudio

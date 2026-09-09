@@ -26,8 +26,12 @@ web-ext.config.ts
 # Supabase CLI temp
 supabase/.temp/
 
-# Local Chrome Web Store screenshots (may contain case data)
-docs/store-assets/
+# Capturas locales de la ficha de Chrome Web Store: las tomadas contra los
+# portales reales no van al repo (tienen datos de causas). Las maquetas
+# sinteticas, que por regla no llevan ningun dato real, si van.
+docs/store-assets/*
+!docs/store-assets/v0.7.0/
+!docs/store-assets/v0.8.1/
 
 # Editor directories and files
 .vscode/*

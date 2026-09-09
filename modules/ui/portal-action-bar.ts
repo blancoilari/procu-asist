@@ -2,7 +2,7 @@
  * Shared floating action bar for UI injected into judicial portals.
  *
  * Content scripts run outside React, so this module keeps the DOM API small and
- * predictable while making MEV/PJN/EJE actions look and behave consistently.
+ * predictable while making MEV/PJN actions look and behave consistently.
  */
 
 import { ICON_SETTINGS, iconLabel } from './icon-strings';

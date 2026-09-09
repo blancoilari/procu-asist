@@ -10,11 +10,13 @@ import { checkDeadlines } from './deadline-watcher';
 
 export const ALARMS = {
   KEEPALIVE_MEV: 'tl-keepalive-mev',
-  KEEPALIVE_EJE: 'tl-keepalive-eje',
   KEEPALIVE_PJN: 'tl-keepalive-pjn',
   MONITOR_SCAN: 'tl-monitor-scan',
   DEADLINE_CHECK: 'tl-deadline-check',
 } as const;
+
+/** Alarma del portal EJE/JusCABA retirado en 0.8.1; solo se borra. */
+const LEGACY_EJE_KEEPALIVE_ALARM = 'tl-keepalive-eje';
 
 export function setupAlarms() {
   // Register alarms on install and startup
@@ -29,7 +31,6 @@ async function createAlarms() {
   // Keep-alive heartbeats every 4 minutes (MEV timeout is ~20 min).
   // Re-creating these resets their timer, which is harmless at 4 min.
   chrome.alarms.create(ALARMS.KEEPALIVE_MEV, { periodInMinutes: 4 });
-  chrome.alarms.create(ALARMS.KEEPALIVE_EJE, { periodInMinutes: 4 });
   chrome.alarms.create(ALARMS.KEEPALIVE_PJN, { periodInMinutes: 4 });
 
   // Case monitoring scan every 6 hours. chrome.alarms.create() with an
@@ -54,6 +55,11 @@ async function createAlarms() {
     });
   }
 
+  // Instalaciones anteriores a la 0.8.1 tienen registrada la alarma del
+  // portal EJE/JusCABA, retirado en esa version. Sin case en handleAlarm no
+  // hace nada, pero despierta el service worker cada 4 minutos: se borra.
+  await chrome.alarms.clear(LEGACY_EJE_KEEPALIVE_ALARM);
+
   console.debug('[ProcuAsist] Alarms registered');
 }
 
@@ -62,9 +68,6 @@ async function handleAlarm(alarm: chrome.alarms.Alarm) {
     switch (alarm.name) {
       case ALARMS.KEEPALIVE_MEV:
         await keepAlive('mev');
-        break;
-      case ALARMS.KEEPALIVE_EJE:
-        await keepAlive('eje');
         break;
       case ALARMS.KEEPALIVE_PJN:
         await keepAlive('pjn');
