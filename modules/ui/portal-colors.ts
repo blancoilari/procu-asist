@@ -32,14 +32,6 @@ export const PORTAL_COLORS: Record<PortalId, PortalColor> = {
     bgDark: '#1e3a8a',
     textDark: '#bfdbfe',
   },
-  eje: {
-    primary: '#0891b2',
-    hover: '#0e7490',
-    bgSoft: '#cffafe',
-    textSoft: '#155e75',
-    bgDark: '#155e75',
-    textDark: '#a5f3fc',
-  },
   pjn: {
     primary: '#991b1b',
     hover: '#7f1d1d',

@@ -5,7 +5,7 @@ Documentacion tecnica para contribuidores y mantenimiento futuro.
 ## Arquitectura General
 
 ```
-Content Scripts (MEV, JUSCABA)
+Content Scripts (MEV, PJN, SSO PJN)
         |
         | chrome.runtime.sendMessage()
         v
@@ -84,7 +84,6 @@ Claves en `chrome.storage.local`:
 | `tl_persisted_key` | `JsonWebKey` | Clave de dispositivo AES-GCM (auto-generada) |
 | `tl_cred_mev` | `EncryptedCredential` | Credenciales MEV encriptadas |
 | `tl_cred_pjn` | `EncryptedCredential` | Credenciales PJN encriptadas |
-| `tl_cred_eje` | `EncryptedCredential` | Credenciales JUSCABA encriptadas |
 | `tl_onboarding_done` | `boolean` | Si el usuario completo el onboarding |
 
 ## Como agregar soporte para un nuevo portal

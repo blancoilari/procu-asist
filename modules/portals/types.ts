@@ -1,5 +1,5 @@
 /** Supported judicial portal identifiers */
-export type PortalId = 'mev' | 'eje' | 'pjn';
+export type PortalId = 'mev' | 'pjn';
 
 /** A judicial case (expediente) */
 export interface Case {

@@ -4,6 +4,7 @@ import { setupPjnTokenCapture } from './background/pjn-token-capture';
 import { installPjnDebugHelpers } from './background/pjn-debug-helpers';
 import { reconcileBookmarksAndMonitors } from './background/case-reconciler';
 import { ensureKey, cleanupLegacyVault } from '@/modules/crypto/key-manager';
+import { cleanupRetiredPortalCredentials } from '@/modules/storage/credential-store';
 
 export default defineBackground(() => {
   console.debug('[ProcuAsist] Background service worker started');
@@ -12,6 +13,10 @@ export default defineBackground(() => {
   // PIN-vault material from pre-0.8.0 installs.
   void ensureKey();
   void cleanupLegacyVault();
+
+  // Portales retirados (EJE/JusCABA desde la 0.8.1): borra sus credenciales
+  // guardadas, que ya no pueden usarse.
+  void cleanupRetiredPortalCredentials();
 
   // Marcador = monitoreo: converge los stores (idempotente).
   void reconcileBookmarksAndMonitors();

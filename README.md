@@ -1,10 +1,10 @@
 # ProcuAsist - Copiloto Legal
 
-Extensión Chrome para abogados argentinos que automatiza la interacción con portales judiciales de la Provincia de Buenos Aires, CABA y Poder Judicial de la Nación.
+Extensión Chrome para abogados argentinos que automatiza la interacción con portales judiciales de la Provincia de Buenos Aires y del Poder Judicial de la Nación.
 
 > **Hecho por un abogado de la matrícula, para colegas. Es gratuito y sin fines de lucro.**
 
-**Versiones:** la versión publicada en Chrome Web Store es la **v0.8.0** (publicada; confirmado el 2026-07-19). Este repositorio está en la **v0.8.0** (misma versión).
+**Versiones:** la versión publicada en Chrome Web Store es la **v0.8.0** (publicada; confirmado el 2026-07-19). Este repositorio está en la **v0.8.1** (pendiente de publicar).
 
 ---
 
@@ -34,7 +34,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 
 ## Funcionalidades
 
-- **Auto-login** en portales judiciales (MEV/SCBA y PJN con SSO Keycloak compartido)
+- **Auto-login** en portales judiciales (MEV/SCBA y PJN, este último con SSO Keycloak)
 - **Keep-alive** de sesión para evitar desconexiones por inactividad
 - **Auto-reconexión** automática cuando la sesión expira
 - **Marcadores de causas** con búsqueda rápida y organización
@@ -110,7 +110,7 @@ procu-asist/
 │   │   ├── keep-alive.ts        # Mantener sesiones activas
 │   │   └── message-router.ts    # Router de mensajes IPC
 │   ├── mev.content.ts           # Content script para MEV
-│   ├── eje.content.ts           # Content script para JUSCABA
+│   ├── sso.content.ts           # Content script para el SSO Keycloak del PJN
 │   ├── scba-notif.content.ts    # Content script para notificaciones SCBA
 │   ├── sidepanel/               # Panel lateral (dashboard principal)
 │   ├── popup/                   # Popup de la extensión

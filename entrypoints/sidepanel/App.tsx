@@ -226,7 +226,6 @@ function ConnectionBadge() {
 
 const PORTAL_LABELS: Record<PortalId, string> = {
   mev: 'MEV',
-  eje: 'JUSCABA',
   pjn: 'PJN',
 };
 
@@ -234,21 +233,34 @@ const PORTAL_FILTER_LABELS: Record<PortalFilter, string> = {
   all: 'Todos',
   mev: 'MEV',
   pjn: 'PJN',
-  eje: 'EJE',
 };
 
 const PORTAL_BADGE_CLASS: Record<PortalId, string> = {
   mev: 'bg-blue-100 text-blue-900 dark:bg-blue-900 dark:text-blue-200',
-  eje: 'bg-cyan-100 text-cyan-900 dark:bg-cyan-900 dark:text-cyan-200',
   pjn: 'bg-red-100 text-red-900 dark:bg-red-900 dark:text-red-200',
 };
+
+/** Estilo neutro para causas guardadas con un portal que ya no se soporta. */
+const PORTAL_BADGE_FALLBACK =
+  'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
+
+/**
+ * Etiqueta del portal. Tolera datos guardados con portales retirados (el
+ * EJE/JusCABA salio en la 0.8.1): esas causas siguen listandose con su sigla
+ * en crudo en vez de romper la tarjeta.
+ */
+function portalLabel(portal: PortalId): string {
+  return PORTAL_LABELS[portal] ?? String(portal).toUpperCase();
+}
 
 function PortalBadge({ portal }: { portal: PortalId }) {
   return (
     <span
-      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${PORTAL_BADGE_CLASS[portal]}`}
+      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+        PORTAL_BADGE_CLASS[portal] ?? PORTAL_BADGE_FALLBACK
+      }`}
     >
-      {PORTAL_LABELS[portal]}
+      {portalLabel(portal)}
     </span>
   );
 }
@@ -1075,7 +1087,7 @@ function CaseCard({
       <button
         onClick={() => onOpen(entry)}
         className="w-full text-left"
-        title={`Abrir en ${entry.portal === 'eje' ? 'JUSCABA' : entry.portal.toUpperCase()}`}
+        title={`Abrir en ${portalLabel(entry.portal)}`}
       >
         {/* Top row */}
         <div className="mb-1 flex items-center gap-2">

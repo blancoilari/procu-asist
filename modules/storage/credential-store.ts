@@ -97,3 +97,27 @@ export async function hasCredentials(portal: PortalId): Promise<boolean> {
 export async function deleteCredentials(portal: PortalId): Promise<void> {
   await chrome.storage.local.remove(`${STORAGE_PREFIX}${portal}`);
 }
+
+/**
+ * Portales retirados: sus credenciales guardadas quedan sin uso posible y no
+ * hay motivo para conservar una contraseña cifrada de un portal que la
+ * extensión ya no visita. Se borran una sola vez, al arrancar.
+ *
+ * 0.8.1: EJE/JusCABA (`tl_cred_eje`).
+ */
+const RETIRED_PORTAL_CREDENTIAL_KEYS = [`${STORAGE_PREFIX}eje`];
+
+export async function cleanupRetiredPortalCredentials(): Promise<void> {
+  try {
+    const stored = await chrome.storage.local.get(RETIRED_PORTAL_CREDENTIAL_KEYS);
+    const present = RETIRED_PORTAL_CREDENTIAL_KEYS.filter((k) => stored[k]);
+    if (present.length === 0) return;
+    await chrome.storage.local.remove(present);
+    console.debug(
+      '[ProcuAsist] Credenciales de portales retirados borradas:',
+      present.join(', ')
+    );
+  } catch (err) {
+    console.warn('[ProcuAsist] No se pudieron borrar credenciales retiradas:', err);
+  }
+}

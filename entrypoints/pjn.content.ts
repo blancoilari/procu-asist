@@ -8,8 +8,7 @@
  *     generales + estado de las cuatro pestañas. Acumula datos a medida que
  *     el usuario cambia de tab (parse-on-visit).
  *
- * El auto-login contra Keycloak vive en eje.content.ts (compartido vía
- * detectPortalFromKeycloakUrl). Sin UI de descarga todavía — eso llega en M5-M8.
+ * El auto-login contra Keycloak vive en sso.content.ts.
  */
 
 import {

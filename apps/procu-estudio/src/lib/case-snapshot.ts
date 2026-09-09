@@ -1,4 +1,4 @@
-export type CaseSnapshotPortal = "mev" | "pjn" | "eje";
+export type CaseSnapshotPortal = "mev" | "pjn";
 
 export type CaseSnapshot = {
   schemaVersion: "case-snapshot.v1";
@@ -224,7 +224,7 @@ function isIsoDateLike(input: unknown): input is string {
 }
 
 function isSupportedPortal(input: unknown): input is CaseSnapshotPortal {
-  return input === "mev" || input === "pjn" || input === "eje";
+  return input === "mev" || input === "pjn";
 }
 
 function slugify(input: string) {

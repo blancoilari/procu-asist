@@ -11,6 +11,20 @@
 
 export const PJN_SCW_BASE_URL = 'https://scw.pjn.gov.ar';
 
+/**
+ * SSO Keycloak del PJN. El auto-login del content script `sso.content.ts`
+ * usa estos selectores; el theme del PJN puede variar, por eso el envío del
+ * formulario prueba en cascada.
+ */
+export const PJN_SSO = {
+  base: 'https://sso.pjn.gov.ar',
+  realm: 'pjn',
+  loginFormId: '#kc-form-login',
+  usernameField: '#username',
+  passwordField: '#password',
+  submitButton: '#kc-login',
+} as const;
+
 export const PJN_SCW_PATHS = {
   home: '/scw/homePrivado.seam',
   relacionados: '/scw/consultaListaRelacionados.seam',

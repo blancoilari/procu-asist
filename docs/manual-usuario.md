@@ -133,7 +133,7 @@ En la parte superior del panel lateral hay un buscador que filtra por **número 
 
 Cada causa guardada se muestra en una tarjeta con:
 
-- El **portal** de origen (MEV, PJN o EJE), el número de expediente y la carátula.
+- El **portal** de origen (MEV o PJN), el número de expediente y la carátula.
 - Un badge **"Avisos pausados"** si pusiste el monitoreo en pausa para esa causa.
 - Un badge **"Sin escaneo"** en algunos casos de MEV: pasa cuando la causa se guardó sin los identificadores internos que el escaneo automático necesita para funcionar. Se soluciona abriendo la causa una vez más directamente en MEV.
 - Un badge rojo **"NOVEDAD"** cuando hay alertas nuevas sin leer para esa causa.
@@ -385,7 +385,7 @@ Por el momento, solo está pensada y probada para Google Chrome 120 o superior. 
 
 ### Activé el modo oscuro pero el portal (MEV, PJN) se sigue viendo claro
 
-Es esperable: el interruptor de modo oscuro de ProcuAsist (en Ajustes) cambia la apariencia del panel lateral, el popup y la página de opciones de la extensión. No cambia el diseño de las páginas de MEV, PJN o JUSCABA en sí, que siguen mostrándose con los colores propios de cada portal.
+Es esperable: el interruptor de modo oscuro de ProcuAsist (en Ajustes) cambia la apariencia del panel lateral, el popup y la página de opciones de la extensión. No cambia el diseño de las páginas de MEV o PJN en sí, que siguen mostrándose con los colores propios de cada portal.
 
 ---
 

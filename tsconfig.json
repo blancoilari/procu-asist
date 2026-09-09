@@ -2,6 +2,12 @@
   "extends": "./.wxt/tsconfig.json",
   "compilerOptions": {
     "allowImportingTsExtensions": true,
+    // wxt 0.21 activo "noUncheckedIndexedAccess" en el tsconfig que genera.
+    // El codigo nunca se escribio con esa regla y prenderla ahora son unas
+    // cuarenta correcciones en MEV, monitoreo y PDF: es un trabajo aparte,
+    // no algo para meter en una version que va a revision de la Store. Se
+    // mantiene el nivel de chequeo que tenia el proyecto con wxt 0.20.
+    "noUncheckedIndexedAccess": false,
     "jsx": "react-jsx",
     "strict": true,
     "baseUrl": ".",

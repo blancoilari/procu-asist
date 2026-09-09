@@ -9,6 +9,27 @@ Limpieza de auditoria, sin cambios de producto.
 - Se borro `.env` (566 bytes, credenciales viejas de la integracion Supabase/OAuth abandonada; nunca estuvo trackeado por git, no lo lee ningun codigo vivo).
 - Se borraron `apps/procu-estudio/node_modules`, `apps/procu-estudio/.next` y los zips de `.output` anteriores a la 0.8.0 (scaffold de ProcuEstudio, regenerables, ignorados por git).
 
+## [0.8.1] - 2026-09-09
+
+Version de retiro del portal EJE/JusCABA y puesta al dia de dependencias de desarrollo. Sin funciones nuevas.
+
+### Se retira el soporte de EJE / JusCABA
+
+- El soporte era codigo muerto: el manifest pedia permiso de host sobre `https://eje.jus.gov.ar/*`, un dominio que no resuelve, y el portal estaba oculto de la interfaz desde la 0.6.7.
+- Sale del manifest el permiso de host `https://eje.jus.gov.ar/*` y ese mismo origen sale de `web_accessible_resources` (queda solo MEV). **Cambiar `host_permissions` obliga a una nueva revision de Chrome Web Store.**
+- Se borran `entrypoints/eje.content.ts`, `modules/portals/eje-parser.ts` y `modules/portals/eje-selectors.ts`.
+- El auto-login SSO contra Keycloak vivia dentro del content script de EJE y lo compartia con PJN: se conserva en `entrypoints/sso.content.ts`, ahora solo para `https://sso.pjn.gov.ar/*` y siempre con las credenciales de PJN. Los selectores del formulario pasaron a `PJN_SSO` en `modules/portals/pjn-selectors.ts`.
+- `PortalId` queda en `'mev' | 'pjn'`. Salen el keep-alive de EJE (URL, alarma y preferencia `keepAliveEje`), el color de portal, las etiquetas de la interfaz y la excepcion del conciliador de causas.
+- Al arrancar, la extension borra la alarma `tl-keepalive-eje` que quedaba registrada en instalaciones viejas (despertaba el service worker cada 4 minutos sin hacer nada) y las credenciales guardadas de ese portal (`tl_cred_eje`), que ya no pueden usarse.
+- Las causas guardadas con portal EJE, si alguien las tiene, siguen listandose: la tarjeta usa una etiqueta neutra en vez de romperse.
+- README, DEVELOPER, ROADMAP, PRIVACY y el manual de usuario dejan de nombrar el portal. Las bitacoras, los changelogs de versiones viejas y los documentos de plan quedan como estan: son historia.
+
+### Dependencias
+
+- `npm audit` pasa de 18 vulnerabilidades (3 criticas) a 0. Ninguna dependencia de produccion (lo que se empaqueta y corre en el navegador) cambio de version: todo lo que se subio es tooling.
+- `npm audit fix` cierra once. Las siete restantes colgaban de `web-ext-run`, el runner de Firefox que arrastra `wxt`, y de `sharp`: se cierran subiendo `wxt` de 0.20.20 a 0.21.x y `sharp` de 0.34 a 0.35. El `manifest.json` que genera la build nueva es identico campo por campo al de la version anterior y el ZIP sale igual, pero es un salto de version de la herramienta de empaquetado: antes de subir a la Store hay que probar la extension cargada (checklist en `docs/release-v0.8.1-assets.md`).
+- `wxt` 0.21 activa `noUncheckedIndexedAccess` en el tsconfig que genera, lo que saca a la luz unas cuarenta advertencias de tipos preexistentes en MEV, monitoreo y PDF. Se deja explicitamente apagada en `tsconfig.json` para conservar el nivel de chequeo que el proyecto ya tenia; ponerla en verde es un trabajo propio, no de una version que va a revision de la Store.
+
 ## [0.8.0] - 2026-07-07
 
 Version nacida del primer test de instalacion desde cero en una computadora limpia (feedback del titular, 7 puntos). Foco: que un colega recien instalado quede operativo sin fricciones.

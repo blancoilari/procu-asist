@@ -6,7 +6,6 @@
  * Excepciones:
  *  - MEV sin nidCausa/pidJuzgado: no se puede escanear — queda guardada
  *    como causa "sin escaneo" hasta que el usuario la abra en MEV.
- *  - eje (oculto de la UI): no se monitorea.
  */
 
 import {
@@ -92,7 +91,6 @@ export async function reconcileBookmarksAndMonitors(): Promise<void> {
     // Cada marcador escaneable → monitor.
     for (const b of bookmarks) {
       if (monitorKeys.has(caseKey(b.portal, b.caseNumber))) continue;
-      if (b.portal === 'eje') continue;
       if (
         b.portal === 'mev' &&
         !(b.metadata?.nidCausa && b.metadata?.pidJuzgado)
