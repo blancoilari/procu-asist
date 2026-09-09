@@ -135,6 +135,18 @@ async function tapar(dryRun) {
       );
       exit(1);
     }
+    // sharp recorta en silencio el overlay que se pasa del borde: un rectangulo
+    // mal escrito taparia solo la parte que entra y el comando igual diria OK,
+    // dejando la cola del texto a la vista. Se aborta antes.
+    for (const r of entrada.rects) {
+      if (r.x < 0 || r.y < 0 || r.w < 1 || r.h < 1 || r.x + r.w > w || r.y + r.h > h) {
+        console.error(
+          `${entrada.archivo}: el rectangulo ${r.x},${r.y},${r.w},${r.h} (${r.motivo}) ` +
+            `se sale de ${w}x${h}. sharp lo recortaria sin avisar: corregir las coordenadas.`
+        );
+        exit(1);
+      }
+    }
     const overlays = entrada.rects.map((r) => ({
       input: { create: { width: r.w, height: r.h, channels: 3, background: TAPA } },
       left: r.x,
