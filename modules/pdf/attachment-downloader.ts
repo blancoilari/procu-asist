@@ -1,47 +1,31 @@
 /**
- * Downloads attachments (adjuntos) from MEV proveido pages.
- * Uses chrome.scripting.executeScript to fetch PDFs using the
- * portal's session cookies, then returns them as base64.
+ * Pedidos a la MEV desde la pestaña del usuario (chrome.scripting en el
+ * mundo MAIN, con las cookies de su sesión): proveídos, adjuntos y
+ * reingreso a la ficha. Cada función hace UN pedido y clasifica la
+ * respuesta; reintentos, esperas y ritmo los decide el recorrido de la
+ * descarga (mev-download-runner.ts) con el portero (mev-pacer.ts).
  *
- * Strategy:
- * 1. Find an open MEV tab
- * 2. Inject a fetch() in MAIN world to download the PDF (with cookies)
- * 3. Convert ArrayBuffer → base64
- * 4. Return to background for merging into the case PDF
+ * Excepción: los adjuntos de docs.scba.gov.ar, otro servidor, se piden
+ * desde el service worker (host_permissions evita CORS) y conservan sus
+ * reintentos propios porque ese servidor falla de a ratos.
+ *
+ * Las funciones que se inyectan con executeScript se serializan: no pueden
+ * usar nada de este módulo, por eso repiten sus expresiones regulares.
  */
 
 import { MEV_BASE_URL } from '@/modules/portals/mev-selectors';
 import {
-  detectMevChallenge,
+  classifyMevPage,
+  describeProbe,
   htmlLooksLikeChallenge,
-  messageForVerdict,
-  MEV_CHALLENGE_MESSAGE,
+  htmlLooksLikeLogin,
   MEV_PROBE_SAMPLE_LENGTH,
+  MEV_RAW_SAMPLE_LENGTH,
   type MevPageProbe,
 } from '@/modules/portals/mev-challenge';
+import type { AttachmentFetch, CaseEntry, PageFetch } from '@/modules/pdf/mev-download-runner';
 
-export interface DownloadedAttachment {
-  name: string;
-  url: string;
-  base64: string;
-  mimeType: string;
-  sizeBytes: number;
-}
-
-export interface AttachmentDownloadResult {
-  success: boolean;
-  attachment?: DownloadedAttachment;
-  error?: string;
-  /**
-   * true cuando la MEV devolvió su pantalla de verificación en vez del archivo.
-   * Quien llama tiene que cortar la descarga entera: reintentar solo suma
-   * pedidos a un portal que ya está filtrando, y seguir de largo produce un
-   * documento incompleto con apariencia de completo.
-   */
-  challenge?: boolean;
-}
-
-/** Full data extracted from a MEV proveido page */
+/** Datos de la página de un proveído de la MEV. */
 export interface ProveidoPageData {
   text: string;
   adjuntoUrls: string[];
@@ -73,203 +57,119 @@ export interface ProveidoPageData {
     nroPresentacionElectronica?: string;
     presentadoPor?: string;
   };
-  /**
-   * Señales de la respuesta cruda (largo, muestra de texto, estructura), para
-   * decidir afuera si la MEV devolvió el proveído o su pantalla de
-   * verificación. La decide detectMevChallenge, no el código inyectado.
-   */
+  /** Señales de la respuesta cruda, para clasificarla afuera. */
   probe?: MevPageProbe;
 }
 
-/**
- * Download a single attachment from MEV (or docs.scba.gov.ar) using session cookies.
- * - docs.scba.gov.ar: fetched directly from the service worker (host_permissions
- *   bypasses CORS). Retries up to 3 times with linear backoff.
- * - mev.scba.gov.ar: fetched via executeScript inside the MEV tab (session cookies).
- */
-export async function downloadMevAttachment(
-  tabId: number,
-  attachmentUrl: string,
-  name: string
-): Promise<AttachmentDownloadResult> {
-  // Ensure URL is absolute
-  const fullUrl = attachmentUrl.startsWith('http')
-    ? attachmentUrl
-    : `${MEV_BASE_URL}${attachmentUrl.startsWith('/') ? '' : '/'}${attachmentUrl}`;
-
-  // docs.scba.gov.ar is a public file server but doesn't send CORS headers.
-  // We temporarily inject Access-Control-Allow-Origin via declarativeNetRequest
-  // so the service worker can read the response, then retry on transient failures.
-  if (fullUrl.includes('docs.scba.gov.ar')) {
-    return downloadDocsScba(fullUrl, name, 3, 1500);
-  }
-
-  const maxRetries = 3;
-  const retryDelayMs = 2000;
-  let lastError = 'Unknown error';
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (attempt > 0) {
-      await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt));
-    }
-
-    try {
-      const results = await chrome.scripting.executeScript({
-        target: { tabId },
-        world: 'MAIN',
-        func: async (url: string, sampleLength: number) => {
-          try {
-            const resp = await fetch(url, {
-              credentials: 'include',
-            });
-            if (!resp.ok) {
-              return { error: `HTTP ${resp.status}` };
-            }
-            const contentType =
-              resp.headers.get('content-type') || 'application/pdf';
-            const buffer = await resp.arrayBuffer();
-
-            // Una respuesta HTML nunca es el adjunto. Puede ser la pantalla de
-            // verificación de la MEV, la de login o un error del servidor: se
-            // devuelve una muestra acotada para que el llamador distinga cuál.
-            if (contentType.includes('text/html')) {
-              const sample = new TextDecoder('windows-1252')
-                .decode(buffer.slice(0, 8000))
-                .replace(/\s+/g, ' ')
-                .slice(0, sampleLength * 4);
-              return {
-                error: 'El servidor devolvió una página HTML en vez del archivo',
-                htmlSample: sample,
-              };
-            }
-
-            // Convert ArrayBuffer to base64
-            const bytes = new Uint8Array(buffer);
-            let binary = '';
-            for (let i = 0; i < bytes.length; i++) {
-              binary += String.fromCharCode(bytes[i]);
-            }
-            const base64 = btoa(binary);
-
-            return {
-              base64,
-              mimeType: contentType,
-              sizeBytes: buffer.byteLength,
-            };
-          } catch (e) {
-            return { error: String(e) };
-          }
-        },
-        args: [fullUrl, MEV_PROBE_SAMPLE_LENGTH],
-      });
-
-      const result = results[0]?.result as
-        | { base64: string; mimeType: string; sizeBytes: number }
-        | { error: string; htmlSample?: string }
-        | null;
-
-      if (!result || 'error' in result) {
-        lastError = result?.error ?? 'No result from fetch';
-        if (result && 'htmlSample' in result && result.htmlSample
-            && htmlLooksLikeChallenge(result.htmlSample)) {
-          console.warn('[ProcuAsist] La MEV pidió verificación al bajar un adjunto:', fullUrl);
-          return { success: false, error: MEV_CHALLENGE_MESSAGE, challenge: true };
-        }
-        continue;
-      }
-
-      // Validate response is not an HTML error page
-      if (result.mimeType.includes('text/html')) {
-        lastError = 'El servidor devolvió una página HTML en vez del archivo';
-        continue;
-      }
-
-      // Validate minimum size
-      if (result.sizeBytes < 100) {
-        lastError = `Archivo demasiado pequeño (${result.sizeBytes} bytes), probablemente una página de error`;
-        continue;
-      }
-
-      return {
-        success: true,
-        attachment: {
-          name,
-          url: fullUrl,
-          base64: result.base64,
-          mimeType: result.mimeType,
-          sizeBytes: result.sizeBytes,
-        },
-      };
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : String(err);
-    }
-  }
-
-  return {
-    success: false,
-    error: `${lastError} (tras ${maxRetries} reintentos)`,
-  };
+export function toAbsoluteMevUrl(url: string): string {
+  return url.startsWith('http') ? url : `${MEV_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
-/**
- * Download multiple attachments sequentially.
- * Returns results for each attachment (some may fail).
- */
-export async function downloadMevAttachments(
-  tabId: number,
-  attachments: Array<{ name: string; url: string }>
-): Promise<AttachmentDownloadResult[]> {
-  const results: AttachmentDownloadResult[] = [];
-
-  for (const att of attachments) {
-    const result = await downloadMevAttachment(tabId, att.url, att.name);
-    results.push(result);
-
-    // Small delay between downloads
-    if (attachments.indexOf(att) < attachments.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-  }
-
-  return results;
+/** true si el archivo se pide a la MEV (cuenta para el límite de pedidos). */
+export function isMevHostedUrl(url: string): boolean {
+  return !toAbsoluteMevUrl(url).includes('docs.scba.gov.ar');
 }
 
-
-/**
- * Fetch a MEV proveido page and extract its content cleanly.
- * Runs inside the MEV tab so DOMParser, fetch and cookies all work correctly.
- * Returns full page data including metadata, references, and presentation data.
- */
-export async function fetchMevPageContent(
-  tabId: number,
-  url: string
-): Promise<ProveidoPageData | { error: string; challenge?: boolean }> {
-  const fullUrl = url.startsWith('http')
-    ? url
-    : `${MEV_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+/** Un pedido de adjunto. Los de docs.scba.gov.ar van por el service worker. */
+export async function downloadMevAttachment(tabId: number, attachmentUrl: string): Promise<AttachmentFetch> {
+  const fullUrl = toAbsoluteMevUrl(attachmentUrl);
+  if (!isMevHostedUrl(fullUrl)) return downloadDocsScba(fullUrl, 3, 1500);
 
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: async (pageUrl: string, sampleLength: number) => {
+      func: async (url: string, rawLength: number) => {
+        try {
+          const resp = await fetch(url, { credentials: 'include' });
+          if (!resp.ok) return { error: `HTTP ${resp.status}` };
+          const contentType = resp.headers.get('content-type') || 'application/pdf';
+          const buffer = await resp.arrayBuffer();
+          // Una respuesta HTML nunca es el adjunto: puede ser la pantalla de
+          // verificación, el login o un error. Se devuelve el comienzo para
+          // que el llamador distinga.
+          if (contentType.includes('text/html')) {
+            return {
+              error: 'La MEV devolvió una página en vez del archivo',
+              htmlSample: new TextDecoder('windows-1252').decode(buffer.slice(0, rawLength)),
+            };
+          }
+          const bytes = new Uint8Array(buffer);
+          let binary = '';
+          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+          return { base64: btoa(binary), mimeType: contentType, sizeBytes: buffer.byteLength };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+      args: [fullUrl, MEV_RAW_SAMPLE_LENGTH],
+    });
+
+    const result = results[0]?.result as
+      | { base64: string; mimeType: string; sizeBytes: number }
+      | { error: string; htmlSample?: string }
+      | null
+      | undefined;
+    if (!result) return { status: 'error', detail: 'La pestaña de la MEV no respondió' };
+    if ('error' in result) {
+      const sample = result.htmlSample ?? '';
+      if (sample && htmlLooksLikeChallenge(sample)) {
+        return { status: 'desafio', detail: 'pantalla de verificación en vez del adjunto' };
+      }
+      if (sample && htmlLooksLikeLogin(sample)) {
+        return { status: 'login', detail: 'formulario de login en vez del adjunto' };
+      }
+      return { status: 'error', detail: result.error };
+    }
+    if (result.sizeBytes < 100) {
+      return { status: 'error', detail: `Archivo demasiado chico (${result.sizeBytes} bytes)` };
+    }
+    return { status: 'ok', base64: result.base64, mimeType: result.mimeType };
+  } catch (err) {
+    return { status: 'error', detail: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Un pedido de proveído, parseado dentro de la pestaña de la MEV (así
+ * DOMParser, fetch y las cookies funcionan) y clasificado afuera con
+ * classifyMevPage.
+ */
+export async function fetchMevPageContent(tabId: number, url: string): Promise<PageFetch<ProveidoPageData>> {
+  const fullUrl = toAbsoluteMevUrl(url);
+
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: async (pageUrl: string, sampleLength: number, rawLength: number) => {
         try {
           const resp = await fetch(pageUrl, { credentials: 'include' });
           if (!resp.ok) return { error: `HTTP ${resp.status}` };
 
-          // MEV is ASP Classic with ISO-8859-1/Windows-1252 encoding.
-          // Using resp.text() defaults to UTF-8 and corrupts special chars like "Nº".
+          // La MEV es ASP clásico en Windows-1252: resp.text() rompería la ñ y el º.
           const rawBuffer = await resp.arrayBuffer();
           const html = new TextDecoder('windows-1252').decode(rawBuffer);
           const parser = new DOMParser();
           const doc = parser.parseFromString(html, 'text/html');
 
-          // Remove noise elements
-          doc.querySelectorAll('script, style, noscript, link, meta').forEach(
-            (el) => el.remove()
+          // Señales que se leen ANTES de sacar los scripts: el título y el
+          // script de Turnstile son la firma de la pantalla de verificación.
+          const title = (doc.title || '').trim();
+          const hasTurnstile = Array.from(doc.querySelectorAll('script[src]')).some((s) =>
+            /challenges\.cloudflare\.com\/turnstile/i.test(s.getAttribute('src') || '')
           );
+          const looksLikeLogin =
+            !!doc.querySelector("input[name='usuario']") && !!doc.querySelector("input[name='clave']");
+          let finalPath = '';
+          try {
+            finalPath = new URL(resp.url).pathname.toLowerCase();
+          } catch {
+            finalPath = '';
+          }
 
-          // ── Helper: get text from all <td> cells ──
+          doc.querySelectorAll('script, style, noscript, link, meta').forEach((el) => el.remove());
+
           const allTds = Array.from(doc.querySelectorAll('td'));
           const findTdText = (prefix: string): string => {
             for (const td of allTds) {
@@ -286,9 +186,9 @@ export async function fetchMevPageContent(
             return '';
           };
 
-          // ── Juzgado name and departamento ──
-          // The juzgado is typically in a <td> that contains "Juzgado", "CAMARA", or "TRIBUNAL"
-          // but NOT the user info. The departamento is usually in an adjacent <td>.
+          // Juzgado y departamento: una celda con "Juzgado", "Cámara" o
+          // "Tribunal" que no sea la del usuario; el departamento suele estar
+          // en una celda de la misma fila.
           let juzgadoName = '';
           let departamento = '';
           for (const td of allTds) {
@@ -297,7 +197,6 @@ export async function fetchMevPageContent(
             if ((t.includes('Juzgado') || t.includes('CAMARA') || t.includes('TRIBUNAL') || t.includes('Cámara') || t.includes('Tribunal'))
                 && t.length >= 10 && t.length <= 200 && !juzgadoName) {
               juzgadoName = t;
-              // Look for departamento in adjacent cells in the same row
               const row = td.closest('tr');
               if (row) {
                 const cells = row.querySelectorAll('td');
@@ -314,7 +213,7 @@ export async function fetchMevPageContent(
             }
           }
 
-          // ── Datos del Expediente ──
+          // Datos del expediente
           const caratula = findTdText('Carátula:') || findTdText('Caratula:');
           const fechaInicio = findTdText('Fecha inicio:');
           let nroReceptoria = '';
@@ -326,7 +225,6 @@ export async function fetchMevPageContent(
           let nroExpediente = '';
           const expTd = findTdText('Expediente:') || findTdText('Nº de Expediente:');
           if (expTd) nroExpediente = expTd;
-          // Also look for "Nº de Expediente" pattern
           for (const td of allTds) {
             const t = td.textContent?.trim() ?? '';
             if (t.includes('Expediente:') && !t.includes('Receptoría') && !nroExpediente) {
@@ -335,7 +233,7 @@ export async function fetchMevPageContent(
           }
           const estado = findTdText('Estado:');
 
-          // ── Paso procesal (from dropdown/select or visible info) ──
+          // Paso procesal (combo de pasos o texto visible)
           let pasoFecha = '';
           let pasoTramite = '';
           let pasoFirmado = false;
@@ -344,8 +242,8 @@ export async function fetchMevPageContent(
           if (selectEl) {
             const selectedOpt = selectEl.options[selectEl.selectedIndex];
             if (selectedOpt) {
+              // Formato: "Fecha: 04/02/2026 - Trámite: RECURSO DE APELACION - DEDUCE - ( FIRMADO ) - Foja: 29/36"
               const optText = selectedOpt.textContent?.trim() ?? '';
-              // Format: "Fecha: 04/02/2026 - Trámite: RECURSO DE APELACION - DEDUCE - ( FIRMADO ) - Foja: 29/36"
               const fechaMatch = optText.match(/Fecha:\s*(\d{2}\/\d{2}\/\d{4})/);
               if (fechaMatch) pasoFecha = fechaMatch[1];
               const tramMatch = optText.match(/Tr[aá]mite:\s*(.*?)(?:\s*-\s*\(\s*FIRMADO\s*\)|\s*-\s*Foja)/i);
@@ -355,7 +253,6 @@ export async function fetchMevPageContent(
               if (fojaMatch) pasoFojas = fojaMatch[1];
             }
           }
-          // Fallback: look for "Pasos procesales" dropdown in different format
           if (!pasoFecha) {
             const allSelects = doc.querySelectorAll('select');
             for (const sel of allSelects) {
@@ -376,14 +273,12 @@ export async function fetchMevPageContent(
             }
           }
 
-          // ── REFERENCIAS section ──
+          // REFERENCIAS: todo lo que hay entre ese título y la sección siguiente
           const adjuntos: Array<{ nombre: string; url: string }> = [];
           let despacho = '';
           let observacion = '';
           let observacionProfesional = '';
           const rawFields: Array<{ label: string; value: string }> = [];
-
-          // Capture ALL content between "REFERENCIAS" and the next section
           let inRef = false;
           for (const td of allTds) {
             const t = td.textContent?.trim() ?? '';
@@ -392,29 +287,24 @@ export async function fetchMevPageContent(
               continue;
             }
             if (inRef) {
-              if (t.includes('DATOS DE PRESENTACI') || t.includes('Texto del Prove')) {
-                break;
-              }
+              if (t.includes('DATOS DE PRESENTACI') || t.includes('Texto del Prove')) break;
               if (!t || t.length < 3) continue;
-
-              // Try to split into label:value pairs
               const colonIdx = t.indexOf(':');
               if (colonIdx > 0 && colonIdx < 60) {
                 const label = t.substring(0, colonIdx).trim();
                 const value = t.substring(colonIdx + 1).trim();
                 rawFields.push({ label, value });
-                // Also populate legacy fields
                 if (label.startsWith('Despachado en')) despacho = value;
                 else if (label === 'Observacion' || label === 'Observación') observacion = value;
                 else if (label.startsWith('Observaci') && label.includes('Profesional')) observacionProfesional = value;
               } else if (t.length > 3) {
-                // Sub-section headers (e.g., "NOTIFICACION ELECTRONICA")
+                // Subtítulos de sección (por ejemplo "NOTIFICACION ELECTRONICA")
                 rawFields.push({ label: t, value: '' });
               }
             }
           }
 
-          // Find adjuntos (VER ADJUNTO links) with their names
+          // Adjuntos (links VER ADJUNTO) con su nombre
           doc.querySelectorAll('a').forEach((a) => {
             const linkText = a.textContent?.toUpperCase().trim() ?? '';
             if (linkText.includes('VER ADJUNTO') || linkText.includes('ADJUNTO')) {
@@ -429,16 +319,15 @@ export async function fetchMevPageContent(
               try {
                 const absolute = new URL(href, 'https://mev.scba.gov.ar/').href;
                 adjuntos.push({ nombre: nombre || 'Adjunto', url: absolute });
-              } catch { /* skip malformed */ }
+              } catch { /* href roto: se saltea */ }
             }
           });
 
-          // ── DATOS DE PRESENTACIÓN ──
+          // DATOS DE PRESENTACIÓN
           let fechaEscrito = '';
           let firmadoPor = '';
           let nroPresentacionElectronica = '';
           let presentadoPor = '';
-
           for (const td of allTds) {
             const t = td.textContent?.trim() ?? '';
             if (t.startsWith('Fecha del Escrito')) {
@@ -451,10 +340,9 @@ export async function fetchMevPageContent(
               presentadoPor = t.replace(/^Presentado por\s*/i, '').trim();
             }
           }
-
           const hasDatosPresentacion = fechaEscrito || firmadoPor || nroPresentacionElectronica || presentadoPor;
 
-          // ── Texto del proveído (#contenidoTxt) ──
+          // Texto del proveído (#contenidoTxt)
           const contentDiv = doc.getElementById('contenidoTxt');
           let text = '';
           if (contentDiv) {
@@ -465,111 +353,120 @@ export async function fetchMevPageContent(
           text = text.replace(/^[- ]*Para copiar y pegar el texto seleccione.*$/gm, '');
           text = text.replace(/\r\n/g, '\n').replace(/[ \t]{2,}/g, ' ').replace(/\n{4,}/g, '\n\n\n').trim();
 
-          // ── Adjunto URLs for download ──
-          const adjuntoUrls = adjuntos.map(a => a.url);
-
-          // ── Sonda para detectar la pantalla de verificación ──
-          // Marcas estructurales que una página de proveído de la MEV siempre
-          // trae: el div del texto, la carátula, el bloque REFERENCIAS o el
-          // combo de pasos procesales. Si no hay ninguna, esto no es un
-          // proveído. La decisión la toma detectMevChallenge afuera.
+          // Marcas estructurales de un proveído (regla de oro de la clasificación):
+          // el div del texto, el combo de pasos, la carátula o el bloque REFERENCIAS.
           const hasProveidoStructure =
             !!contentDiv ||
             !!selectEl ||
-            allTds.some((td) =>
-              /^car[aá]tula\s*:/i.test(td.textContent?.trim() ?? '')
-            ) ||
+            allTds.some((td) => /^car[aá]tula\s*:/i.test(td.textContent?.trim() ?? '')) ||
             allTds.some((td) => (td.textContent?.trim() ?? '') === 'REFERENCIAS');
-          const bodyTextSample = (doc.body?.textContent ?? '')
-            .replace(/\s+/g, ' ')
-            .trim()
-            .slice(0, sampleLength);
+          const bodyTextSample = (doc.body?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, sampleLength);
 
           return {
             probe: {
               htmlLength: html.length,
               bodyTextSample,
               hasProveidoStructure,
+              title,
+              hasTurnstile,
+              finalPath,
+              looksLikeLogin,
+              rawHtmlSample: html.slice(0, rawLength),
             },
             text,
-            adjuntoUrls,
+            adjuntoUrls: adjuntos.map((a) => a.url),
             juzgadoName,
             departamento,
             datosExpediente: { caratula, fechaInicio, nroReceptoria, nroExpediente, estado },
             pasoProcesal: { fecha: pasoFecha, tramite: pasoTramite, firmado: pasoFirmado, fojas: pasoFojas },
             referencias: { adjuntos, despacho, observacion, observacionProfesional, rawFields },
-            datosPresentacion: hasDatosPresentacion ? { fechaEscrito, firmadoPor, nroPresentacionElectronica, presentadoPor } : undefined,
+            datosPresentacion: hasDatosPresentacion
+              ? { fechaEscrito, firmadoPor, nroPresentacionElectronica, presentadoPor }
+              : undefined,
           };
         } catch (e) {
           return { error: String(e) };
         }
       },
-      args: [fullUrl, MEV_PROBE_SAMPLE_LENGTH],
+      args: [fullUrl, MEV_PROBE_SAMPLE_LENGTH, MEV_RAW_SAMPLE_LENGTH],
     });
 
-    const result = results[0]?.result as ProveidoPageData | { error: string } | null;
+    const result = results[0]?.result as ProveidoPageData | { error: string } | null | undefined;
+    if (!result) return { status: 'error', detail: 'La pestaña de la MEV no respondió' };
+    if ('error' in result) return { status: 'error', detail: result.error };
 
-    if (!result) return { error: 'No result from executeScript' };
-    if ('error' in result) return result;
+    const verdict = result.probe ? classifyMevPage(result.probe) : { status: 'ok' as const };
+    if (verdict.status === 'ok') return { status: 'ok', data: result };
 
-    // La respuesta llegó con HTTP 200, pero eso no prueba que sea el proveído:
-    // la pantalla de verificación de la MEV también viene con 200. Si no es el
-    // proveído se corta acá, en vez de devolver campos vacíos que después
-    // terminan en un PDF sin despacho.
-    if (result.probe) {
-      const verdict = detectMevChallenge(result.probe);
-      if (verdict.status !== 'ok') {
-        console.warn(
-          `[ProcuAsist] La MEV no devolvió el proveído (${verdict.status}${verdict.marker ? ': ' + verdict.marker : ''}):`,
-          fullUrl
-        );
-        // Solo el desafío corta la descarga entera: es del portal y afecta a todos
-        // los pedidos que vengan. Una página inesperada (un proveído con otro
-        // formato, un error puntual del portal) es de ESE documento: se informa
-        // como falla suya, queda su _ERROR.txt y el resto del expediente se baja
-        // igual. Cortar todo por uno solo dejaba al usuario sin nada y le echaba
-        // la culpa a una verificación que podía no existir.
-        return {
-          error: messageForVerdict(verdict),
-          challenge: verdict.status === 'desafio',
-        };
-      }
-    }
-
-    return result;
+    console.warn(
+      `[ProcuAsist] La MEV no devolvió el proveído (${verdict.status}${verdict.marker ? ': ' + verdict.marker : ''}):`,
+      fullUrl
+    );
+    return { status: verdict.status, detail: result.probe ? describeProbe(result.probe) : '' };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : String(err) };
+    return { status: 'error', detail: err instanceof Error ? err.message : String(err) };
   }
 }
 
 /**
- * Find an open MEV tab to use for downloading.
+ * Reingresa a la ficha de la causa (procesales.asp). Sirve para que la
+ * sesión vuelva a tener la causa: sin esa visita, proveido.asp redirige a
+ * la búsqueda (medido el 22/09/2026).
  */
+export async function enterMevCase(tabId: number, caseUrl: string): Promise<CaseEntry> {
+  const fullUrl = toAbsoluteMevUrl(caseUrl);
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: async (url: string, rawLength: number) => {
+        try {
+          const resp = await fetch(url, { credentials: 'include' });
+          if (!resp.ok) return { error: `HTTP ${resp.status}` };
+          const html = new TextDecoder('windows-1252').decode(await resp.arrayBuffer());
+          return { hasSteps: /Pasos Procesales/i.test(html), sample: html.slice(0, rawLength), length: html.length };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+      args: [fullUrl, MEV_RAW_SAMPLE_LENGTH],
+    });
+    const r = results[0]?.result as
+      | { hasSteps: boolean; sample: string; length: number }
+      | { error: string }
+      | null
+      | undefined;
+    if (!r) return { status: 'error', detail: 'La pestaña de la MEV no respondió' };
+    if ('error' in r) return { status: 'error', detail: r.error };
+    if (r.hasSteps) return { status: 'ok', detail: '' };
+    if (htmlLooksLikeChallenge(r.sample)) {
+      return { status: 'desafio', detail: 'pantalla de verificación al reingresar a la ficha' };
+    }
+    if (htmlLooksLikeLogin(r.sample)) {
+      return { status: 'login', detail: 'formulario de login al reingresar a la ficha' };
+    }
+    return { status: 'error', detail: `la ficha no se pudo abrir (${r.length} caracteres)` };
+  } catch (err) {
+    return { status: 'error', detail: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Una pestaña abierta de la MEV (la usa el importador de resultados). */
 export async function findMevTab(): Promise<number | null> {
   const tabs = await chrome.tabs.query({ url: 'https://mev.scba.gov.ar/*' });
   return tabs[0]?.id ?? null;
 }
 
 /**
- * Download a file from docs.scba.gov.ar using a direct fetch from the
- * service worker. This works because the extension declares
- * host_permissions for docs.scba.gov.ar/* in the manifest, which lets
- * the service worker bypass CORS restrictions for that host.
- *
- * Retries with linear backoff because the server is intermittently unreliable.
+ * docs.scba.gov.ar: servidor público de archivos sin cabeceras CORS. Se
+ * pide desde el service worker (host_permissions lo permite) y con
+ * reintentos, porque ese servidor falla de a ratos. No cuenta para el
+ * límite de la MEV (otro servidor).
  */
-async function downloadDocsScba(
-  url: string,
-  name: string,
-  maxRetries: number,
-  delayMs: number
-): Promise<AttachmentDownloadResult> {
-  let lastError = 'Unknown error';
-
+async function downloadDocsScba(url: string, maxRetries: number, delayMs: number): Promise<AttachmentFetch> {
+  let lastError = 'error desconocido';
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (attempt > 0) {
-      await new Promise((r) => setTimeout(r, delayMs * attempt));
-    }
+    if (attempt > 0) await new Promise((r) => setTimeout(r, delayMs * attempt));
     try {
       const resp = await fetch(url);
       if (!resp.ok) {
@@ -578,30 +475,21 @@ async function downloadDocsScba(
       }
       const contentType = resp.headers.get('content-type') ?? 'application/pdf';
       if (contentType.includes('text/html')) {
-        lastError = 'Servidor devolvio HTML en vez del archivo';
+        lastError = 'El servidor devolvió una página en vez del archivo';
         continue;
       }
       const buffer = await resp.arrayBuffer();
       if (buffer.byteLength < 100) {
-        lastError = `Archivo muy pequeno (${buffer.byteLength} bytes)`;
+        lastError = `Archivo demasiado chico (${buffer.byteLength} bytes)`;
         continue;
       }
       const bytes = new Uint8Array(buffer);
       let binary = '';
       for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-      return {
-        success: true,
-        attachment: {
-          name, url,
-          base64: btoa(binary),
-          mimeType: contentType,
-          sizeBytes: buffer.byteLength,
-        },
-      };
+      return { status: 'ok', base64: btoa(binary), mimeType: contentType };
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
     }
   }
-
-  return { success: false, error: `${lastError} (tras ${maxRetries} reintentos)` };
+  return { status: 'error', detail: `${lastError} (tras ${maxRetries} reintentos)` };
 }
