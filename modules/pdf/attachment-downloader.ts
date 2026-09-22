@@ -25,6 +25,20 @@ import {
 } from '@/modules/portals/mev-challenge';
 import type { AttachmentFetch, CaseEntry, PageFetch } from '@/modules/pdf/mev-download-runner';
 
+/** Tiempo máximo de un pedido de proveído o de la ficha. */
+const PAGE_TIMEOUT_MS = 60_000;
+/** Tiempo máximo de un adjunto alojado en la MEV. */
+const ATTACHMENT_TIMEOUT_MS = 180_000;
+/** Chrome termina el service worker si una respuesta tarda más de 30 s en llegar. */
+const DOCS_HEADERS_TIMEOUT_MS = 25_000;
+const DOCS_BODY_TIMEOUT_MS = 180_000;
+/**
+ * Códigos con los que un servidor limita pedidos. Hoy la MEV limita con su
+ * pantalla de verificación y HTTP 200; si pasara a usar estos códigos, se
+ * tratan igual: pausa y pregunta, nunca salteo.
+ */
+const RATE_LIMIT_STATUSES = [429, 503];
+
 /** Datos de la página de un proveído de la MEV. */
 export interface ProveidoPageData {
   text: string;
@@ -79,10 +93,10 @@ export async function downloadMevAttachment(tabId: number, attachmentUrl: string
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: async (url: string, rawLength: number) => {
+      func: async (url: string, rawLength: number, timeoutMs: number) => {
         try {
-          const resp = await fetch(url, { credentials: 'include' });
-          if (!resp.ok) return { error: `HTTP ${resp.status}` };
+          const resp = await fetch(url, { credentials: 'include', signal: AbortSignal.timeout(timeoutMs) });
+          if (!resp.ok) return { error: `HTTP ${resp.status}`, httpStatus: resp.status };
           const contentType = resp.headers.get('content-type') || 'application/pdf';
           const buffer = await resp.arrayBuffer();
           // Una respuesta HTML nunca es el adjunto: puede ser la pantalla de
@@ -102,22 +116,25 @@ export async function downloadMevAttachment(tabId: number, attachmentUrl: string
           return { error: String(e) };
         }
       },
-      args: [fullUrl, MEV_RAW_SAMPLE_LENGTH],
+      args: [fullUrl, MEV_RAW_SAMPLE_LENGTH, ATTACHMENT_TIMEOUT_MS],
     });
 
     const result = results[0]?.result as
       | { base64: string; mimeType: string; sizeBytes: number }
-      | { error: string; htmlSample?: string }
+      | { error: string; htmlSample?: string; httpStatus?: number }
       | null
       | undefined;
     if (!result) return { status: 'error', detail: 'La pestaña de la MEV no respondió' };
     if ('error' in result) {
-      const sample = result.htmlSample ?? '';
-      if (sample && htmlLooksLikeChallenge(sample)) {
-        return { status: 'desafio', detail: 'pantalla de verificación en vez del adjunto' };
+      if (result.httpStatus && RATE_LIMIT_STATUSES.includes(result.httpStatus)) {
+        return { status: 'desafio', detail: `HTTP ${result.httpStatus} en vez del adjunto` };
       }
+      const sample = result.htmlSample ?? '';
       if (sample && htmlLooksLikeLogin(sample)) {
         return { status: 'login', detail: 'formulario de login en vez del adjunto' };
+      }
+      if (sample && htmlLooksLikeChallenge(sample)) {
+        return { status: 'desafio', detail: 'pantalla de verificación en vez del adjunto' };
       }
       return { status: 'error', detail: result.error };
     }
@@ -142,10 +159,10 @@ export async function fetchMevPageContent(tabId: number, url: string): Promise<P
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: async (pageUrl: string, sampleLength: number, rawLength: number) => {
+      func: async (pageUrl: string, sampleLength: number, rawLength: number, timeoutMs: number) => {
         try {
-          const resp = await fetch(pageUrl, { credentials: 'include' });
-          if (!resp.ok) return { error: `HTTP ${resp.status}` };
+          const resp = await fetch(pageUrl, { credentials: 'include', signal: AbortSignal.timeout(timeoutMs) });
+          if (!resp.ok) return { error: `HTTP ${resp.status}`, httpStatus: resp.status };
 
           // La MEV es ASP clásico en Windows-1252: resp.text() rompería la ñ y el º.
           const rawBuffer = await resp.arrayBuffer();
@@ -388,12 +405,21 @@ export async function fetchMevPageContent(tabId: number, url: string): Promise<P
           return { error: String(e) };
         }
       },
-      args: [fullUrl, MEV_PROBE_SAMPLE_LENGTH, MEV_RAW_SAMPLE_LENGTH],
+      args: [fullUrl, MEV_PROBE_SAMPLE_LENGTH, MEV_RAW_SAMPLE_LENGTH, PAGE_TIMEOUT_MS],
     });
 
-    const result = results[0]?.result as ProveidoPageData | { error: string } | null | undefined;
+    const result = results[0]?.result as
+      | ProveidoPageData
+      | { error: string; httpStatus?: number }
+      | null
+      | undefined;
     if (!result) return { status: 'error', detail: 'La pestaña de la MEV no respondió' };
-    if ('error' in result) return { status: 'error', detail: result.error };
+    if ('error' in result) {
+      if (result.httpStatus && RATE_LIMIT_STATUSES.includes(result.httpStatus)) {
+        return { status: 'desafio', detail: `HTTP ${result.httpStatus}` };
+      }
+      return { status: 'error', detail: result.error };
+    }
 
     const verdict = result.probe ? classifyMevPage(result.probe) : { status: 'ok' as const };
     if (verdict.status === 'ok') return { status: 'ok', data: result };
@@ -419,31 +445,36 @@ export async function enterMevCase(tabId: number, caseUrl: string): Promise<Case
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: async (url: string, rawLength: number) => {
+      func: async (url: string, rawLength: number, timeoutMs: number) => {
         try {
-          const resp = await fetch(url, { credentials: 'include' });
-          if (!resp.ok) return { error: `HTTP ${resp.status}` };
+          const resp = await fetch(url, { credentials: 'include', signal: AbortSignal.timeout(timeoutMs) });
+          if (!resp.ok) return { error: `HTTP ${resp.status}`, httpStatus: resp.status };
           const html = new TextDecoder('windows-1252').decode(await resp.arrayBuffer());
           return { hasSteps: /Pasos Procesales/i.test(html), sample: html.slice(0, rawLength), length: html.length };
         } catch (e) {
           return { error: String(e) };
         }
       },
-      args: [fullUrl, MEV_RAW_SAMPLE_LENGTH],
+      args: [fullUrl, MEV_RAW_SAMPLE_LENGTH, PAGE_TIMEOUT_MS],
     });
     const r = results[0]?.result as
       | { hasSteps: boolean; sample: string; length: number }
-      | { error: string }
+      | { error: string; httpStatus?: number }
       | null
       | undefined;
     if (!r) return { status: 'error', detail: 'La pestaña de la MEV no respondió' };
-    if ('error' in r) return { status: 'error', detail: r.error };
-    if (r.hasSteps) return { status: 'ok', detail: '' };
-    if (htmlLooksLikeChallenge(r.sample)) {
-      return { status: 'desafio', detail: 'pantalla de verificación al reingresar a la ficha' };
+    if ('error' in r) {
+      if (r.httpStatus && RATE_LIMIT_STATUSES.includes(r.httpStatus)) {
+        return { status: 'desafio', detail: `HTTP ${r.httpStatus} al reingresar a la ficha` };
+      }
+      return { status: 'error', detail: r.error };
     }
+    if (r.hasSteps) return { status: 'ok', detail: '' };
     if (htmlLooksLikeLogin(r.sample)) {
       return { status: 'login', detail: 'formulario de login al reingresar a la ficha' };
+    }
+    if (htmlLooksLikeChallenge(r.sample)) {
+      return { status: 'desafio', detail: 'pantalla de verificación al reingresar a la ficha' };
     }
     return { status: 'error', detail: `la ficha no se pudo abrir (${r.length} caracteres)` };
   } catch (err) {
@@ -467,8 +498,12 @@ async function downloadDocsScba(url: string, maxRetries: number, delayMs: number
   let lastError = 'error desconocido';
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, delayMs * attempt));
+    const controller = new AbortController();
+    const headersTimer = setTimeout(() => controller.abort(), DOCS_HEADERS_TIMEOUT_MS);
+    const bodyTimer = setTimeout(() => controller.abort(), DOCS_BODY_TIMEOUT_MS);
     try {
-      const resp = await fetch(url);
+      const resp = await fetch(url, { signal: controller.signal });
+      clearTimeout(headersTimer);
       if (!resp.ok) {
         lastError = `HTTP ${resp.status}`;
         continue;
@@ -489,6 +524,9 @@ async function downloadDocsScba(url: string, maxRetries: number, delayMs: number
       return { status: 'ok', base64: btoa(binary), mimeType: contentType };
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
+    } finally {
+      clearTimeout(headersTimer);
+      clearTimeout(bodyTimer);
     }
   }
   return { status: 'error', detail: `${lastError} (tras ${maxRetries} reintentos)` };

@@ -89,6 +89,20 @@ test('el formulario de login es sesión cerrada, no desafío', () => {
   assert.equal(v.status, 'login');
 });
 
+test('un login que menciona la frase en un script sigue siendo login (no una espera sin fin)', () => {
+  const v = classifyMevPage(
+    sonda({ htmlLength: 12000, looksLikeLogin: true, rawHtmlSample: '<script>var aviso = "Validando acceso";</script>' })
+  );
+  assert.equal(v.status, 'login');
+});
+
+test('la búsqueda que menciona la frase en un script sigue siendo búsqueda', () => {
+  const v = classifyMevPage(
+    sonda({ htmlLength: 17000, finalPath: '/busqueda.asp', rawHtmlSample: '<script>var aviso = "validando acceso";</script>' })
+  );
+  assert.equal(v.status, 'sin-contexto');
+});
+
 test('la búsqueda en vez del proveído es sesión sin la causa', () => {
   const v = classifyMevPage(sonda({ htmlLength: 17000, title: 'Mesa de Entradas Virtual', finalPath: '/busqueda.asp' }));
   assert.equal(v.status, 'sin-contexto');

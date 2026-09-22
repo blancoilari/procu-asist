@@ -108,20 +108,22 @@ export function isChallengeTitle(title: string | null | undefined): boolean {
 
 /**
  * Juzga una respuesta de la MEV a partir de la sonda. El orden importa: la
- * estructura de proveído gana siempre; después las señales propias de la
- * verificación (título y frases); después el login y la búsqueda; y recién
- * al final las señales débiles (Turnstile solo, tamaño).
+ * estructura de proveído gana siempre; después el título de la
+ * verificación, que es su firma; después el login y la búsqueda, que la
+ * pantalla de verificación nunca trae (así una frase suelta en un script
+ * de esas páginas no las convierte en una espera sin fin); y recién al
+ * final las señales débiles (frases, Turnstile solo, tamaño).
  */
 export function classifyMevPage(probe: MevPageProbe): MevPageVerdict {
   if (probe.hasProveidoStructure) return { status: 'ok' };
   if (isChallengeTitle(probe.title)) return { status: 'desafio', marker: 'titulo' };
-  const phrase =
-    findChallengeMarker(probe.bodyTextSample) ?? findChallengeMarker(probe.rawHtmlSample ?? '');
-  if (phrase) return { status: 'desafio', marker: phrase };
   if (probe.looksLikeLogin) return { status: 'login', marker: 'formulario-de-login' };
   if ((probe.finalPath ?? '').toLowerCase().endsWith('/busqueda.asp')) {
     return { status: 'sin-contexto', marker: 'busqueda' };
   }
+  const phrase =
+    findChallengeMarker(probe.bodyTextSample) ?? findChallengeMarker(probe.rawHtmlSample ?? '');
+  if (phrase) return { status: 'desafio', marker: phrase };
   if (probe.hasTurnstile) return { status: 'desafio', marker: 'turnstile' };
   if (probe.htmlLength < MEV_MIN_PROVEIDO_HTML_LENGTH) {
     return { status: 'desafio', marker: 'respuesta-demasiado-corta' };
