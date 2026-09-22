@@ -37,7 +37,9 @@ Toda la comunicacion entre content scripts, popup, sidepanel y background pasa p
 | **Monitores** | `ADD_MONITOR`, `REMOVE_MONITOR`, `GET_MONITORS`, `TOGGLE_MONITOR`, `IS_MONITORED` | CRUD de monitores |
 | **Alertas** | `GET_ALERTS`, `MARK_ALERT_READ`, `MARK_ALL_ALERTS_READ`, `RUN_SCAN_NOW` | Gestion de notificaciones |
 | **Settings** | `UPDATE_SETTINGS`, `GET_SETTINGS` | Preferencias del usuario |
-| **UI y descargas** | `OPEN_SIDEPANEL`, `GENERATE_ZIP`, `DOWNLOAD_ATTACHMENT`, `BULK_IMPORT`, `PJN_GENERATE_ZIP`, `PJN_DOWNLOAD_PDF` | Acciones de UI y descargas |
+| **UI y descargas** | `OPEN_SIDEPANEL`, `BULK_IMPORT`, `PJN_GENERATE_ZIP`, `PJN_DOWNLOAD_PDF` | Acciones de UI y descargas |
+
+La descarga de expedientes MEV no usa un mensaje suelto sino un canal `chrome.runtime.connect` llamado `mev-download` (`modules/messages/mev-download.ts`, `entrypoints/background/mev-download-job.ts`): una descarga que respeta el límite de pedidos de la MEV tarda más de los 5 minutos que Chrome le da a un mensaje. La pestaña manda `start`, `answer` y `stop`; el fondo manda `progress`, `paused`, `waiting`, `building`, `result`, `cancelled` y `error`. La política de la descarga vive en `modules/pdf/mev-download-runner.ts`, pura y probada con `npm test`.
 
 ### Como agregar un nuevo mensaje
 

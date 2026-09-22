@@ -72,6 +72,8 @@ Veredictos:
 
 `htmlLooksLikeChallenge` (HTML crudo, lo usan los adjuntos y el monitoreo) reconoce también el título y el script de Turnstile.
 
+Ajustes de la revisión de código del 22/09/2026 a esta tabla: el login y la búsqueda se reconocen antes que las frases sueltas (una frase en un script de esas páginas no las convierte en una espera sin fin), y las respuestas HTTP 429 y 503 cuentan como `desafio` (si la MEV pasara a limitar con esos códigos, la descarga pausa en vez de saltear). Cada pedido tiene tiempo máximo: 60 s el proveído y la ficha, 3 min los adjuntos de la MEV; en `docs.scba.gov.ar`, 25 s para que llegue la respuesta (Chrome termina el service worker si tarda más de 30) y 3 min para el cuerpo.
+
 ### 3.3 Pausa con pregunta
 
 Ante `desafio`, la descarga deja de pedir y la pestaña muestra un aviso: "La MEV pidió una pausa. Bajados 87 de 225." Botones:
@@ -82,14 +84,16 @@ Ante `desafio`, la descarga deja de pedir y la pestaña muestra un aviso: "La ME
 
 Ante `login`, el aviso explica que la sesión de la MEV se cerró y que hay que iniciarla en **otra** pestaña (en la de la descarga no, porque cambiar de página la cancela). Botones: **Seguir** (reingresa a la ficha y reintenta), **Detener y guardar lo bajado**, **Cancelar sin guardar**.
 
-Mientras el aviso espera respuesta no se le pide nada a la MEV, sin límite de tiempo.
+Mientras el aviso espera respuesta no se le pide nada a la MEV, sin límite de tiempo. Como la pestaña suele quedar en segundo plano, cada pausa además muestra un aviso del sistema que, al tocarlo, trae la pestaña al frente.
+
+Desde el segundo bloqueo seguido del mismo documento, el aviso ofrece además **Saltear este documento**: salida para un documento que la MEV nunca sirve. Queda anotado en el informe como faltante (ajuste de la revisión de código del 22/09/2026).
 
 ### 3.4 Canal de la descarga (`entrypoints/background/mev-download-job.ts`, nuevo)
 
 - La pestaña abre un canal `chrome.runtime.connect({ name: 'mev-download' })`. El service worker responde enseguida y corre el trabajo fuera del evento, así ningún evento dura más de 5 minutos.
 - Mensajes de la pestaña al fondo: `start` (datos de la causa, movimientos elegidos con su nombre de archivo ya calculado, formato), `answer` (respuesta a una pausa) y `stop` (con o sin guardar).
 - Mensajes del fondo a la pestaña: `progress` (hechos, total, segundos estimados), `paused` (motivo, hechos, total, espera propuesta), `waiting` (segundos que faltan), `result` (archivo, estadísticas, si es parcial) y `error`.
-- Los mensajes por el canal mantienen vivo el service worker (Chrome 114 o posterior). Mientras espera una respuesta, el fondo manda un latido cada 20 s.
+- Durante toda la descarga, el fondo hace una llamada a la API de la extensión cada 20 s, que reinicia el contador de inactividad de Chrome. Cubre las pausas esperando respuesta, las cuentas regresivas y el armado del archivo, que no mandan mensajes (revisión de código del 22/09/2026: que un mensaje enviado desde el service worker reinicie ese contador no está garantizado por la documentación).
 - Si el canal se cierra (pestaña cerrada o recargada), el trabajo se cancela sin pedir nada más y sin entregar archivo. La pestaña avisa antes de salir (`beforeunload`) mientras hay una descarga en curso.
 - `executeScript` corre en la pestaña que abrió el canal (`port.sender.tab.id`).
 - El archivo final se entrega como hoy (`chrome.downloads.download` con "Guardar como").
@@ -99,7 +103,9 @@ Mientras el aviso espera respuesta no se le pide nada a la MEV, sin límite de t
 
 - `AAAA-MM-DD_fs-X_DESCRIPCION.pdf`; sin fojas, `AAAA-MM-DD_DESCRIPCION.pdf`. Fecha inválida: `sin-fecha`.
 - Fojas: `/` pasa a `-` (como hoy). Descripción: primeros 35 caracteres, letras con tilde y la ñ a su letra base (hoy "ACOMPAÑA" queda "ACOMPAA"; pasa a "ACOMPANA"), solo letras, números, espacios y guiones, espacios a `_`.
-- Adjuntos: `<nombre>_adjunto_N.<ext>`. Faltantes: `<nombre>_ERROR.txt`.
+- Adjuntos: `<nombre>_adjunto_N.<ext>`. Los faltantes ya no dejan un `<nombre>_ERROR.txt` cada uno: quedaban en la carpeta después de "Bajar los que faltan" y confundían. Todo faltante está en el informe fechado.
+- El ZIP o el PDF de salida lleva fecha y hora (`expediente_<numero>_AAAA-MM-DD_HHMM`), para que una descarga parcial o "Bajar los que faltan" no propongan pisar el archivo completo.
+- Las colisiones se comparan sin distinguir mayúsculas, igual que Windows.
 - Colisiones: si dos documentos quedan con el mismo nombre, el segundo lleva `_2`, el tercero `_3`. El sufijo se calcula sobre la lista completa de movimientos de la ficha (del más viejo al más nuevo), no sobre lo tildado, así el nombre de un documento no cambia entre descargas.
 - El cálculo lo hace la pestaña, que tiene la lista completa, y viaja con cada movimiento elegido.
 - Limitación conocida: dentro de un mismo día el Explorador de Windows ordena por fojas como texto, no en el orden de la MEV.
@@ -118,7 +124,7 @@ Si la pestaña de la MEV muestra la pantalla de verificación (título `Validand
 
 ### 3.8 Monitoreo y keep-alive
 
-- Mientras hay una descarga en curso, el escaneo automático no consulta la MEV (las causas PJN siguen) y queda pendiente: al terminar la descarga, el fondo lo corre. El keep-alive de la MEV no se manda durante una descarga (la descarga misma mantiene la sesión).
+- Mientras hay una descarga en curso, el escaneo automático no consulta la MEV (las causas PJN siguen) y queda pendiente: al terminar la descarga, el fondo lo corre. Si la descarga empieza con el escaneo en marcha, las causas MEV que faltan se postergan en ese momento; si termina antes que el escaneo, este se repite enseguida. Los escaneos que pide el usuario ("Escanear ahora", "desde fecha") corren siempre. El keep-alive de la MEV no se manda durante una descarga (la descarga misma mantiene la sesión).
 - Fuera de una descarga, el monitoreo mantiene su ritmo actual y corta la parte MEV de la corrida en el primer bloqueo, con la detección mejorada.
 
 ## 4. Pruebas

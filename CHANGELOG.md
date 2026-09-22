@@ -29,9 +29,21 @@ Descarga confiable frente al límite de pedidos de la MEV.
 - El content script no hace nada sobre la pantalla de verificación: un recorrido de importación ya no la toma por una página vacía.
 - `package-lock.json`: una entrada sin versión de un binario opcional de rolldown rompía `npm ci` con npm 11; npm la regeneró con su versión e integridad.
 
+### Ajustes de la revisión de código (mismo día)
+
+- El service worker se mantiene vivo con una llamada a la API cada 20 s durante toda la descarga: las pausas, las cuentas regresivas y el armado del archivo no mandan mensajes, y que un mensaje enviado desde el service worker reinicie el contador de inactividad no está garantizado.
+- Un bloqueo al reingresar a la ficha ya no pierde el documento: después de la espera se vuelve a reingresar.
+- Solo el escaneo automático se posterga por una descarga; "Escanear ahora" y "desde fecha" corren siempre (posponerlos en silencio los hacía decir "sin novedades" sin haber leído la MEV).
+- Aviso del sistema en cada pausa, que trae la pestaña al frente; el texto de la pausa aclara que no pasa nada hasta elegir.
+- "Saltear este documento" desde el segundo bloqueo seguido del mismo documento.
+- "Cancelar sin guardar" se respeta aunque llegue al final; "Detener" desaparece durante el armado del archivo.
+- El login y la búsqueda se reconocen antes que las frases sueltas; HTTP 429 y 503 cuentan como bloqueo; tiempos máximos en todos los pedidos.
+- Colisiones de nombres sin distinguir mayúsculas; el archivo de salida lleva fecha y hora.
+- Los faltantes ya no dejan un `_ERROR.txt` cada uno: el informe fechado los lista todos.
+
 ### Verificación
 
-- `npm test`: 45 casos (portero, nombres, clasificación, informe y recorrido), sin datos reales.
+- `npm test`: 60 casos (portero, nombres, clasificación, informe y recorrido), sin datos reales.
 - `npm run compile`, `npm run build` y `npm run zip` en verde.
 - Pendiente: la prueba real con la MEV (descarga completa de un expediente grande, descarga parcial que encaje en la carpeta, pausa forzada). Hasta esa prueba, la descarga confiable no está verificada contra el portal.
 
