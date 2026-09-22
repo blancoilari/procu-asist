@@ -506,11 +506,13 @@ async function downloadDocsScba(url: string, maxRetries: number, delayMs: number
       clearTimeout(headersTimer);
       if (!resp.ok) {
         lastError = `HTTP ${resp.status}`;
+        controller.abort();
         continue;
       }
       const contentType = resp.headers.get('content-type') ?? 'application/pdf';
       if (contentType.includes('text/html')) {
         lastError = 'El servidor devolvió una página en vez del archivo';
+        controller.abort();
         continue;
       }
       const buffer = await resp.arrayBuffer();
@@ -523,7 +525,11 @@ async function downloadDocsScba(url: string, maxRetries: number, delayMs: number
       for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
       return { status: 'ok', base64: btoa(binary), mimeType: contentType };
     } catch (err) {
-      lastError = err instanceof Error ? err.message : String(err);
+      lastError = controller.signal.aborted
+        ? 'tiempo agotado esperando al servidor'
+        : err instanceof Error
+          ? err.message
+          : String(err);
     } finally {
       clearTimeout(headersTimer);
       clearTimeout(bodyTimer);

@@ -141,7 +141,7 @@ procu-asist/
 ## Contenido del ZIP descargado
 
 ```
-expediente_XX-12345-2025.zip
+expediente_XX-12345-2025_2026-02-04_1051.zip             # Lleva fecha y hora: no pisa uno anterior
 └── XX-12345-2025_expte_completo/
     ├── resumen.pdf                                              # Todos los movimientos de la ficha
     ├── 2025-12-29_fs-1-3_AUTOS.pdf                              # PDF de cada paso procesal

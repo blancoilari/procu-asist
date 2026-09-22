@@ -290,9 +290,12 @@ function showPauseDialog(
     onChoice(choice);
   };
   const progress = `Bajados: ${message.done} de ${message.total}.`;
-  const skipButton = message.canSkip
-    ? [createPortalModalButton({ label: 'Saltear este documento', variant: 'secondary', onClick: choose('skip') })]
-    : [];
+  // Saltear solo ante la verificación: con la sesión cerrada, el documento
+  // siguiente choca con el mismo login y saltear no ayuda.
+  const skipButton =
+    message.canSkip && message.reason === 'desafio'
+      ? [createPortalModalButton({ label: 'Saltear este documento', variant: 'secondary', onClick: choose('skip') })]
+      : [];
   if (message.reason === 'desafio') {
     modal.append(
       heading('La MEV pidió una pausa', WARNING),
@@ -332,7 +335,6 @@ function showPauseDialog(
       buttonRow([
         createPortalModalButton({ label: 'Cancelar sin guardar', variant: 'secondary', onClick: choose('cancel') }),
         createPortalModalButton({ label: 'Detener y guardar lo bajado', variant: 'secondary', onClick: choose('stop-save') }),
-        ...skipButton,
         createPortalModalButton({ label: 'Seguir', variant: 'primary', onClick: choose('continue') }),
       ])
     );

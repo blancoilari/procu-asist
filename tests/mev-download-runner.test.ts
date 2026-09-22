@@ -348,3 +348,29 @@ test('si falla guardar un adjunto, queda anotado y la descarga sigue', async () 
   assert.equal(r.stats.failedItems[0].detail, 'ZIP roto');
   assert.deepEqual(d.guardados, ['A.pdf', 'B.pdf', 'C.pdf']);
 });
+
+test('un adjunto bloqueado dos veces se puede saltear: queda anotado y la descarga sigue', async () => {
+  const conAdjunto: PageFetch<Pagina> = { status: 'ok', data: { adjuntos: [`${MEV}/a1`] } };
+  const d = dobles({
+    paginas: { [`${MEV}/p1`]: [conAdjunto] },
+    adjuntos: { [`${MEV}/a1`]: [{ status: 'desafio', detail: 'x' }] },
+  });
+  const g = ganchos(['wait', 'skip']);
+  const r = await runMevDownload(movs(), d.deps, g.hooks);
+  assert.equal(r.outcome, 'complete');
+  assert.deepEqual(g.pausas.map((p) => p.canSkip), [false, true]);
+  assert.deepEqual(d.guardados, ['A.pdf', 'B.pdf', 'C.pdf']);
+  assert.equal(r.stats.adjuntosFailed, 1);
+  assert.match(r.stats.failedItems[0].detail, /salteado a pedido/);
+  assert.deepEqual(r.stats.missingFileBases, ['A']);
+});
+
+test('un "saltear" que llega sin estar habilitado cuenta como esperar', async () => {
+  const d = dobles({ paginas: { [`${MEV}/p2`]: [BLOQUEO, OK] } });
+  const g = ganchos(['skip']);
+  const r = await runMevDownload(movs(), d.deps, g.hooks);
+  assert.equal(r.outcome, 'complete');
+  assert.deepEqual(g.pausas.map((p) => p.canSkip), [false]);
+  assert.equal(d.esperas.reduce((a, b) => a + b, 0), 30_000);
+  assert.deepEqual(d.guardados, ['A.pdf', 'B.pdf', 'C.pdf']);
+});

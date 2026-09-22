@@ -217,9 +217,10 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
   }
 
   // Registrar el barrido completo SOLO si el prefiltro no intervino y todos
-  // los monitores MEV se escanearon sin errores: es lo que acota a 24 h el
-  // riesgo de una búsqueda de novedades que falle en silencio.
-  if (!setPrefilter && mevTabId && mevEligibleCount > 0 && mevErrors === 0) {
+  // los monitores MEV se escanearon sin errores (ni postergados por una
+  // descarga): es lo que acota a 24 h el riesgo de una búsqueda de novedades
+  // que falle en silencio.
+  if (!setPrefilter && mevTabId && mevEligibleCount > 0 && mevErrors === 0 && skippedByDownload === 0) {
     await chrome.storage.local.set({ [LAST_FULL_MEV_SCAN_KEY]: Date.now() });
   }
 

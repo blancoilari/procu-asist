@@ -48,7 +48,8 @@ export async function generateCaseDownload(
   const safeNumber = data.caseNumber.replace(/[^a-zA-Z0-9-]/g, '_');
   // Fecha y hora en el nombre del archivo: "Bajar los que faltan" o una
   // descarga parcial posterior no proponen pisar el archivo de la anterior.
-  const outputBase = `expediente_${safeNumber}_${downloadStamp(new Date())}`;
+  const startedAt = new Date();
+  const outputBase = `expediente_${safeNumber}_${downloadStamp(startedAt)}`;
   const folder = zip.folder(`${safeNumber}_expte_completo`);
   if (!folder) throw new Error('No se pudo crear la carpeta dentro del ZIP');
   const mergeParts: MergedPdfPart[] = [];
@@ -126,11 +127,14 @@ export async function generateCaseDownload(
 
   if (run.outcome === 'cancelled') return { outcome: 'cancelled', stats: run.stats };
   const outcome = run.outcome;
+  // Ya no se pide nada a la MEV: el fondo avisa que se arma el archivo
+  // (también cuando se detuvo y se guarda lo bajado).
+  hooks.onProgress({ done: run.stats.requestedDocuments, total: run.stats.requestedDocuments });
 
   if (run.stats.failedItems.length > 0) {
-    const now = new Date();
-    const lines = buildVerificationLines({ caseNumber: data.caseNumber, generatedAt: now, outcome, stats: run.stats });
-    folder.file(verificationFileName(now), lines.join('\n'));
+    const lines = buildVerificationLines({ caseNumber: data.caseNumber, generatedAt: new Date(), outcome, stats: run.stats });
+    // Misma marca que el archivo de salida: el informe y su ZIP se reconocen como pareja.
+    folder.file(verificationFileName(startedAt), lines.join('\n'));
     // En el PDF único el .txt no llega al usuario: va como última página.
     if (format === 'pdf') {
       try {

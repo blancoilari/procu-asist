@@ -52,15 +52,24 @@ export function setupMevDownloadPort(options: { runPostponedScan: () => Promise<
       port.disconnect();
       return;
     }
-    handlePort(port, tab.id, tab.windowId);
+    handlePort(port, tab.id);
   });
   // La notificación de pausa trae al frente la pestaña de la descarga.
   chrome.notifications.onClicked.addListener((notificationId) => {
     if (!notificationId.startsWith(PAUSE_NOTIFICATION_PREFIX)) return;
-    const [tabId, windowId] = notificationId.slice(PAUSE_NOTIFICATION_PREFIX.length).split('-').map(Number);
-    if (Number.isFinite(tabId)) void chrome.tabs.update(tabId, { active: true }).catch(() => undefined);
-    if (Number.isFinite(windowId)) void chrome.windows.update(windowId, { focused: true }).catch(() => undefined);
+    const tabId = Number(notificationId.slice(PAUSE_NOTIFICATION_PREFIX.length));
     void chrome.notifications.clear(notificationId);
+    if (!Number.isFinite(tabId)) return;
+    // La ventana se busca al hacer clic: la pestaña pudo haberse movido.
+    void chrome.tabs
+      .get(tabId)
+      .then((tab) =>
+        Promise.all([
+          chrome.tabs.update(tabId, { active: true }),
+          chrome.windows.update(tab.windowId, { focused: true }),
+        ])
+      )
+      .catch(() => undefined);
   });
 }
 
@@ -83,12 +92,12 @@ function notifyPause(notificationId: string, reason: BlockReason): void {
     .catch(() => undefined);
 }
 
-function handlePort(port: chrome.runtime.Port, tabId: number, windowId: number): void {
+function handlePort(port: chrome.runtime.Port, tabId: number): void {
   let started = false;
   let disconnected = false;
   let stopRequest: StopRequest = null;
   let pendingAnswer: ((choice: BlockChoice) => void) | null = null;
-  const pauseNotificationId = `${PAUSE_NOTIFICATION_PREFIX}${tabId}-${windowId}`;
+  const pauseNotificationId = `${PAUSE_NOTIFICATION_PREFIX}${tabId}`;
 
   const post = (message: MevDownloadServerMessage) => {
     if (disconnected) return;
