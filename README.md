@@ -181,6 +181,8 @@ Lo que hace la extensión desde la v0.8.1:
 - Si la MEV devuelve la búsqueda en vez del proveído, la extensión vuelve a entrar una vez a la ficha y reintenta. Si aparece el login, pregunta y pide iniciar sesión en otra pestaña.
 - La descarga corre en el fondo de la extensión detrás de un canal abierto con la pestaña (`entrypoints/background/mev-download-job.ts`), no dentro de un mensaje: Chrome termina el proceso de fondo si un mensaje tarda más de 5 minutos.
 - Mientras hay una descarga, el escaneo automático no consulta la MEV (se repite al terminar) y el keep-alive no se manda.
+- Fuera de una descarga, el keep-alive de la MEV mira la respuesta: si es la pantalla de verificación, deja de pedir durante 30 minutos, y lo mismo si la vio la descarga o el monitoreo (`modules/portals/mev-keepalive.ts`). Hasta el 22/09/2026 seguía pidiendo cada 4 minutos mientras hubiera una pestaña de la MEV abierta; ese día un bloqueo duró más de dos horas.
+- El aviso de pausa aclara lo que desconcierta: en una pestaña la pantalla se resuelve sola a los pocos segundos y la MEV deja pasar, pero eso vale para la persona; la descarga pide por detrás y tiene que esperar a que la MEV deje de mostrarla.
 - Si la pestaña de la MEV muestra la pantalla de verificación, el content script no hace nada hasta que se resuelva: así un recorrido de importación no la toma por una página vacía.
 - Tests: `npm test` (runner de node, sin dependencias nuevas).
 
@@ -190,7 +192,8 @@ Lo que sigue sin medir:
 
 - Si los pedidos a la ficha (`procesales.asp`) y a los adjuntos cuentan para el mismo límite.
 - Si el límite va por usuario o por conexión.
-- Si pasar la verificación a mano en la pestaña acorta el bloqueo.
+- Si pasar la verificación a mano en la pestaña acorta el bloqueo. Observado una vez el 22/09: con la pestaña ya del otro lado, los pedidos de la extensión seguían recibiendo la pantalla.
+- Si el keep-alive era lo que sostenía el bloqueo largo del 22/09.
 
 Brecha conocida: la detección de sets del asistente "Importar todo" y el prefiltro por sets del monitoreo (beta) piden páginas directamente y todavía reconocen solo el login. Frente a la verificación pueden mostrar cero sets o cero causas, que se lee como "no hay nada" en vez de "no pude leer". Se aborda con el selector de alcance de la importación.
 

@@ -29,6 +29,7 @@ import {
 import { getSettings } from '@/modules/storage/settings-store';
 import { isDateOnOrAfter } from '@/modules/utils/date';
 import { isMevDownloadActive, requestScanAfterDownloads } from './mev-download-job';
+import { recordMevChallenge } from './mev-verification-state';
 
 /** How many cases to scan per batch (to avoid overloading) */
 const BATCH_SIZE = 5;
@@ -667,6 +668,7 @@ async function scanSingleCase(
     console.warn(
       `[ProcuAsist] La MEV pidió verificación durante el escaneo de ${monitor.caseNumber}`
     );
+    await recordMevChallenge();
     await notifyMevChallenge();
     throw new Error('mev_challenge');
   }
@@ -886,8 +888,9 @@ async function notifyMevChallenge() {
     iconUrl: chrome.runtime.getURL('icon/128.png'),
     title: 'ProcuAsist: la MEV pidió verificación',
     message:
-      'La MEV respondió con su pantalla de verificación. Abrí la MEV en una pestaña, ' +
-      'resolvé la verificación y el monitoreo sigue en el próximo escaneo.',
+      'La MEV respondió con su pantalla de verificación y el monitoreo de la MEV se cortó. ' +
+      'Pasarla en una pestaña no lo destraba: la MEV la levanta sola al rato y el monitoreo ' +
+      'vuelve a intentar en el próximo escaneo.',
     priority: 1,
   });
 }

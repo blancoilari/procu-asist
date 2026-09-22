@@ -42,10 +42,15 @@ Descarga confiable frente al límite de pedidos de la MEV.
 - Colisiones de nombres sin distinguir mayúsculas; el archivo de salida lleva fecha y hora.
 - Los faltantes ya no dejan un `_ERROR.txt` cada uno: el informe fechado los lista todos.
 
+### Agregado de la noche, aprobado por el titular (mismo día)
+
+- El keep-alive de la MEV mira la respuesta y, si es la pantalla de verificación, deja de pedir durante 30 minutos; lo mismo si la vio la descarga o el monitoreo (`modules/portals/mev-keepalive.ts`, `entrypoints/background/mev-verification-state.ts`). Síntoma: un bloqueo de más de dos horas el 22/09 con pestañas de la MEV abiertas, y el keep-alive pidiendo `busqueda.asp` cada 4 minutos sin mirar qué volvía. Que eso lo sostuviera es hipótesis sin medir.
+- El aviso de pausa aclara que en una pestaña la pantalla se resuelve esperando, pero que eso no destraba la descarga. El aviso del monitoreo deja de pedir "resolvé la verificación", que no destraba nada.
+
 ### Verificación
 
-- `npm test`: 60 casos (portero, nombres, clasificación, informe y recorrido), sin datos reales.
-- `npm run compile`, `npm run build` y `npm run zip` en verde.
+- `npm test`: 75 casos (portero, nombres, clasificación, informe, recorrido y keep-alive), sin datos reales.
+- `npm run compile`, `npm run build` y `npm run zip` en verde. El agregado de la noche pasó `compile` y `test`; `build` y `zip` se corren después de la prueba real, para no pisar la build que está cargada en Chrome.
 - Pendiente: la prueba real con la MEV (descarga completa de un expediente grande, descarga parcial que encaje en la carpeta, pausa forzada). Hasta esa prueba, la descarga confiable no está verificada contra el portal.
 
 ### Sin medir

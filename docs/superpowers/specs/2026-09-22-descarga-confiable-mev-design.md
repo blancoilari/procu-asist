@@ -127,6 +127,17 @@ Si la pestaña de la MEV muestra la pantalla de verificación (título `Validand
 - Mientras hay una descarga en curso, el escaneo automático no consulta la MEV (las causas PJN siguen) y queda pendiente: al terminar la descarga, el fondo lo corre. Si la descarga empieza con el escaneo en marcha, las causas MEV que faltan se postergan en ese momento; si termina antes que el escaneo, este se repite enseguida. Los escaneos que pide el usuario ("Escanear ahora", "desde fecha") corren siempre. El keep-alive de la MEV no se manda durante una descarga (la descarga misma mantiene la sesión).
 - Fuera de una descarga, el monitoreo mantiene su ritmo actual y corta la parte MEV de la corrida en el primer bloqueo, con la detección mejorada.
 
+### 3.9 Mantener sesión durante un bloqueo (agregado el 22/09/2026 a la noche, aprobado por el titular)
+
+Hallazgo de la prueba real: el keep-alive le pedía `busqueda.asp` a la MEV cada 4 minutos mientras hubiera cualquier pestaña de la MEV abierta, sin mirar la respuesta. Ese día un bloqueo duró más de dos horas con pestañas de la MEV abiertas; que el keep-alive lo sostuviera es hipótesis sin medir, pero son 15 pedidos por hora contra un portal que ya frena, y el castigo crece si los pedidos siguen.
+
+- El pedido del keep-alive de la MEV espera la respuesta (tope de 20 s) y la mira: HTTP 429 o 503, o la firma de la pantalla (título, script de Turnstile o frase), cuentan como verificación.
+- Desde la última pantalla vista por cualquier camino (keep-alive, descarga o monitoreo), el keep-alive de la MEV no pide durante 30 minutos. La marca vive en `chrome.storage.session` (`entrypoints/background/mev-verification-state.ts`); la regla es pura y está probada (`modules/portals/mev-keepalive.ts`). Una marca que no es un número o que quedó en el futuro no suspende nada.
+- Contracara aceptada: si el bloqueo dura más que la sesión de la MEV (unos 20 minutos), al volver puede hacer falta iniciar sesión de nuevo.
+- El keep-alive de PJN no cambia.
+
+Textos: el aviso de pausa agrega que en una pestaña la pantalla se resuelve esperando unos segundos, pero que eso vale para la persona y no para la descarga, que pide por detrás y tiene que esperar a que la MEV deje de mostrarla. El aviso del monitoreo ya no dice "resolvé la verificación": pasarla en una pestaña no destraba el monitoreo (observado el 22/09: con la pestaña ya del otro lado, los pedidos de la extensión seguían recibiendo la pantalla).
+
 ## 4. Pruebas
 
 Unitarias (`node --test`, sin dependencias nuevas, sin datos reales):

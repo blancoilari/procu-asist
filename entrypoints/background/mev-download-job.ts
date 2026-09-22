@@ -21,6 +21,7 @@ import { generateCaseDownload } from '@/modules/pdf/case-zip-generator';
 import type { BlockChoice, BlockReason, StopRequest } from '@/modules/pdf/mev-download-runner';
 import { createMevPacer, MEV_MIN_INTERVAL_MS, realClock } from '@/modules/portals/mev-pacer';
 import { blobToDataUri } from '@/modules/utils/blob';
+import { recordMevChallenge } from './mev-verification-state';
 
 /** Un solo portero para todas las descargas: comparten el cupo de la MEV. */
 const pacer = createMevPacer(realClock);
@@ -156,6 +157,8 @@ function handlePort(port: chrome.runtime.Port, tabId: number): void {
           },
           onBlocked: ({ reason, done, total, waitMs, canSkip }) =>
             new Promise<BlockChoice>((resolve) => {
+              // El mantener sesión deja de pedir mientras la MEV frena.
+              if (reason === 'desafio') void recordMevChallenge();
               if (stopRequest) {
                 resolve(stopRequest);
                 return;

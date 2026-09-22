@@ -315,6 +315,15 @@ function showPauseDialog(
           `${progress} La descarga espera ${message.waitSeconds} segundos y reintenta el mismo documento sola: no se saltea nada. ` +
           'Si no elegís nada, sigue cuando termine la cuenta del botón; mientras tanto no se le pide nada a la MEV.'
       ),
+      // Lo que desconcertó en la prueba real del 22/09/2026: en una pestaña la
+      // pantalla se resuelve sola y la MEV deja pasar, y parece que la
+      // descarga debería poder lo mismo. No puede: pide por detrás, sin abrir
+      // la página, y recibe la pantalla hasta que la MEV deje de mostrarla.
+      paragraph(
+        'Si abrís la MEV en otra pestaña vas a ver esa pantalla ("Validando acceso") y, esperando unos segundos, te deja entrar. ' +
+          'Eso vale para vos, no para la descarga: la descarga tiene que esperar a que la MEV deje de mostrarla.',
+        true
+      ),
       ...(message.canSkip
         ? [
             paragraph(
