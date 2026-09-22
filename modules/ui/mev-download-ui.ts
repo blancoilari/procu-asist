@@ -285,10 +285,16 @@ function showPauseDialog(
   onChoice: (choice: BlockChoice) => void
 ): HTMLElement {
   const { overlay, modal } = createDialog();
-  const choose = (choice: BlockChoice) => () => {
+  let countdown: number | undefined;
+  let answered = false;
+  const answer = (choice: BlockChoice) => {
+    if (answered) return;
+    answered = true;
+    window.clearInterval(countdown);
     overlay.remove();
     onChoice(choice);
   };
+  const choose = (choice: BlockChoice) => () => answer(choice);
   const progress = `Bajados: ${message.done} de ${message.total}.`;
   // Saltear solo ante la verificación: con la sesión cerrada, el documento
   // siguiente choca con el mismo login y saltear no ayuda.
@@ -297,12 +303,17 @@ function showPauseDialog(
       ? [createPortalModalButton({ label: 'Saltear este documento', variant: 'secondary', onClick: choose('skip') })]
       : [];
   if (message.reason === 'desafio') {
+    const waitButton = createPortalModalButton({
+      label: `Esperar y seguir (${message.waitSeconds})`,
+      variant: 'primary',
+      onClick: choose('wait'),
+    });
     modal.append(
       heading('La MEV pidió una pausa', WARNING),
       paragraph(
         'La MEV limita cuántos documentos se pueden pedir por minuto y ahora respondió con su pantalla de verificación. ' +
-          `${progress} Si tocás "Esperar y seguir", la descarga espera ${message.waitSeconds} segundos y reintenta el mismo documento sola: no se saltea nada. ` +
-          'Mientras no elijas, la descarga queda en pausa y no se le pide nada a la MEV.'
+          `${progress} La descarga espera ${message.waitSeconds} segundos y reintenta el mismo documento sola: no se saltea nada. ` +
+          'Si no elegís nada, sigue cuando termine la cuenta del botón; mientras tanto no se le pide nada a la MEV.'
       ),
       ...(message.canSkip
         ? [
@@ -316,9 +327,22 @@ function showPauseDialog(
         createPortalModalButton({ label: 'Cancelar sin guardar', variant: 'secondary', onClick: choose('cancel') }),
         createPortalModalButton({ label: 'Detener y guardar lo bajado', variant: 'secondary', onClick: choose('stop-save') }),
         ...skipButton,
-        createPortalModalButton({ label: 'Esperar y seguir', variant: 'primary', onClick: choose('wait') }),
+        waitButton,
       ])
     );
+    // Si la persona no está, la descarga no se queda esperando: al terminar
+    // la cuenta elige "Esperar y seguir" sola. La espera ya transcurrió
+    // mientras contaba, así que reintenta enseguida (el fondo descuenta el
+    // tiempo desde el bloqueo).
+    let left = message.waitSeconds;
+    countdown = window.setInterval(() => {
+      left -= 1;
+      if (left <= 0) {
+        answer('wait');
+        return;
+      }
+      waitButton.textContent = `Esperar y seguir (${left})`;
+    }, 1000);
   } else {
     const link = document.createElement('a');
     link.textContent = 'Abrir la MEV en otra pestaña';

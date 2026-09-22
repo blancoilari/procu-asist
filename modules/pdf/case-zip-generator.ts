@@ -89,6 +89,7 @@ export async function generateCaseDownload(
     {
       pace: () => pacer.wait(),
       sleep: realClock.sleep,
+      now: realClock.now,
       fetchProveido: (url) => fetchMevPageContent(tabId, url),
       enterCase: () => enterMevCase(tabId, data.portalUrl),
       isMevHosted: isMevHostedUrl,

@@ -5,8 +5,9 @@
  * Política (especificación del 22/09/2026):
  *   - cada pedido a la MEV espera su turno en el portero (20 por minuto);
  *   - pantalla de verificación o sesión cerrada: la descarga deja de pedir
- *     y pregunta; con "esperar" cuenta la espera que toca y reintenta el
- *     MISMO documento. Nunca lo saltea por su cuenta: desde el segundo
+ *     y pregunta; con "esperar" completa la espera que toca, contada desde
+ *     el bloqueo (el tiempo que el aviso estuvo abierto ya cuenta), y
+ *     reintenta el MISMO documento. Nunca lo saltea por su cuenta: desde el segundo
  *     bloqueo seguido del mismo documento, el usuario puede elegir
  *     saltearlo (salida para un documento que la MEV nunca sirve);
  *   - la MEV devolvió la búsqueda en vez del proveído: reingresa a la ficha
@@ -57,6 +58,8 @@ export interface RunnerDeps<T> {
   /** Espera el turno del portero antes de un pedido a la MEV. */
   pace(): Promise<void>;
   sleep(ms: number): Promise<void>;
+  /** Hora actual en milisegundos: la espera se cuenta desde el bloqueo. */
+  now(): number;
   fetchProveido(url: string): Promise<PageFetch<T>>;
   /** Reingresa a la ficha de la causa: deja la causa en la sesión. */
   enterCase(): Promise<CaseEntry>;
@@ -187,12 +190,14 @@ export async function runMevDownload<T>(
       item.count += 1;
       item.lastReason = current;
       const waitMs = blockWaitMs(consecutiveBlocks);
+      const blockedAt = deps.now();
       const choice = await hooks.onBlocked({ reason: current, done, total, waitMs, canSkip });
       if (choice === 'stop-save' || choice === 'cancel') return choice;
       if (choice === 'skip' && canSkip) return 'skip';
       if (current === 'desafio') {
         consecutiveBlocks += 1;
-        let left = waitMs;
+        // Lo que el aviso estuvo abierto ya es espera: solo se completa lo que falta.
+        let left = Math.max(0, waitMs - (deps.now() - blockedAt));
         while (left > 0) {
           const stop = hooks.shouldStop();
           if (stop) return stop;

@@ -34,7 +34,7 @@ const BLOQUEO: PageFetch<Pagina> = { status: 'desafio', detail: 'x' };
 
 /** Orden de detener compartida entre dobles y ganchos. */
 function control() {
-  return { orden: null as StopRequest };
+  return { orden: null as StopRequest, t: 0 };
 }
 
 /** Cada dirección responde su guion en orden; la última respuesta se repite. */
@@ -67,7 +67,9 @@ function dobles(
     },
     sleep: async (ms) => {
       esperas.push(ms);
+      ctl.t += ms;
     },
+    now: () => ctl.t,
     fetchProveido: async (url) => {
       llamadas.push(`proveido ${url.replace(MEV, '')}`);
       return siguiente(guion.paginas?.[url], OK);
@@ -100,6 +102,8 @@ function ganchos(
   opciones: {
     detener?: { enAvance: number; orden: StopRequest };
     detenerEnCuenta?: { cuenta: number; orden: StopRequest };
+    /** Milisegundos que tarda el usuario en contestar cada pausa. */
+    demoraRespuestaMs?: number;
   } = {},
   ctl = control()
 ) {
@@ -113,6 +117,7 @@ function ganchos(
     },
     onBlocked: async (b) => {
       pausas.push({ reason: b.reason, waitMs: b.waitMs, canSkip: b.canSkip });
+      ctl.t += opciones.demoraRespuestaMs ?? 0;
       return respuestas.shift() ?? 'cancel';
     },
     onWaiting: (w) => {
@@ -373,4 +378,26 @@ test('un "saltear" que llega sin estar habilitado cuenta como esperar', async ()
   assert.deepEqual(g.pausas.map((p) => p.canSkip), [false]);
   assert.equal(d.esperas.reduce((a, b) => a + b, 0), 30_000);
   assert.deepEqual(d.guardados, ['A.pdf', 'B.pdf', 'C.pdf']);
+});
+
+test('la espera corre desde el bloqueo: una respuesta que tarda 20 s solo espera los 10 que faltan', async () => {
+  const ctl = control();
+  const d = dobles({ paginas: { [`${MEV}/p2`]: [BLOQUEO, OK] } }, ctl);
+  const g = ganchos(['wait'], { demoraRespuestaMs: 20_000 }, ctl);
+  const r = await runMevDownload(movs(), d.deps, g.hooks);
+  assert.equal(r.outcome, 'complete');
+  assert.equal(d.esperas.reduce((a, b) => a + b, 0), 10_000);
+  assert.deepEqual(g.cuentas, [10, 5]);
+  assert.deepEqual(d.guardados, ['A.pdf', 'B.pdf', 'C.pdf']);
+});
+
+test('si la respuesta llega cuando ya pasó la espera completa, reintenta enseguida', async () => {
+  const ctl = control();
+  const d = dobles({ paginas: { [`${MEV}/p2`]: [BLOQUEO, OK] } }, ctl);
+  const g = ganchos(['wait'], { demoraRespuestaMs: 45_000 }, ctl);
+  const r = await runMevDownload(movs(), d.deps, g.hooks);
+  assert.equal(r.outcome, 'complete');
+  assert.deepEqual(d.esperas, []);
+  assert.deepEqual(g.cuentas, []);
+  assert.equal(d.llamadas.filter((l) => l === 'proveido /p2').length, 2);
 });
