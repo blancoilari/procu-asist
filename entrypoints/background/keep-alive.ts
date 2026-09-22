@@ -5,6 +5,7 @@
  */
 
 import type { PortalId } from '@/modules/portals/types';
+import { isMevDownloadActive } from './mev-download-job';
 
 const PORTAL_TAB_PATTERNS: Record<PortalId, string> = {
   mev: 'https://mev.scba.gov.ar/*',
@@ -23,6 +24,10 @@ export async function keepAlive(portal: PortalId): Promise<void> {
 
   if (portal === 'mev' && settings?.keepAliveMev === false) return;
   if (portal === 'pjn' && settings?.keepAlivePjn === false) return;
+
+  // Durante una descarga, sus propios pedidos mantienen viva la sesión y
+  // cada pedido extra gasta cupo del límite de la MEV.
+  if (portal === 'mev' && isMevDownloadActive()) return;
 
   // Find open tabs matching the portal
   const tabs = await chrome.tabs.query({ url: PORTAL_TAB_PATTERNS[portal] });

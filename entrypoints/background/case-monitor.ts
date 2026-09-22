@@ -28,6 +28,7 @@ import {
 } from '@/modules/storage/monitor-store';
 import { getSettings } from '@/modules/storage/settings-store';
 import { isDateOnOrAfter } from '@/modules/utils/date';
+import { isMevDownloadActive, requestScanAfterDownloads } from './mev-download-job';
 
 /** How many cases to scan per batch (to avoid overloading) */
 const BATCH_SIZE = 5;
@@ -71,10 +72,14 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
   }
 
   const needsMev = monitors.some((monitor) => monitor.portal === 'mev');
-  const mevTabId = needsMev ? await findMevTab() : null;
+  // Con una descarga de expediente en curso, la MEV no se consulta en esta
+  // corrida: la descarga ya usa el cupo de pedidos del portal. El escaneo
+  // se repite apenas termine la descarga (mev-download-job.ts).
+  const mevPostponed = needsMev && isMevDownloadActive();
+  const mevTabId = needsMev && !mevPostponed ? await findMevTab() : null;
   const pjnTabId = null;
 
-  if (needsMev && !mevTabId) {
+  if (needsMev && !mevPostponed && !mevTabId) {
     console.warn('[ProcuAsist] Missing portal tab for scan', {
       needsMev,
       hasMevTab: Boolean(mevTabId),
@@ -116,6 +121,7 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
   let missingTabs = 0;
   let skippedBySet = 0;
   let skippedByChallenge = 0;
+  let skippedByDownload = 0;
   // Una vez que la MEV contestó con su pantalla de verificación, seguir
   // pidiendo causa por causa solo suma pedidos contra un portal que ya está
   // filtrando, y todas van a fallar igual. Se corta el resto del barrido MEV;
@@ -131,6 +137,11 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
     for (const monitor of batch) {
       let fetched = false;
       try {
+        if (monitor.portal === 'mev' && mevPostponed) {
+          skippedByDownload++;
+          continue;
+        }
+
         if (monitor.portal === 'mev' && mevChallengeHit) {
           skippedByChallenge++;
           continue;
@@ -186,6 +197,7 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
   }
 
   await touchMonitorScans(touchedMonitorIds);
+  if (skippedByDownload > 0) requestScanAfterDownloads();
 
   // Registrar el barrido completo SOLO si el prefiltro no intervino y todos
   // los monitores MEV se escanearon sin errores: es lo que acota a 24 h el
@@ -204,6 +216,7 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
     missingTabs,
     skippedBySet: skippedBySet || undefined,
     skippedByChallenge: skippedByChallenge || undefined,
+    skippedByDownload: skippedByDownload || undefined,
     skippedReason:
       missingTabs === monitors.length
         ? 'no_tab'
@@ -248,6 +261,9 @@ export interface ScanResult {
    *  verificación en medio del barrido. No se leyeron: no dicen nada sobre
    *  si tienen novedades. */
   skippedByChallenge?: number;
+  /** Causas MEV que no se consultaron porque había una descarga en curso;
+   *  el escaneo se repite al terminar la descarga. */
+  skippedByDownload?: number;
   skippedReason?: string;
 }
 
