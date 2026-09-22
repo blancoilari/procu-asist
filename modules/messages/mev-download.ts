@@ -45,9 +45,16 @@ export type MevDownloadClientMessage =
 
 export type MevDownloadServerMessage =
   | { type: 'progress'; done: number; total: number; etaSeconds: number }
-  | { type: 'paused'; reason: BlockReason; done: number; total: number; waitSeconds: number }
+  | {
+      type: 'paused';
+      reason: BlockReason;
+      done: number;
+      total: number;
+      waitSeconds: number;
+      /** true desde el segundo bloqueo seguido del mismo documento. */
+      canSkip: boolean;
+    }
   | { type: 'waiting'; secondsLeft: number; done: number; total: number }
-  | { type: 'keepalive' }
   | { type: 'building' }
   | { type: 'result'; outcome: 'complete' | 'partial'; filename: string; stats: MevDownloadStats }
   | { type: 'cancelled' }

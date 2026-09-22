@@ -24,6 +24,8 @@ const WARNING = '#b45309';
 const MEV_LOGIN_URL = 'https://mev.scba.gov.ar/loguin.asp';
 
 let running = false;
+/** Vuelta del botón a "Descargar" después de un resultado; se cancela si arranca otra descarga. */
+let resetButtonTimer: number | undefined;
 
 /** true mientras esta pestaña tenga una descarga en curso. */
 export function isMevDownloadRunning(): boolean {
@@ -39,14 +41,30 @@ export interface StartMevDownloadOptions {
 
 export function startMevDownload(options: StartMevDownloadOptions): void {
   if (running) return;
-  running = true;
   const { button } = options;
+
+  // Con la extensión actualizada o recargada, esta pestaña ya no puede
+  // hablar con el fondo: se avisa en vez de dejar la pantalla trabada.
+  let port: chrome.runtime.Port;
+  try {
+    port = chrome.runtime.connect({ name: MEV_DOWNLOAD_PORT });
+  } catch {
+    showMessageDialog(
+      'No se pudo iniciar la descarga',
+      'La extensión se actualizó o se reinició. Recargá esta página de la MEV y volvé a intentar.'
+    );
+    return;
+  }
+
+  running = true;
+  window.clearTimeout(resetButtonTimer);
   button.disabled = true;
   setPortalActionButtonState(button, ICON_LOADER, 'Descargando', 'muted');
 
   const panel = createProgressPanel();
   let finished = false;
   let pauseOverlay: HTMLElement | null = null;
+  let stopOverlay: HTMLElement | null = null;
 
   const onBeforeUnload = (event: BeforeUnloadEvent) => {
     event.preventDefault();
@@ -54,7 +72,6 @@ export function startMevDownload(options: StartMevDownloadOptions): void {
   };
   window.addEventListener('beforeunload', onBeforeUnload);
 
-  const port = chrome.runtime.connect({ name: MEV_DOWNLOAD_PORT });
   const send = (message: MevDownloadClientMessage) => {
     try {
       port.postMessage(message);
@@ -67,16 +84,24 @@ export function startMevDownload(options: StartMevDownloadOptions): void {
     pauseOverlay?.remove();
     pauseOverlay = null;
   };
+  const closeStop = () => {
+    stopOverlay?.remove();
+    stopOverlay = null;
+  };
 
   const end = (variant: 'success' | 'warning' | 'danger', label: string) => {
     finished = true;
     running = false;
     window.removeEventListener('beforeunload', onBeforeUnload);
     closePause();
+    closeStop();
     panel.remove();
     setPortalActionButtonState(button, variant === 'danger' ? ICON_X : ICON_CHECK, label, variant);
     button.disabled = false;
-    window.setTimeout(() => setPortalActionButtonState(button, ICON_PACKAGE, 'Descargar', 'primary'), 8000);
+    resetButtonTimer = window.setTimeout(
+      () => setPortalActionButtonState(button, ICON_PACKAGE, 'Descargar', 'primary'),
+      8000
+    );
     try {
       port.disconnect();
     } catch {
@@ -85,8 +110,11 @@ export function startMevDownload(options: StartMevDownloadOptions): void {
   };
 
   panel.stopButton.addEventListener('click', () => {
-    if (finished) return;
-    showStopDialog({
+    if (finished || stopOverlay) return;
+    stopOverlay = showStopDialog({
+      onClose: () => {
+        stopOverlay = null;
+      },
       onSave: () => send({ type: 'stop', save: true }),
       onCancel: () => send({ type: 'stop', save: false }),
     });
@@ -121,9 +149,10 @@ export function startMevDownload(options: StartMevDownloadOptions): void {
           message.reason === 'desafio' ? 'En pausa: la MEV pidió una pausa' : 'En pausa: se cerró la sesión de la MEV'
         );
         break;
-      case 'keepalive':
-        break;
       case 'building':
+        // Ya no se pide nada a la MEV: detener no tiene efecto sobre el armado.
+        closeStop();
+        panel.hideStop();
         panel.update(1, 1, 'Armando el archivo...');
         break;
       case 'result': {
@@ -175,6 +204,7 @@ function formatEta(seconds: number): string {
 function createProgressPanel(): {
   update: (done: number, total: number, label: string) => void;
   remove: () => void;
+  hideStop: () => void;
   stopButton: HTMLButtonElement;
 } {
   const box = document.createElement('div');
@@ -205,6 +235,9 @@ function createProgressPanel(): {
       fill.style.width = `${total > 0 ? Math.max(3, Math.round((done / total) * 100)) : 3}%`;
     },
     remove: () => box.remove(),
+    hideStop: () => {
+      stopButton.style.display = 'none';
+    },
     stopButton,
   };
 }
@@ -257,16 +290,29 @@ function showPauseDialog(
     onChoice(choice);
   };
   const progress = `Bajados: ${message.done} de ${message.total}.`;
+  const skipButton = message.canSkip
+    ? [createPortalModalButton({ label: 'Saltear este documento', variant: 'secondary', onClick: choose('skip') })]
+    : [];
   if (message.reason === 'desafio') {
     modal.append(
       heading('La MEV pidió una pausa', WARNING),
       paragraph(
         'La MEV limita cuántos documentos se pueden pedir por minuto y ahora respondió con su pantalla de verificación. ' +
-          `${progress} Si esperás, la descarga sigue sola en ${message.waitSeconds} segundos y reintenta el mismo documento: no se saltea nada.`
+          `${progress} Si tocás "Esperar y seguir", la descarga espera ${message.waitSeconds} segundos y reintenta el mismo documento sola: no se saltea nada. ` +
+          'Mientras no elijas, la descarga queda en pausa y no se le pide nada a la MEV.'
       ),
+      ...(message.canSkip
+        ? [
+            paragraph(
+              'Este mismo documento ya se bloqueó antes. Si la MEV nunca lo sirve, podés saltearlo: queda anotado en el informe como faltante.',
+              true
+            ),
+          ]
+        : []),
       buttonRow([
         createPortalModalButton({ label: 'Cancelar sin guardar', variant: 'secondary', onClick: choose('cancel') }),
         createPortalModalButton({ label: 'Detener y guardar lo bajado', variant: 'secondary', onClick: choose('stop-save') }),
+        ...skipButton,
         createPortalModalButton({ label: 'Esperar y seguir', variant: 'primary', onClick: choose('wait') }),
       ])
     );
@@ -286,6 +332,7 @@ function showPauseDialog(
       buttonRow([
         createPortalModalButton({ label: 'Cancelar sin guardar', variant: 'secondary', onClick: choose('cancel') }),
         createPortalModalButton({ label: 'Detener y guardar lo bajado', variant: 'secondary', onClick: choose('stop-save') }),
+        ...skipButton,
         createPortalModalButton({ label: 'Seguir', variant: 'primary', onClick: choose('continue') }),
       ])
     );
@@ -293,9 +340,12 @@ function showPauseDialog(
   return overlay;
 }
 
-function showStopDialog(actions: { onSave: () => void; onCancel: () => void }): void {
+function showStopDialog(actions: { onClose: () => void; onSave: () => void; onCancel: () => void }): HTMLElement {
   const { overlay, modal } = createDialog();
-  const close = () => overlay.remove();
+  const close = () => {
+    overlay.remove();
+    actions.onClose();
+  };
   modal.append(
     heading('¿Detener la descarga?', WARNING),
     paragraph('Podés guardar lo que ya se bajó, con el informe de lo que falta, o cancelar sin guardar nada.'),
@@ -319,6 +369,7 @@ function showStopDialog(actions: { onSave: () => void; onCancel: () => void }): 
       }),
     ])
   );
+  return overlay;
 }
 
 function showResultDialog(
