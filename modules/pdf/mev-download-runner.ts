@@ -6,9 +6,12 @@
  *   - cada pedido a la MEV espera su turno en el portero (20 por minuto);
  *   - pantalla de verificación o sesión cerrada: la descarga deja de pedir
  *     y pregunta; con "esperar" cuenta la espera que toca y reintenta el
- *     MISMO documento, nunca lo saltea;
- *   - la MEV devolvió la búsqueda en vez del proveído: reingresa una vez a
- *     la ficha y reintenta;
+ *     MISMO documento. Nunca lo saltea por su cuenta: desde el segundo
+ *     bloqueo seguido del mismo documento, el usuario puede elegir
+ *     saltearlo (salida para un documento que la MEV nunca sirve);
+ *   - la MEV devolvió la búsqueda en vez del proveído: reingresa a la ficha
+ *     y reintenta (si el reingreso choca con un bloqueo, después de la
+ *     espera vuelve a reingresar);
  *   - otra página o un error: reintenta una vez y, si se repite, lo anota
  *     como faltante con lo que devolvió la MEV y sigue con el resto.
  *
@@ -65,13 +68,22 @@ export interface RunnerDeps<T> {
   saveAttachment(fileName: string, base64: string, mimeType: string): Promise<void>;
 }
 
-export type BlockChoice = 'wait' | 'continue' | 'stop-save' | 'cancel';
+export type BlockChoice = 'wait' | 'continue' | 'skip' | 'stop-save' | 'cancel';
 export type StopRequest = 'stop-save' | 'cancel' | null;
 
 export interface RunnerHooks {
   onProgress(p: { done: number; total: number }): void;
-  /** Pausa: la descarga no pide nada hasta que esto resuelva. */
-  onBlocked(b: { reason: BlockReason; done: number; total: number; waitMs: number }): Promise<BlockChoice>;
+  /**
+   * Pausa: la descarga no pide nada hasta que esto resuelva. `canSkip` es
+   * true desde el segundo bloqueo seguido del mismo documento.
+   */
+  onBlocked(b: {
+    reason: BlockReason;
+    done: number;
+    total: number;
+    waitMs: number;
+    canSkip: boolean;
+  }): Promise<BlockChoice>;
   onWaiting(w: { secondsLeft: number; done: number; total: number }): void;
   shouldStop(): StopRequest;
 }
@@ -95,6 +107,14 @@ interface PendingAttachment {
   url: string;
   fileName: string;
 }
+
+/** Bloqueos seguidos sobre el documento o adjunto en curso. */
+interface ItemBlocks {
+  count: number;
+  lastReason: BlockReason;
+}
+
+type BlockOutcome = 'retry' | 'skip' | 'stop-save' | 'cancel';
 
 export async function runMevDownload<T>(
   movements: RunnerMovement[],
@@ -156,13 +176,20 @@ export async function runMevDownload<T>(
     return { outcome: 'partial', stats };
   };
 
-  /** Pausa por bloqueo: devuelve 'retry' o la orden de detener. */
-  const resolveBlock = async (reason: BlockReason): Promise<'retry' | 'stop-save' | 'cancel'> => {
+  const skippedDetail = (item: ItemBlocks) =>
+    `salteado a pedido del usuario después de ${item.count} bloqueos seguidos`;
+
+  /** Pausa por bloqueo: devuelve 'retry', 'skip' o la orden de detener. */
+  const resolveBlock = async (reason: BlockReason, item: ItemBlocks): Promise<BlockOutcome> => {
     let current: BlockReason = reason;
     for (;;) {
+      const canSkip = item.count >= 1;
+      item.count += 1;
+      item.lastReason = current;
       const waitMs = blockWaitMs(consecutiveBlocks);
-      const choice = await hooks.onBlocked({ reason: current, done, total, waitMs });
+      const choice = await hooks.onBlocked({ reason: current, done, total, waitMs, canSkip });
       if (choice === 'stop-save' || choice === 'cancel') return choice;
+      if (choice === 'skip' && canSkip) return 'skip';
       if (current === 'desafio') {
         consecutiveBlocks += 1;
         let left = waitMs;
@@ -179,6 +206,8 @@ export async function runMevDownload<T>(
       // Sesión cerrada: el usuario avisa que ya entró en otra pestaña. El
       // reingreso a la ficha deja la causa en la sesión nueva.
       await deps.pace();
+      const stop = hooks.shouldStop();
+      if (stop) return stop;
       const entry = await deps.enterCase();
       if (entry.status === 'desafio' || entry.status === 'login') {
         current = entry.status;
@@ -196,25 +225,32 @@ export async function runMevDownload<T>(
     let failure: { reason: MevFailureReason; detail: string } | null = null;
     let reentered = false;
     let retried = false;
+    const item: ItemBlocks = { count: 0, lastReason: 'desafio' };
 
     while (!page && !failure) {
-      const stop = hooks.shouldStop();
-      if (stop) return finish(stop, di);
+      if (hooks.shouldStop()) return finish(hooks.shouldStop()!, di);
       await deps.pace();
+      // Una orden que llegó durante el turno del portero no manda el pedido.
+      if (hooks.shouldStop()) return finish(hooks.shouldStop()!, di);
       const got = await deps.fetchProveido(doc.url);
       if (got.status === 'ok') {
         page = { data: got.data };
         consecutiveBlocks = 0;
       } else if (got.status === 'desafio' || got.status === 'login') {
-        const next = await resolveBlock(got.status);
-        if (next !== 'retry') return finish(next, di);
+        const next = await resolveBlock(got.status, item);
+        if (next === 'skip') failure = { reason: item.lastReason, detail: skippedDetail(item) };
+        else if (next !== 'retry') return finish(next, di);
       } else if (got.status === 'sin-contexto' && !reentered) {
         reentered = true;
         await deps.pace();
+        if (hooks.shouldStop()) return finish(hooks.shouldStop()!, di);
         const entry = await deps.enterCase();
         if (entry.status === 'desafio' || entry.status === 'login') {
-          const next = await resolveBlock(entry.status);
-          if (next !== 'retry') return finish(next, di);
+          const next = await resolveBlock(entry.status, item);
+          if (next === 'skip') failure = { reason: item.lastReason, detail: skippedDetail(item) };
+          else if (next !== 'retry') return finish(next, di);
+          // El reingreso no llegó a hacerse: después de la espera se vuelve a intentar.
+          else reentered = false;
         }
       } else if ((got.status === 'respuesta-inesperada' || got.status === 'error') && !retried) {
         retried = true;
@@ -242,21 +278,32 @@ export async function runMevDownload<T>(
       const fileName = `${doc.fileName}_adjunto_${ai + 1}`;
       const restantes = (): PendingAttachment[] =>
         adjuntos.slice(ai).map((u, k) => ({ doc, url: u, fileName: `${doc.fileName}_adjunto_${ai + k + 1}` }));
+      const adjItem: ItemBlocks = { count: 0, lastReason: 'desafio' };
       let attachmentRetried = false;
       for (;;) {
-        const stop = hooks.shouldStop();
-        if (stop) return finish(stop, di + 1, restantes());
+        if (hooks.shouldStop()) return finish(hooks.shouldStop()!, di + 1, restantes());
         const mevHosted = deps.isMevHosted(url);
-        if (mevHosted) await deps.pace();
+        if (mevHosted) {
+          await deps.pace();
+          if (hooks.shouldStop()) return finish(hooks.shouldStop()!, di + 1, restantes());
+        }
         const got = await deps.fetchAttachment(url);
         if (got.status === 'ok') {
-          await deps.saveAttachment(fileName, got.base64, got.mimeType);
-          stats.adjuntosDownloaded += 1;
+          try {
+            await deps.saveAttachment(fileName, got.base64, got.mimeType);
+            stats.adjuntosDownloaded += 1;
+          } catch (err) {
+            fail(doc, 'adjunto', fileName, url, 'error', err instanceof Error ? err.message : String(err));
+          }
           consecutiveBlocks = 0;
           break;
         }
         if (got.status === 'desafio' || got.status === 'login') {
-          const next = await resolveBlock(got.status);
+          const next = await resolveBlock(got.status, adjItem);
+          if (next === 'skip') {
+            fail(doc, 'adjunto', fileName, url, adjItem.lastReason, skippedDetail(adjItem));
+            break;
+          }
           if (next !== 'retry') return finish(next, di + 1, restantes());
           continue;
         }
@@ -272,6 +319,8 @@ export async function runMevDownload<T>(
   }
 
   hooks.onProgress({ done, total });
+  // Un "Cancelar sin guardar" durante el último documento también cuenta.
+  if (hooks.shouldStop() === 'cancel') return finish('cancel', docs.length);
   stats.missingFileBases = [...missing];
   return { outcome: 'complete', stats };
 }
