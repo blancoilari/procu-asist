@@ -72,10 +72,14 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
   }
 
   const needsMev = monitors.some((monitor) => monitor.portal === 'mev');
-  // Con una descarga de expediente en curso, la MEV no se consulta en esta
-  // corrida: la descarga ya usa el cupo de pedidos del portal. El escaneo
-  // se repite apenas termine la descarga (mev-download-job.ts).
-  const mevPostponed = needsMev && isMevDownloadActive();
+  // Con una descarga de expediente en curso, el escaneo AUTOMÁTICO no
+  // consulta la MEV: la descarga ya usa el cupo de pedidos del portal, y el
+  // escaneo se repite apenas termine (mev-download-job.ts). Los que pide el
+  // usuario ("Escanear ahora", "desde fecha") corren igual: posponerlos en
+  // silencio les haría decir "sin novedades" sin haber leído la MEV.
+  const automatic = !options.fromDate && !options.thorough;
+  const postponeMev = () => automatic && isMevDownloadActive();
+  const mevPostponed = needsMev && postponeMev();
   const mevTabId = needsMev && !mevPostponed ? await findMevTab() : null;
   const pjnTabId = null;
 
@@ -137,7 +141,8 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
     for (const monitor of batch) {
       let fetched = false;
       try {
-        if (monitor.portal === 'mev' && mevPostponed) {
+        // También si la descarga empezó con el escaneo ya en marcha.
+        if (monitor.portal === 'mev' && (mevPostponed || postponeMev())) {
           skippedByDownload++;
           continue;
         }
@@ -197,7 +202,19 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
   }
 
   await touchMonitorScans(touchedMonitorIds);
-  if (skippedByDownload > 0) requestScanAfterDownloads();
+  if (skippedByDownload > 0) {
+    if (isMevDownloadActive()) {
+      requestScanAfterDownloads();
+    } else {
+      // La descarga terminó mientras este escaneo seguía: se repite ya, en
+      // vez de esperar a la próxima descarga o a la próxima alarma.
+      setTimeout(() => {
+        scanMonitoredCases().catch((err) =>
+          console.warn('[ProcuAsist] Escaneo repetido después de la descarga falló:', err)
+        );
+      }, 5_000);
+    }
+  }
 
   // Registrar el barrido completo SOLO si el prefiltro no intervino y todos
   // los monitores MEV se escanearon sin errores: es lo que acota a 24 h el
