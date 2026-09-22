@@ -37,7 +37,14 @@ extension corriendo. Antes de subir, cargar `.output/chrome-mv3` desde
 - Dependencias de desarrollo al dia (`npm audit` en cero). Ninguna dependencia
   de produccion cambio de version.
 
-Sin funciones nuevas y sin cambios en el flujo de trabajo del usuario.
+- Descarga confiable de expedientes MEV frente al límite de pedidos que el
+  portal tiene desde septiembre de 2026: ritmo de 20 pedidos por minuto, pausa
+  con pregunta si la MEV bloquea (nunca saltea un documento), progreso real con
+  boton Detener, nombres de archivo por fecha y "Bajar los que faltan".
+- `npm ci` vuelve a funcionar con npm 11 (entrada rota del lockfile).
+
+Cambia el flujo de la descarga MEV: tarda mas en expedientes grandes y puede
+frenar a preguntar. El resto del flujo de trabajo queda igual.
 
 ## 2. Descripcion corta (132 caracteres maximo)
 
@@ -92,7 +99,9 @@ Novedades de la v0.8.1:
 - Si tenias credenciales guardadas de ese portal, se borran solas al actualizar. Las de MEV y PJN no se tocan.
 - Limpieza interna: se elimina un chequeo periodico que ya no hacia nada y se ponen al dia las herramientas de desarrollo.
 
-Sin cambios en el flujo de trabajo: causas, alertas, plazos, descargas e importaciones funcionan igual.
+- La descarga de expedientes de la MEV respeta el limite de pedidos que el portal tiene desde septiembre: ya no saltea documentos, se pausa y pregunta si la MEV lo pide, muestra el avance con el tiempo que falta y nombra los archivos por fecha, para que una descarga parcial encaje en la carpeta de la anterior.
+
+Causas, alertas, plazos e importaciones funcionan igual.
 ```
 
 ## 5. Checklist antes de subir
@@ -112,10 +121,12 @@ Sin cambios en el flujo de trabajo: causas, alertas, plazos, descargas e importa
       (`tl-keepalive-eje` y `tl_cred_eje`) que el codigo de limpieza borra al
       arrancar.
 
+- [x] `npm test`: 45 casos de la descarga confiable (portero, nombres,
+      clasificacion de respuestas, informe y recorrido), sin datos reales.
+
 Lo que NO esta verificado: nada de esto prueba que la extension cargada
-funcione. No hay suite de tests en el repositorio (`package.json` no declara
-script `test`), asi que la unica verificacion de comportamiento posible es la
-manual de 5.2.
+funcione contra los portales. Los tests cubren la logica pura de la descarga;
+el resto del comportamiento se verifica a mano en 5.2.
 
 ### 5.2 Manual sobre la extension cargada (pendiente, lo hace quien publica)
 
@@ -130,6 +141,14 @@ verificar:
       aca.**
 - [ ] Tras dos intentos fallidos seguidos, el auto-login corta y no cicla.
 - [ ] En un expediente MEV aparece la barra flotante y la descarga ZIP funciona.
+- [ ] Descarga completa de un expediente MEV de mas de 200 pasos: cero
+      salteados por bloqueo y la barra muestra avance y tiempo (unos 12 minutos).
+- [ ] Descarga parcial de los ultimos pasos: los nombres encajan en la carpeta
+      de la descarga completa sin pisar nada.
+- [ ] Pausa forzada (navegar la MEV en otra pestaña durante la descarga hasta
+      que bloquee): aparece el aviso; "Esperar y seguir" completa; "Detener y
+      guardar lo bajado" entrega el parcial con su informe; "Bajar los que
+      faltan" completa la carpeta.
 - [ ] En un expediente SCW aparece el boton de descarga y el modal lista
       actuaciones.
 - [ ] Las causas guardadas de antes siguen en la lista y el escaneo corre.

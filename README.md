@@ -141,15 +141,19 @@ procu-asist/
 ## Contenido del ZIP descargado
 
 ```
-expediente_AL-12345-2025.zip
-└── AL-12345-2025_expte_completo/
-    ├── resumen.pdf                              # Resumen con todos los movimientos
-    ├── 001_fs-1-3_fecha_29-12-2025_AUTOS.pdf   # PDF de cada paso procesal
-    ├── 002_fs-4-15_fecha_29-12-2025_INTERLOCUTORIO.pdf
-    ├── 003_fs-29-36_fecha_04-02-2026_RECURSO_DE_APELACION.pdf
-    ├── 003_..._adjunto_1.pdf                   # Adjuntos del paso
-    └── _verificacion.txt                        # Solo si hubo errores de descarga
+expediente_XX-12345-2025.zip
+└── XX-12345-2025_expte_completo/
+    ├── resumen.pdf                                              # Todos los movimientos de la ficha
+    ├── 2025-12-29_fs-1-3_AUTOS.pdf                              # PDF de cada paso procesal
+    ├── 2025-12-29_fs-4-15_INTERLOCUTORIO.pdf
+    ├── 2026-02-04_fs-29-36_RECURSO_DE_APELACION.pdf
+    ├── 2026-02-04_fs-29-36_RECURSO_DE_APELACION_adjunto_1.pdf   # Adjuntos del paso
+    └── _verificacion_2026-02-04_1051.txt                        # Solo si faltó algo
 ```
+
+Los nombres empiezan por la fecha del paso (AAAA-MM-DD) y siguen con las fojas y la descripción. Así los archivos quedan ordenados por fecha y una descarga parcial posterior (por ejemplo, solo los pasos nuevos) encaja en la misma carpeta sin pisar nada. Si dos pasos quedan con el mismo nombre, el segundo lleva `_2`; como ese cálculo se hace sobre la ficha completa, el nombre de un documento no cambia de una descarga a otra. Dentro de un mismo día, el Explorador de Windows ordena por fojas como texto, no en el orden de la MEV.
+
+El `resumen.pdf` lista todos los movimientos de la ficha aunque se hayan tildado solo algunos: una descarga parcial lo reemplaza por uno completo y al día. El informe `_verificacion_AAAA-MM-DD_HHMM.txt` lleva la fecha y la hora de la descarga, para no pisar el de otra descarga en la misma carpeta.
 
 Cada PDF de paso procesal incluye: juzgado, datos del expediente (carátula, fecha inicio, receptoría, estado), información del paso (trámite, firmado, fojas), REFERENCIAS con adjuntos clickables, DATOS DE PRESENTACIÓN, y el texto completo del proveído.
 
@@ -157,39 +161,38 @@ Los PDF salen **sin marca**: sin logo, sin color corporativo y sin el nombre de 
 
 ## Verificación de la MEV ("Validando acceso")
 
-**Estado al 09/09/2026. Todo lo que sigue está sin confirmar contra el portal.**
+**Estado medido el 22/09/2026 contra el portal, con sesión real.**
 
-Lo observado:
+Lo que se midió:
 
-- El 08/09/2026 la MEV mostró en el navegador una pantalla intermedia con los textos "Validando acceso" y "verificando si está siendo navegado por un ser humano" antes de dejar ver el sitio.
-- Esa pantalla se sirve con HTTP 200. Para un `fetch()` es una respuesta buena: `resp.ok` da true y el código sigue como si tuviera la página pedida.
-- La consecuencia observable es un PDF armado y descargado, pero con los despachos vacíos: el parser no encuentra ninguno de los campos que busca y no se queja.
-- Un lector automatizado ajeno a esta extensión seguía leyendo bien las fichas de expediente en esas mismas fechas, así que el filtro no bloquea todo. En cambio `VerMasTramitacion.asp` devuelve HTTP 500 desde el 21/08/2026, o sea desde antes de que apareciera la pantalla: son dos cosas distintas y no hay que confundirlas.
+- La MEV tiene un servidor intermedio (nginx) delante de su sistema, con un límite de pedidos: unos **30 proveídos por minuto**. Pidiendo a unos 2 por segundo, el pedido 30 ya recibe la pantalla; a uno cada 1,2 segundos, la pantalla aparece exactamente cada 30 pedidos, una vez por minuto.
+- Pasado el límite, toda página de la MEV responde con la pantalla "Validando acceso...": la misma dirección pedida, HTTP 200, 2.000 bytes, un script de Cloudflare Turnstile (el verificador de "¿sos humano?") y ningún texto visible en el cuerpo, porque el texto lo arma un script.
+- Sin pedidos, el bloqueo se levanta solo en unos 20 a 30 segundos. Si se sigue pidiendo durante el bloqueo, no se levanta, y cada bloqueo nuevo dura más.
+- El bloqueo no es por pestaña: alcanza a otras sesiones del mismo usuario desde la misma conexión. La página de login no queda bloqueada.
+- Aparte: un proveído pedido sin que la sesión haya pasado antes por la ficha de su causa devuelve la pantalla de búsqueda.
 
-Lo que **no** se sabe:
+Por qué la descarga fallaba: la detección anterior buscaba las frases de la verificación en el texto visible, que en esta pantalla está vacío. La tomaba por "página inesperada", salteaba el documento y pedía el siguiente a los 0,3 segundos, lo que alargaba el bloqueo. En un expediente de 225 proveídos se salteaban más de 100, en dos tandas.
 
-- Si la pantalla aparece siempre, por ráfagas o solo para ciertos pedidos.
-- Si el HTML que se sirve contiene los mismos textos que se ven en pantalla (la detección está escrita sobre esa suposición).
-- Si resolver la verificación en la pestaña deja una cookie que sirva para los `fetch` posteriores de la extensión.
-- Qué dispara el filtro: cantidad de pedidos, cadencia, agente, o nada de eso.
+Lo que hace la extensión desde la v0.8.1:
 
-Lo que hace la extensión hoy (`modules/portals/mev-challenge.ts`):
-
-- Antes de armar el PDF de un paso procesal, mira la respuesta: largo del HTML, muestra acotada del texto visible y si están las marcas estructurales de un proveído. Si la página no es un proveído, la descarga se **detiene** y se avisa por pantalla, en vez de generar un documento incompleto con apariencia de completo.
-- La detección es angosta a propósito: una página que trae estructura de proveído nunca se marca, aunque su texto contenga alguna de las frases buscadas. La frase sola decide únicamente cuando la página además carece de esa estructura.
-- Lo mismo en la descarga de adjuntos (una respuesta HTML con la frase corta la descarga entera y no gasta reintentos) y en el escaneo del monitoreo (si no se parseó ningún movimiento y el HTML trae la frase, la causa no se anota como "sin novedades": se avisa, y el resto del barrido MEV de esa corrida no se hace, para no seguir pidiendo contra un portal que está filtrando).
+- Un portero (`modules/portals/mev-pacer.ts`) espacia los pedidos de la descarga a 20 por minuto, uno cada 3 segundos y de a uno por vez, para dejar margen a lo que el usuario navegue en la MEV al mismo tiempo. Un expediente de 225 proveídos tarda unos 12 minutos.
+- La pantalla de verificación se reconoce por su título y su script (`modules/portals/mev-challenge.ts`). Una página con estructura de proveído nunca se marca como verificación.
+- Si aparece la pantalla, la descarga deja de pedir y pregunta: esperar y seguir (espera 30 segundos, y 1, 2 o 4 minutos si vuelve a pasar, y reintenta el mismo documento), detener y guardar lo bajado, o cancelar. Nunca saltea un documento por un bloqueo (`modules/pdf/mev-download-runner.ts`).
+- Si la MEV devuelve la búsqueda en vez del proveído, la extensión vuelve a entrar una vez a la ficha y reintenta. Si aparece el login, pregunta y pide iniciar sesión en otra pestaña.
+- La descarga corre en el fondo de la extensión detrás de un canal abierto con la pestaña (`entrypoints/background/mev-download-job.ts`), no dentro de un mensaje: Chrome termina el proceso de fondo si un mensaje tarda más de 5 minutos.
+- Mientras hay una descarga, el escaneo automático no consulta la MEV (se repite al terminar) y el keep-alive no se manda.
+- Si la pestaña de la MEV muestra la pantalla de verificación, el content script no hace nada hasta que se resuelva: así un recorrido de importación no la toma por una página vacía.
 - Tests: `npm test` (runner de node, sin dependencias nuevas).
 
-Lo que **todavía no** detecta la verificación (brecha conocida al 09/09/2026):
+Lo que la extensión **no** hace: resolver, automatizar ni esquivar la verificación. Si el bloqueo no se levanta, decide el usuario.
 
-- La búsqueda de causas en la MEV y la importación masiva (`import-all`) siguen distinguiendo solo la pantalla de login. Frente a la verificación degradan sin decirlo: la búsqueda informa "formulario no encontrado" y el asistente de importación puede mostrar cero causas o cero sets, que se lee como "no hay nada" en vez de "no pude leer". Ninguno de los dos escribe datos ni baja la línea de base, pero tampoco avisa. Se corrige inyectando la misma comprobación de frase dentro de esas funciones; no se hizo en este cambio.
-- La detección por frase se apoya en que el HTML servido traiga los textos que se ven en pantalla. Si no los trae, en la descarga de proveídos queda la red estructural (sin campos de proveído la descarga se detiene igual); en adjuntos, búsqueda, importación y monitoreo no hay red: ahí la verificación pasaría sin detectarse.
+Lo que sigue sin medir:
 
-Camino de salida, **diseñado y no implementado**:
+- Si los pedidos a la ficha (`procesales.asp`) y a los adjuntos cuentan para el mismo límite.
+- Si el límite va por usuario o por conexión.
+- Si pasar la verificación a mano en la pestaña acorta el bloqueo.
 
-- Reemplazar el `fetch` en el mundo MAIN por una navegación real de la pestaña de la MEV a la URL del proveído y leer el DOM ya renderizado. Es lo que hace una persona y lo que el filtro espera; también es el camino que sobrevive si mañana la pantalla exige ejecutar JavaScript. Cuesta caro: hay que tomar prestada la pestaña del usuario (o abrir una propia), esperar el `load`, devolverla a donde estaba y manejar el caso de varias descargas en fila.
-- Alternativa más barata: ante una detección, esperar y reintentar una vez, apostando a que la verificación ya dejó su cookie. No se implementó porque no hay ninguna evidencia de que esa cookie exista ni de cuánto dura, y un reintento a ciegas contra un portal que está filtrando empeora las cosas.
-- Nada de esto se puede probar sin sesión y con el portal filtrando. Queda para una sesión con el titular delante, mirando la pantalla real.
+Brecha conocida: la detección de sets del asistente "Importar todo" y el prefiltro por sets del monitoreo (beta) piden páginas directamente y todavía reconocen solo el login. Frente a la verificación pueden mostrar cero sets o cero causas, que se lee como "no hay nada" en vez de "no pude leer". Se aborda con el selector de alcance de la importación.
 
 ## Precio
 

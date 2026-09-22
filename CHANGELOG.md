@@ -2,6 +2,43 @@
 
 Todos los cambios notables del proyecto se documentan en este archivo.
 
+## [Sin version] - 2026-09-22
+
+Descarga confiable frente al límite de pedidos de la MEV.
+
+### Síntoma
+
+- La descarga completa de un expediente de 225 proveídos terminó con 109 documentos salteados, en dos tandas seguidas, con el error "La MEV devolvió una página que no es la del proveído".
+
+### Causa, medida contra el portal con sesión real
+
+- La MEV tiene un nginx delante de su sistema con un límite de unos 30 pedidos de proveídos por minuto. Pasado el límite, toda página responde con la pantalla "Validando acceso..." (Cloudflare Turnstile, HTTP 200, misma dirección, 2.000 bytes y sin texto visible en el cuerpo).
+- La detección del 09/09/2026 buscaba las frases en el texto visible, vacío en esta pantalla: la tomaba por página inesperada, salteaba el documento y seguía pidiendo cada 0,3 s, lo que alargaba el bloqueo.
+- Además, toda la descarga corría dentro de un único mensaje, y Chrome termina el proceso de fondo cuando un mensaje tarda más de 5 minutos: una descarga que respete el límite lo supera en un expediente grande.
+
+### Cambios
+
+- Portero de pedidos (`modules/portals/mev-pacer.ts`): 20 por minuto, de a uno, con esperas ante un bloqueo de 30 s, 1, 2 y 4 minutos.
+- Clasificación de respuestas (`modules/portals/mev-challenge.ts`): la pantalla se reconoce por su título y su script; se distinguen además el login, la búsqueda en vez del proveído y la página desconocida.
+- Recorrido de la descarga (`modules/pdf/mev-download-runner.ts`, puro y probado): ante un bloqueo pregunta y reintenta el mismo documento; nunca lo saltea. Si la MEV devuelve la búsqueda, reingresa una vez a la ficha. Otra página: reintenta una vez y la anota con lo que devolvió la MEV.
+- La descarga corre detrás de un canal `chrome.runtime.connect` (`entrypoints/background/mev-download-job.ts`) y usa la pestaña desde la que se pidió. Salen los mensajes `GENERATE_ZIP` y `DOWNLOAD_ATTACHMENT` (este último no tenía quien lo mandara).
+- Pantalla nueva en la pestaña (`modules/ui/mev-download-ui.ts`): progreso real con tiempo estimado, botón Detener, aviso de pausa con "Esperar y seguir", "Detener y guardar lo bajado" y "Cancelar sin guardar", aviso de sesión cerrada, y resumen final con "Bajar los que faltan". Los textos nuevos no usan rayas largas.
+- Nombres de archivo por fecha (`modules/pdf/file-naming.ts`): `AAAA-MM-DD_fs-X_DESCRIPCION`, con sufijo `_2` estable si dos coinciden y tildes y eñe a su letra base. Antes el número inicial era la posición dentro de lo tildado y volvía a 001 en cada descarga.
+- El `resumen.pdf` lista toda la ficha y el informe pasa a `_verificacion_AAAA-MM-DD_HHMM.txt`, con cada faltante por nombre de archivo, paso, motivo y lo que devolvió la MEV.
+- Durante una descarga, el escaneo automático no consulta la MEV (se repite al terminar) y el keep-alive no se manda.
+- El content script no hace nada sobre la pantalla de verificación: un recorrido de importación ya no la toma por una página vacía.
+- `package-lock.json`: una entrada sin versión de un binario opcional de rolldown rompía `npm ci` con npm 11; npm la regeneró con su versión e integridad.
+
+### Verificación
+
+- `npm test`: 45 casos (portero, nombres, clasificación, informe y recorrido), sin datos reales.
+- `npm run compile`, `npm run build` y `npm run zip` en verde.
+- Pendiente: la prueba real con la MEV (descarga completa de un expediente grande, descarga parcial que encaje en la carpeta, pausa forzada). Hasta esa prueba, la descarga confiable no está verificada contra el portal.
+
+### Sin medir
+
+- Si los pedidos a la ficha y a los adjuntos cuentan para el límite, si el límite va por usuario o por conexión, y si pasar la verificación a mano acorta el bloqueo.
+
 ## [Sin version] - 2026-09-09
 
 Dos cambios sobre la descarga de expedientes: cortar cuando la MEV interpone su pantalla de verificacion, y sacarle la marca al PDF que baja el usuario.

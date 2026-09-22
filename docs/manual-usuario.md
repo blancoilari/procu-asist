@@ -209,7 +209,11 @@ Este barrido necesita que tengas una pestaña abierta y con sesión activa del p
 
 ![Modal "Seleccionar pasos procesales a descargar" con la lista de movimientos y los botones ZIP / Un PDF](tutorial/10-modal-zip-mev.png)
 
-La descarga puede tardar varios minutos en expedientes grandes, porque ProcuAsist tiene que abrir cada paso procesal, convertirlo a PDF y bajar sus adjuntos uno por uno. Si algún documento o adjunto falla, el ZIP se completa igual y queda un archivo `_verificacion.txt` con el detalle de qué no se pudo descargar. A diferencia de la descarga de PJN (ver 6.2), la descarga de MEV no tiene un botón para cancelarla a mitad de camino: si te arrepentís, hay que esperar a que termine.
+La MEV limita cuántos documentos se pueden pedir por minuto: si se pasa, muestra su pantalla "Validando acceso" y deja de responder un rato. Por eso ProcuAsist baja los pasos a un ritmo que respeta ese límite, y un expediente grande tarda: unos 12 minutos para 225 pasos. Mientras tanto aparece una barra con el avance y el tiempo que falta. No cierres ni cambies de página en esa pestaña durante la descarga; si querés seguir usando la MEV, abrí otra pestaña.
+
+Si igual la MEV pide una pausa, la descarga se frena y aparece un aviso con tres opciones: **"Esperar y seguir"** (espera unos segundos y reintenta el mismo documento, sin saltear nada), **"Detener y guardar lo bajado"** o **"Cancelar sin guardar"**. El botón **"Detener"** de la barra ofrece las dos últimas en cualquier momento.
+
+Los archivos se llaman por la fecha del paso (por ejemplo `2026-02-04_fs-29-36_RECURSO_DE_APELACION.pdf`): quedan ordenados por fecha, y si mañana bajás solo los pasos nuevos, encajan en la misma carpeta sin pisar nada. Si al terminar falta algo, el ZIP trae un informe `_verificacion_` con el detalle y la pantalla ofrece **"Bajar los que faltan"**, que arma otro ZIP solo con esos pasos.
 
 ### 6.2. PJN: ZIP desde SCW, con timeout y cancelar
 
