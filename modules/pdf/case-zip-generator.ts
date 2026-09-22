@@ -1,109 +1,57 @@
 /**
- * ZIP generator for judicial case files.
- * Creates a .zip containing:
- *   - [caseNumber]_expte_completo/
- *       ├── resumen.pdf             — resumen de todos los movimientos
- *       ├── 001_fs-X-Y_fecha_DD-MM-YYYY_DESC.pdf  — PDF por paso procesal
- *       ├── 001_..._adjunto_1.pdf   — adjuntos binarios
- *       └── _verificacion.txt       — informe de errores (solo si hubo fallos)
+ * Descarga de un expediente de la MEV: arma el ZIP (un PDF por paso y sus
+ * adjuntos) o un PDF único, con el recorrido de mev-download-runner.ts.
  *
- * Ordering: oldest movement first (001 = primer paso procesal).
- * Naming: {index}_fs-{fojas}_fecha_{date}_{description}
+ * Contenido del ZIP:
+ *   <numero>_expte_completo/
+ *     resumen.pdf                                  todos los movimientos de la ficha
+ *     AAAA-MM-DD_fs-X_DESCRIPCION.pdf              un PDF por paso procesal
+ *     AAAA-MM-DD_fs-X_DESCRIPCION_adjunto_N.ext    adjuntos del paso
+ *     _verificacion_AAAA-MM-DD_HHMM.txt           solo si falta algo
  */
 
 import JSZip from 'jszip';
 import { generateCasePdfBlob, type PdfCaseData } from './case-pdf-generator';
+import { generateProveidoPdf, generateTextReportPdf } from './proveido-pdf-generator';
 import {
-  generateProveidoPdf,
-  generateTextReportPdf,
-  convertToIsoDate,
-} from './proveido-pdf-generator';
-import {
-  fetchMevPageContent,
   downloadMevAttachment,
+  enterMevCase,
+  fetchMevPageContent,
+  isMevHostedUrl,
+  toAbsoluteMevUrl,
+  type ProveidoPageData,
 } from './attachment-downloader';
 import { mergePdfParts, type MergedPdfPart } from './merged-pdf-generator';
-import { MEV_BASE_URL } from '@/modules/portals/mev-selectors';
+import { runMevDownload, type RunnerHooks } from './mev-download-runner';
+import { buildVerificationLines, type MevDownloadStats } from './download-report';
+import { verificationFileName } from './file-naming';
+import { realClock, type MevPacer } from '@/modules/portals/mev-pacer';
+import type { MevDownloadCaseData } from '@/modules/messages/mev-download';
+import { blobToBase64 } from '@/modules/utils/blob';
 
-export interface ZipMovement {
-  date: string;
-  fojas?: string;
-  description: string;
-  type?: string;
-  hasDocuments: boolean;
-  documentUrls: string[];
-}
-
-export interface ZipCaseData {
-  caseNumber: string;
-  title: string;
-  court: string;
-  portal: string;
-  portalUrl: string;
-  fechaInicio?: string;
-  estadoPortal?: string;
-  numeroReceptoria?: string;
-  movements: ZipMovement[];
-}
-
-export interface ZipProgressCallback {
-  (stage: string, current: number, total: number): void;
-}
-
-export interface ZipFailedItem {
-  type: 'proveido' | 'adjunto';
-  index: number;
-  date: string;
-  description: string;
-  url: string;
-  error: string;
-}
-
-export interface ZipGenerationResult {
-  success: boolean;
+export interface CaseDownloadResult {
+  outcome: 'complete' | 'partial' | 'cancelled';
   blob?: Blob;
   filename?: string;
+  stats: MevDownloadStats;
   error?: string;
-  /**
-   * true cuando la descarga se abortó porque la MEV devolvió su pantalla de
-   * verificación. No hay archivo: es a propósito. Un expediente al que le
-   * faltan los despachos, con cara de expediente completo, es peor que no
-   * tener nada.
-   */
-  challenge?: boolean;
-  stats?: {
-    totalMovements: number;
-    proveidosDownloaded: number;
-    proveidosFailed: number;
-    adjuntosDownloaded: number;
-    adjuntosFailed: number;
-    allSuccessful: boolean;
-    failedItems: ZipFailedItem[];
-  };
 }
 
-// ── Public entry point ────────────────────────────────────
-
-export async function generateCaseZip(
-  data: ZipCaseData,
-  mevTabId: number,
-  onProgress?: ZipProgressCallback,
-  format: 'zip' | 'pdf' = 'zip'
-): Promise<ZipGenerationResult> {
+export async function generateCaseDownload(
+  data: MevDownloadCaseData,
+  tabId: number,
+  format: 'zip' | 'pdf',
+  hooks: RunnerHooks,
+  pacer: MevPacer
+): Promise<CaseDownloadResult> {
   const zip = new JSZip();
   const safeNumber = data.caseNumber.replace(/[^a-zA-Z0-9-]/g, '_');
+  const folder = zip.folder(`${safeNumber}_expte_completo`);
+  if (!folder) throw new Error('No se pudo crear la carpeta dentro del ZIP');
   const mergeParts: MergedPdfPart[] = [];
-  let resumenBytes: Uint8Array | null = null;
 
-  // ── 1. Create main folder ──────────────────────────────
-  const expedienteFolder = zip.folder(`${safeNumber}_expte_completo`);
-  if (!expedienteFolder) {
-    return { success: false, error: 'Error creando carpeta en ZIP' };
-  }
-
-  // ── 2. Summary PDF ──────────────────────────────────────
-  onProgress?.('Generando resumen PDF...', 0, 1);
-
+  // El resumen lista TODOS los movimientos de la ficha: una descarga parcial
+  // posterior lo reemplaza por uno completo y al día.
   const pdfData: PdfCaseData = {
     caseNumber: data.caseNumber,
     title: data.title,
@@ -113,7 +61,7 @@ export async function generateCaseZip(
     fechaInicio: data.fechaInicio,
     estadoPortal: data.estadoPortal,
     numeroReceptoria: data.numeroReceptoria,
-    movements: data.movements.map((m) => ({
+    movements: data.allMovements.map((m) => ({
       date: m.date,
       fojas: m.fojas,
       description: m.description,
@@ -122,336 +70,90 @@ export async function generateCaseZip(
     })),
     attachments: [],
   };
+  const resumenBlob = generateCasePdfBlob(pdfData);
+  folder.file('resumen.pdf', resumenBlob);
 
-  let pdfBlob: Blob;
-  try {
-    pdfBlob = generateCasePdfBlob(pdfData);
-  } catch (err) {
-    return {
-      success: false,
-      error: `Error generando PDF resumen: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
-  expedienteFolder.file('resumen.pdf', pdfBlob);
-  if (format === 'pdf') {
-    resumenBytes = new Uint8Array(await pdfBlob.arrayBuffer());
-  }
-
-  // ── 3. Collect movements with documents, sorted ascending (oldest first) ──
-  const movementsWithDocs = data.movements
+  // La MEV lista del más nuevo al más viejo: se baja del más viejo al más
+  // nuevo, que es el orden del PDF único.
+  const oldestFirst = data.movements
     .filter((m) => m.hasDocuments && m.documentUrls.length > 0)
-    .slice() // copy to avoid mutating original
-    .reverse(); // MEV shows newest first → reverse for oldest-first numbering
+    .slice()
+    .reverse();
 
-  let proveidosDownloaded = 0;
-  let proveidosFailed = 0;
-  let adjuntosDownloaded = 0;
-  let adjuntosFailed = 0;
-  const failedItems: ZipFailedItem[] = [];
-
-  // Flatten all doc entries
-  const allDocs: Array<{ mov: ZipMovement; url: string }> = [];
-  for (const mov of movementsWithDocs) {
-    for (const url of mov.documentUrls) {
-      allDocs.push({ mov, url });
-    }
-  }
-
-  const total = allDocs.length;
-
-  for (let di = 0; di < allDocs.length; di++) {
-    const { mov, url } = allDocs[di];
-    const docNum = di + 1;
-
-    onProgress?.(
-      `Descargando documento ${docNum} de ${total}...`,
-      docNum,
-      total
-    );
-
-    // Numbered prefix (001_, 002_…): keeps the documented oldest-first order
-    // and guarantees uniqueness — two movements with the same date and
-    // description would otherwise silently overwrite each other in the ZIP.
-    const baseFilename = `${String(docNum).padStart(3, '0')}_${buildFilename(mov.date, mov.description, mov.fojas)}`;
-
-    // Fetch the proveido content (text + adjunto URLs), parsed inside the MEV tab
-    const pageResult = await fetchMevPageContent(mevTabId, url);
-
-    if ('error' in pageResult && pageResult.challenge) {
-      // La MEV interpuso su pantalla de verificación. Cortar acá: seguir
-      // produciría un ZIP o un PDF con los pasos vacíos y sin aviso.
-      return {
-        success: false,
-        error: pageResult.error,
-        challenge: true,
-      };
-    }
-
-    if ('error' in pageResult) {
-      proveidosFailed++;
-      failedItems.push({
-        type: 'proveido', index: docNum, date: mov.date,
-        description: mov.description, url: toAbsoluteUrl(url),
-        error: pageResult.error,
-      });
-      expedienteFolder.file(
-        `${baseFilename}_ERROR.txt`,
-        `No se pudo descargar este documento.\nURL: ${toAbsoluteUrl(url)}\nError: ${pageResult.error}\n`
-      );
-      await delay(300);
-      continue;
-    }
-
-    const parsed = pageResult;
-
-    // Generate PDF from the proveido content with full metadata
-    try {
-      const proveidoPdfBlob = generateProveidoPdf({
-        date: mov.date,
-        fojas: mov.fojas,
-        description: mov.description,
-        caseNumber: data.caseNumber,
-        title: data.title,
-        court: data.court,
-        content: parsed.text,
-        sourceUrl: toAbsoluteUrl(url),
-        juzgadoName: parsed.juzgadoName,
-        departamento: parsed.departamento,
-        datosExpediente: parsed.datosExpediente,
-        pasoProcesal: parsed.pasoProcesal,
-        referencias: parsed.referencias,
-        datosPresentacion: parsed.datosPresentacion,
-      });
-      expedienteFolder.file(`${baseFilename}.pdf`, proveidoPdfBlob);
-      if (format === 'pdf') {
-        mergeParts.push({
-          label: baseFilename,
-          base64: await blobToBase64(proveidoPdfBlob),
-          mimeType: 'application/pdf',
+  const run = await runMevDownload<ProveidoPageData>(
+    oldestFirst,
+    {
+      pace: () => pacer.wait(),
+      sleep: realClock.sleep,
+      fetchProveido: (url) => fetchMevPageContent(tabId, url),
+      enterCase: () => enterMevCase(tabId, data.portalUrl),
+      isMevHosted: isMevHostedUrl,
+      fetchAttachment: (url) => downloadMevAttachment(tabId, url),
+      adjuntoUrls: (page) => page.adjuntoUrls,
+      saveProveido: async (fileName, mov, url, page) => {
+        const blob = generateProveidoPdf({
+          date: mov.date,
+          fojas: mov.fojas,
+          description: mov.description,
+          caseNumber: data.caseNumber,
+          title: data.title,
+          court: data.court,
+          content: page.text,
+          sourceUrl: toAbsoluteMevUrl(url),
+          juzgadoName: page.juzgadoName,
+          departamento: page.departamento,
+          datosExpediente: page.datosExpediente,
+          pasoProcesal: page.pasoProcesal,
+          referencias: page.referencias,
+          datosPresentacion: page.datosPresentacion,
         });
-      }
-      proveidosDownloaded++;
-    } catch (err) {
-      proveidosFailed++;
-      failedItems.push({
-        type: 'proveido', index: docNum, date: mov.date,
-        description: mov.description, url: toAbsoluteUrl(url),
-        error: String(err),
-      });
-      expedienteFolder.file(
-        `${baseFilename}_ERROR.txt`,
-        `Error generando PDF.\nURL: ${toAbsoluteUrl(url)}\nError: ${err}\n\nContenido extraído:\n${parsed.text}`
-      );
-    }
-
-    // Download VER ADJUNTO binary files found inside this proveido
-    // Batch in parallel groups of 3 for speed
-    const BATCH_SIZE = 3;
-    for (let bi = 0; bi < parsed.adjuntoUrls.length; bi += BATCH_SIZE) {
-      const batch = parsed.adjuntoUrls.slice(bi, bi + BATCH_SIZE).map((adjUrl, j) => ({
-        adjUrl,
-        adjName: `${baseFilename}_adjunto_${bi + j + 1}`,
-        ai: bi + j,
-      }));
-
-      onProgress?.(
-        `Descargando adjuntos de paso ${docNum}...`,
-        docNum,
-        total
-      );
-
-      const batchResults = await Promise.allSettled(
-        batch.map(({ adjUrl, adjName }) =>
-          downloadMevAttachment(mevTabId, adjUrl, adjName)
-        )
-      );
-
-      for (let j = 0; j < batch.length; j++) {
-        const { adjUrl, adjName, ai } = batch[j];
-        const settled = batchResults[j];
-        const adjResult = settled.status === 'fulfilled'
-          ? settled.value
-          : {
-              success: false as const,
-              error: String((settled as PromiseRejectedResult).reason),
-              attachment: undefined,
-              challenge: false,
-            };
-
-        if (adjResult.challenge) {
-          // Mismo criterio que con los proveídos: si el portal está pidiendo
-          // verificación, la descarga entera se detiene sin dejar archivo.
-          return {
-            success: false,
-            error: adjResult.error ?? 'La MEV pidió verificación.',
-            challenge: true,
-          };
+        folder.file(`${fileName}.pdf`, blob);
+        if (format === 'pdf') {
+          mergeParts.push({ label: fileName, base64: await blobToBase64(blob), mimeType: 'application/pdf' });
         }
+      },
+      saveAttachment: async (fileName, base64, mimeType) => {
+        const ext = getExtensionFromMime(mimeType);
+        folder.file(`${fileName}${ext}`, base64, { base64: true });
+        if (format === 'pdf') mergeParts.push({ label: `${fileName}${ext}`, base64, mimeType });
+      },
+    },
+    hooks
+  );
 
-        if (adjResult.success && adjResult.attachment) {
-          const att = adjResult.attachment;
-          const ext = getExtensionFromMime(att.mimeType);
-          expedienteFolder.file(`${adjName}${ext}`, att.base64, { base64: true });
-          if (format === 'pdf') {
-            mergeParts.push({
-              label: `${adjName}${ext}`,
-              base64: att.base64,
-              mimeType: att.mimeType,
-            });
-          }
-          adjuntosDownloaded++;
-        } else {
-          adjuntosFailed++;
-          failedItems.push({
-            type: 'adjunto', index: docNum, date: mov.date,
-            description: `Adjunto ${ai + 1} de ${mov.description}`,
-            url: adjUrl,
-            error: adjResult.error ?? 'desconocido',
-          });
-          expedienteFolder.file(
-            `${adjName}_ERROR.txt`,
-            `No se pudo descargar este adjunto.\nURL: ${adjUrl}\nError: ${adjResult.error ?? 'desconocido'}\n`
-          );
-        }
-      }
-    }
+  if (run.outcome === 'cancelled') return { outcome: 'cancelled', stats: run.stats };
+  const outcome = run.outcome;
 
-    await delay(300);
-  }
-
-  // ── 5. Verification report ────────────────────────────────
-  const allSuccessful = failedItems.length === 0;
-  if (!allSuccessful) {
-    const verLines: string[] = [
-      `VERIFICACIÓN DE DESCARGA — ${data.caseNumber}`,
-      `Generado: ${new Date().toLocaleString('es-AR')}`,
-      '='.repeat(60),
-      '',
-      `Proveidos descargados: ${proveidosDownloaded}`,
-      `Proveidos fallidos: ${proveidosFailed}`,
-      `Adjuntos descargados: ${adjuntosDownloaded}`,
-      `Adjuntos fallidos: ${adjuntosFailed}`,
-      '',
-      'DETALLE DE ERRORES:',
-      '-'.repeat(60),
-      '',
-    ];
-    for (const item of failedItems) {
-      verLines.push(`[${item.type.toUpperCase()}] Paso ${item.index} — ${item.date} — ${item.description}`);
-      verLines.push(`  URL: ${item.url}`);
-      verLines.push(`  Error: ${item.error}`);
-      verLines.push('');
-    }
-    expedienteFolder.file('_verificacion.txt', verLines.join('\n'));
-
-    // In single-PDF mode the .txt files never reach the user — append the
-    // same report as a final page so failed downloads are visible.
+  if (run.stats.failedItems.length > 0) {
+    const now = new Date();
+    const lines = buildVerificationLines({ caseNumber: data.caseNumber, generatedAt: now, outcome, stats: run.stats });
+    folder.file(verificationFileName(now), lines.join('\n'));
+    // En el PDF único el .txt no llega al usuario: va como última página.
     if (format === 'pdf') {
       try {
-        const verBlob = generateTextReportPdf(
-          `Verificación de descarga — ${data.caseNumber}`,
-          verLines
-        );
-        mergeParts.push({
-          label: '_verificacion',
-          base64: await blobToBase64(verBlob),
-          mimeType: 'application/pdf',
-        });
+        const verBlob = generateTextReportPdf(`Verificación de descarga, expediente ${data.caseNumber}`, lines);
+        mergeParts.push({ label: '_verificacion', base64: await blobToBase64(verBlob), mimeType: 'application/pdf' });
       } catch (err) {
         console.warn('[ProcuAsist] No se pudo agregar la página de verificación:', err);
       }
     }
   }
 
-  const stats = {
-    totalMovements: data.movements.length,
-    proveidosDownloaded,
-    proveidosFailed,
-    adjuntosDownloaded,
-    adjuntosFailed,
-    allSuccessful,
-    failedItems,
-  };
-
-  // ── 6a. Single merged PDF (todo unido) ───────────────────
-  if (format === 'pdf') {
-    onProgress?.('Armando PDF único...', total, total);
-    if (!resumenBytes) {
-      return { success: false, error: 'No se pudo generar el resumen para el PDF.' };
-    }
-    try {
-      const { blob } = await mergePdfParts(resumenBytes, mergeParts);
-      return {
-        success: true,
-        blob,
-        filename: `expediente_${safeNumber}.pdf`,
-        stats,
-      };
-    } catch (err) {
-      return {
-        success: false,
-        error: `Error armando PDF único: ${err instanceof Error ? err.message : String(err)}`,
-      };
-    }
-  }
-
-  // ── 6. Generate final ZIP ────────────────────────────────
-  onProgress?.('Comprimiendo...', total, total);
-
-  let zipBlob: Blob;
   try {
-    zipBlob = await zip.generateAsync({
-      type: 'blob',
-      compression: 'DEFLATE',
-      compressionOptions: { level: 6 },
-    });
+    if (format === 'pdf') {
+      const resumenBytes = new Uint8Array(await resumenBlob.arrayBuffer());
+      const { blob } = await mergePdfParts(resumenBytes, mergeParts);
+      return { outcome, blob, filename: `expediente_${safeNumber}.pdf`, stats: run.stats };
+    }
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+    return { outcome, blob, filename: `expediente_${safeNumber}.zip`, stats: run.stats };
   } catch (err) {
     return {
-      success: false,
-      error: `Error generando ZIP: ${err instanceof Error ? err.message : String(err)}`,
+      outcome,
+      stats: run.stats,
+      error: `No se pudo armar el archivo: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
-
-  return {
-    success: true,
-    blob: zipBlob,
-    filename: `expediente_${safeNumber}.zip`,
-    stats,
-  };
-}
-
-/** Convert a Blob to a base64 string (no data: prefix), for PDF merging. */
-async function blobToBase64(blob: Blob): Promise<string> {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  const CHUNK = 0x8000;
-  const parts: string[] = [];
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    parts.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
-  }
-  return btoa(parts.join(''));
-}
-
-// ── Helpers ──────────────────────────────────────────────
-
-function buildFilename(date: string, description: string, fojas?: string): string {
-  const isoDate = convertToIsoDate(date);
-  const safeFojas = fojas ? fojas.replace(/\//g, '-') : '';
-  const safeDesc = description
-    .substring(0, 35)
-    .replace(/[^a-zA-Z0-9\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '_');
-  // fs-340_2026-04-15_RECURSO_DE_APELACION (with fojas)
-  // 2026-04-15_RECURSO_DE_APELACION (without fojas)
-  if (safeFojas) {
-    return `fs-${safeFojas}_${isoDate}_${safeDesc}`;
-  }
-  return `${isoDate}_${safeDesc}`;
-}
-
-function toAbsoluteUrl(url: string): string {
-  if (url.startsWith('http')) return url;
-  return `${MEV_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
 function getExtensionFromMime(mimeType: string): string {
@@ -469,8 +171,4 @@ function getExtensionFromMime(mimeType: string): string {
     'text/plain': '.txt',
   };
   return map[clean] ?? '.bin';
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
