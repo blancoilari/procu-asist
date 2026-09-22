@@ -6,8 +6,6 @@ export type ProcuAsistMessage =
   | LoginSuccessMessage
   | CasePageDetectedMessage
   | OpenSidePanelMessage
-  | GenerateZipMessage
-  | DownloadAttachmentMessage
   | GetCredentialsMessage
   | BulkImportMessage
   | SaveCredentialsMessage
@@ -75,36 +73,6 @@ export interface CasePageDetectedMessage {
 
 export interface OpenSidePanelMessage {
   type: 'OPEN_SIDEPANEL';
-}
-
-export interface GenerateZipMessage {
-  type: 'GENERATE_ZIP';
-  /** 'zip' (un PDF por paso) o 'pdf' (todo unido en un solo PDF). */
-  format?: 'zip' | 'pdf';
-  caseData: {
-    caseNumber: string;
-    title: string;
-    court: string;
-    portal: string;
-    portalUrl: string;
-    fechaInicio?: string;
-    estadoPortal?: string;
-    numeroReceptoria?: string;
-    movements: Array<{
-      date: string;
-      fojas?: string;
-      description: string;
-      type?: string;
-      hasDocuments: boolean;
-      documentUrls: string[];
-    }>;
-  };
-}
-
-export interface DownloadAttachmentMessage {
-  type: 'DOWNLOAD_ATTACHMENT';
-  url: string;
-  name: string;
 }
 
 export interface GetCredentialsMessage {

@@ -1,5 +1,7 @@
 import { setupAlarms } from './background/alarm-manager';
 import { setupMessageRouter } from './background/message-router';
+import { setupMevDownloadPort } from './background/mev-download-job';
+import { scanMonitoredCases } from './background/case-monitor';
 import { setupPjnTokenCapture } from './background/pjn-token-capture';
 import { installPjnDebugHelpers } from './background/pjn-debug-helpers';
 import { reconcileBookmarksAndMonitors } from './background/case-reconciler';
@@ -26,6 +28,12 @@ export default defineBackground(() => {
 
   // Register message handlers
   setupMessageRouter();
+
+  // Descarga de expedientes MEV por canal, no por mensaje suelto: una
+  // descarga que respeta el límite de la MEV pasa los 5 minutos que Chrome
+  // le da a un mensaje. Si el monitoreo se salteó la MEV por la descarga,
+  // se corre al terminar.
+  setupMevDownloadPort({ runPostponedScan: () => scanMonitoredCases() });
 
   // Capture PJN API bearer tokens from outgoing requests
   setupPjnTokenCapture();

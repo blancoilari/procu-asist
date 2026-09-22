@@ -36,11 +36,8 @@ import {
   markAlertsReadForMonitor,
 } from '@/modules/storage/monitor-store';
 import { getSettings, updateSettings } from '@/modules/storage/settings-store';
-import { generateCaseZip } from '@/modules/pdf/case-zip-generator';
-import {
-  downloadMevAttachment,
-  findMevTab,
-} from '@/modules/pdf/attachment-downloader';
+import { findMevTab } from '@/modules/pdf/attachment-downloader';
+import { blobToDataUri } from '@/modules/utils/blob';
 import { MEV_BASE_URL, MEV_URLS } from '@/modules/portals/mev-selectors';
 import type { MevSearchResult } from '@/modules/portals/mev-parser';
 import { handleSessionExpired } from './auto-reconnect';
@@ -253,68 +250,6 @@ async function handleMessage(
         },
       });
       return { status: 'ok' };
-    }
-
-    case 'GENERATE_ZIP': {
-      console.debug('[ProcuAsist] ZIP generation for:', message.caseData.caseNumber);
-      try {
-        const mevTabId = await findMevTab();
-        if (!mevTabId) {
-          return { success: false, error: 'No hay una pestaña de MEV abierta. Abrí MEV primero.' };
-        }
-
-        const format = message.format ?? 'zip';
-        const result = await generateCaseZip(
-          message.caseData,
-          mevTabId,
-          undefined,
-          format
-        );
-
-        if (!result.success || !result.blob) {
-          return {
-            success: false,
-            error: result.error ?? 'Error al generar la descarga',
-            // La pantalla de verificación de la MEV no es un error más: la
-            // UI la explica aparte y no ofrece reintento automático.
-            challenge: result.challenge === true,
-          };
-        }
-
-        // Convert Blob to base64 data URI for chrome.downloads
-        const mime = format === 'pdf' ? 'application/pdf' : 'application/zip';
-        const dataUri = await blobToDataUri(result.blob, mime);
-
-        await chrome.downloads.download({
-          url: dataUri,
-          filename: result.filename!,
-          saveAs: true,
-        });
-
-        return { success: true, filename: result.filename, stats: result.stats };
-      } catch (err) {
-        console.error('[ProcuAsist] ZIP generation error:', err);
-        return {
-          success: false,
-          error: err instanceof Error ? err.message : 'ZIP generation failed',
-        };
-      }
-    }
-
-    case 'DOWNLOAD_ATTACHMENT': {
-      const mevTab = await findMevTab();
-      if (!mevTab) {
-        return {
-          success: false,
-          error: 'No MEV tab found. Open MEV first.',
-        };
-      }
-      const dlResult = await downloadMevAttachment(
-        mevTab,
-        message.url,
-        message.name
-      );
-      return dlResult;
     }
 
     // --- Search Results ---
@@ -1020,21 +955,6 @@ function normalizeWhitespace(value: string): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Convert a Blob to a base64 data URI in 32 KB chunks. A byte-by-byte
- * `binary += String.fromCharCode(...)` loop is O(n²) on string reallocations
- * and can freeze the service worker for multi-MB ZIPs/PDFs.
- */
-async function blobToDataUri(blob: Blob, mime: string): Promise<string> {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  const CHUNK = 0x8000;
-  const parts: string[] = [];
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    parts.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
-  }
-  return `data:${mime};base64,${btoa(parts.join(''))}`;
 }
 
 const MATCH_STOPWORDS = new Set([
