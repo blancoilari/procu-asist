@@ -54,7 +54,7 @@ Fuera de alcance:
 - Deja pasar como máximo **20 pedidos por minuto**: un inicio de pedido cada 3.000 ms, de a uno por vez (los llamados concurrentes hacen fila). La constante vive en un solo lugar para ajustarla si la MEV cambia el límite.
 - Esperas ante un bloqueo, en orden: 30 s, 1 min, 2 min y 4 min (la última se repite). El índice vuelve a cero después de un documento bajado sin bloqueo.
 - Módulo sin `chrome.*` ni DOM: el reloj y la espera se inyectan, así se prueba en node con un reloj simulado.
-- Pasan por el portero: cada proveído, cada adjunto alojado en `mev.scba.gov.ar` y cada reingreso a la ficha. Los adjuntos de `docs.scba.gov.ar` no pasan (otro servidor; si se comprobara que cuentan, se suman) y se bajan de a dos por vez.
+- Pasan por el portero: cada proveído, cada adjunto alojado en `mev.scba.gov.ar` y cada reingreso a la ficha. Los adjuntos de `docs.scba.gov.ar` no pasan (otro servidor; si se comprobara que cuentan, se suman) y se bajan de a uno, dentro del intervalo del portero.
 
 ### 3.2 Clasificación de respuestas (`modules/portals/mev-challenge.ts`, ampliado)
 
@@ -77,7 +77,7 @@ Veredictos:
 Ante `desafio`, la descarga deja de pedir y la pestaña muestra un aviso: "La MEV pidió una pausa. Bajados 87 de 225." Botones:
 
 - **Esperar y seguir**: cuenta regresiva con la espera que toca (30 s, 1, 2 o 4 min) y reintenta el mismo documento. Si vuelve a bloquear, pregunta de nuevo.
-- **Detener y guardar lo bajado**: entrega el ZIP (o el PDF único) con lo descargado y `_verificacion.txt` con lo que falta.
+- **Detener y guardar lo bajado**: entrega el ZIP (o el PDF único) con lo descargado y el informe `_verificacion_AAAA-MM-DD_HHMM.txt` con lo que falta.
 - **Cancelar sin guardar**: no entrega nada.
 
 Ante `login`, el aviso explica que la sesión de la MEV se cerró y que hay que iniciarla en **otra** pestaña (en la de la descarga no, porque cambiar de página la cancela). Botones: **Seguir** (reingresa a la ficha y reintenta), **Detener y guardar lo bajado**, **Cancelar sin guardar**.
@@ -106,7 +106,8 @@ Mientras el aviso espera respuesta no se le pide nada a la MEV, sin límite de t
 
 ### 3.6 Informe de verificación y avisos
 
-- `_verificacion.txt`, la página final del PDF único y el aviso en pantalla nombran cada faltante por fecha, fojas, descripción y nombre de archivo, y dicen qué devolvió la MEV (pantalla de verificación, login, búsqueda u otra, con título y tamaño).
+- `_verificacion_AAAA-MM-DD_HHMM.txt` (fecha y hora de la descarga, para no pisar el informe de otra descarga en la misma carpeta), la página final del PDF único y el aviso en pantalla nombran cada faltante por fecha, fojas, descripción y nombre de archivo, y dicen qué devolvió la MEV (pantalla de verificación, login, búsqueda u otra, con título y tamaño).
+- El `resumen.pdf` lista todos los movimientos de la ficha, no solo los tildados: una descarga parcial lo reemplaza por uno completo y al día.
 - Al terminar con faltantes, el aviso ofrece **Bajar los que faltan**: una descarga nueva solo con esos movimientos, con los mismos nombres.
 - Barra de progreso con "Documento 87 de 225, quedan unos 7 min" y botón **Detener** (ofrece guardar lo bajado o cancelar).
 - Los textos que se tocan quedan sin guiones largos.
