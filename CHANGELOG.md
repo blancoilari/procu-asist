@@ -36,6 +36,7 @@ Descarga confiable frente al límite de pedidos de la MEV.
 - Solo el escaneo automático se posterga por una descarga; "Escanear ahora" y "desde fecha" corren siempre (posponerlos en silencio los hacía decir "sin novedades" sin haber leído la MEV).
 - Aviso del sistema en cada pausa, que trae la pestaña al frente; el texto de la pausa aclara que no pasa nada hasta elegir.
 - "Saltear este documento" desde el segundo bloqueo seguido del mismo documento.
+- Pedido del titular durante la prueba real: "Esperar y seguir" muestra la cuenta regresiva de la espera y, si nadie elige, sigue sola. La espera se cuenta desde el bloqueo, así que no suma tiempo. Con la sesión cerrada no sigue sola.
 - "Cancelar sin guardar" se respeta aunque llegue al final; "Detener" desaparece durante el armado del archivo.
 - El login y la búsqueda se reconocen antes que las frases sueltas; HTTP 429 y 503 cuentan como bloqueo; tiempos máximos en todos los pedidos.
 - Colisiones de nombres sin distinguir mayúsculas; el archivo de salida lleva fecha y hora.

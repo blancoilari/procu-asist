@@ -84,7 +84,7 @@ Ante `desafio`, la descarga deja de pedir y la pestaña muestra un aviso: "La ME
 
 Ante `login`, el aviso explica que la sesión de la MEV se cerró y que hay que iniciarla en **otra** pestaña (en la de la descarga no, porque cambiar de página la cancela). Botones: **Seguir** (reingresa a la ficha y reintenta), **Detener y guardar lo bajado**, **Cancelar sin guardar**.
 
-Mientras el aviso espera respuesta no se le pide nada a la MEV, sin límite de tiempo. Como la pestaña suele quedar en segundo plano, cada pausa además muestra un aviso del sistema que, al tocarlo, trae la pestaña al frente.
+Mientras el aviso espera respuesta no se le pide nada a la MEV. **Cambio pedido por el titular durante la prueba real del 22/09/2026:** si nadie elige, la descarga no queda parada. El botón muestra "Esperar y seguir (N)" con la espera que toca (30 s, 1, 2 o 4 min) y, al llegar a cero, elige "Esperar y seguir" solo. La espera se cuenta desde el bloqueo: el tiempo que el aviso estuvo abierto ya es espera, así que seguir por defecto no suma tiempo, y si se toca "Esperar y seguir" antes, solo se completa lo que falta. Con la sesión cerrada no sigue sola, porque hay que entrar a la MEV en otra pestaña. Como la pestaña suele quedar en segundo plano, cada pausa además muestra un aviso del sistema que, al tocarlo, trae la pestaña al frente.
 
 Desde el segundo bloqueo seguido del mismo documento, el aviso ofrece además **Saltear este documento**: salida para un documento que la MEV nunca sirve. Queda anotado en el informe como faltante (ajuste de la revisión de código del 22/09/2026).
 
