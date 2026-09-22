@@ -9,6 +9,8 @@ import assert from 'node:assert/strict';
 import {
   assignFileBases,
   buildFileBase,
+  downloadStamp,
+  fileBasesInMevOrder,
   isoDateForName,
   safeDescription,
   verificationFileName,
@@ -61,6 +63,36 @@ test('un sufijo nunca repite un nombre que ya existe por su descripción', () =>
     '2026-03-10_fs-20_OFICIO',
     '2026-03-10_fs-20_OFICIO_3',
   ]);
+});
+
+test('las colisiones no distinguen mayúsculas, como Windows', () => {
+  const a = { date: '10/03/2026', fojas: '20', description: 'OFICIO', hasDocuments: true };
+  const b = { date: '10/03/2026', fojas: '20', description: 'Oficio', hasDocuments: true };
+  assert.deepEqual(assignFileBases([a, b]), ['2026-03-10_fs-20_OFICIO', '2026-03-10_fs-20_Oficio_2']);
+});
+
+test('en el orden de la MEV (más nuevo primero), el sufijo lo lleva el paso más nuevo', () => {
+  const viejo = { date: '10/03/2026', fojas: '20', description: 'OFICIO', hasDocuments: true };
+  const nuevo = { date: '10/03/2026', fojas: '20', description: 'OFICIO', hasDocuments: true };
+  assert.deepEqual(fileBasesInMevOrder([nuevo, viejo]), ['2026-03-10_fs-20_OFICIO_2', '2026-03-10_fs-20_OFICIO']);
+});
+
+test('los nombres no cambian entre la ficha de hoy y la de mañana con pasos nuevos arriba', () => {
+  const hoy = [
+    { date: '12/03/2026', fojas: '22', description: 'PROVEIDO', hasDocuments: true },
+    { date: '10/03/2026', fojas: '20', description: 'OFICIO', hasDocuments: true },
+    { date: '10/03/2026', fojas: '20', description: 'OFICIO', hasDocuments: true },
+  ];
+  const manana = [
+    { date: '13/03/2026', fojas: '23', description: 'PROVEIDO', hasDocuments: true },
+    { date: '13/03/2026', fojas: '', description: 'NOTA', hasDocuments: false },
+    ...hoy,
+  ];
+  assert.deepEqual(fileBasesInMevOrder(manana).slice(2), fileBasesInMevOrder(hoy));
+});
+
+test('marca de fecha y hora para nombres de archivo', () => {
+  assert.equal(downloadStamp(new Date(2026, 8, 22, 9, 5)), '2026-09-22_0905');
 });
 
 test('el informe lleva fecha y hora', () => {

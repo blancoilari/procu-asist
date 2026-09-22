@@ -24,7 +24,7 @@ import {
 import { mergePdfParts, type MergedPdfPart } from './merged-pdf-generator';
 import { runMevDownload, type RunnerHooks } from './mev-download-runner';
 import { buildVerificationLines, type MevDownloadStats } from './download-report';
-import { verificationFileName } from './file-naming';
+import { downloadStamp, verificationFileName } from './file-naming';
 import { realClock, type MevPacer } from '@/modules/portals/mev-pacer';
 import type { MevDownloadCaseData } from '@/modules/messages/mev-download';
 import { blobToBase64 } from '@/modules/utils/blob';
@@ -46,6 +46,9 @@ export async function generateCaseDownload(
 ): Promise<CaseDownloadResult> {
   const zip = new JSZip();
   const safeNumber = data.caseNumber.replace(/[^a-zA-Z0-9-]/g, '_');
+  // Fecha y hora en el nombre del archivo: "Bajar los que faltan" o una
+  // descarga parcial posterior no proponen pisar el archivo de la anterior.
+  const outputBase = `expediente_${safeNumber}_${downloadStamp(new Date())}`;
   const folder = zip.folder(`${safeNumber}_expte_completo`);
   if (!folder) throw new Error('No se pudo crear la carpeta dentro del ZIP');
   const mergeParts: MergedPdfPart[] = [];
@@ -143,10 +146,10 @@ export async function generateCaseDownload(
     if (format === 'pdf') {
       const resumenBytes = new Uint8Array(await resumenBlob.arrayBuffer());
       const { blob } = await mergePdfParts(resumenBytes, mergeParts);
-      return { outcome, blob, filename: `expediente_${safeNumber}.pdf`, stats: run.stats };
+      return { outcome, blob, filename: `${outputBase}.pdf`, stats: run.stats };
     }
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
-    return { outcome, blob, filename: `expediente_${safeNumber}.zip`, stats: run.stats };
+    return { outcome, blob, filename: `${outputBase}.zip`, stats: run.stats };
   } catch (err) {
     return {
       outcome,

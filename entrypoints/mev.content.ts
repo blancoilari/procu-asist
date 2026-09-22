@@ -35,7 +35,7 @@ import {
   ICON_PACKAGE,
   ICON_DOWNLOAD,
 } from '@/modules/ui/icon-strings';
-import { assignFileBases } from '@/modules/pdf/file-naming';
+import { fileBasesInMevOrder } from '@/modules/pdf/file-naming';
 import { isChallengeTitle } from '@/modules/portals/mev-challenge';
 import { isMevDownloadRunning, startMevDownload } from '@/modules/ui/mev-download-ui';
 import {
@@ -2474,10 +2474,9 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
 
   // Nombres de archivo sobre la lista COMPLETA de la ficha, del más viejo al
   // más nuevo: así no cambian entre una descarga y otra (file-naming.ts).
-  const oldestFirst = movements.slice().reverse();
-  const bases = assignFileBases(oldestFirst);
+  const bases = fileBasesInMevOrder(movements);
   const fileBaseOf = new Map<Movement, string>();
-  oldestFirst.forEach((movement, i) => {
+  movements.forEach((movement, i) => {
     const base = bases[i];
     if (base) fileBaseOf.set(movement, base);
   });

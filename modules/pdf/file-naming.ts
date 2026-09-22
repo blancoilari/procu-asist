@@ -64,8 +64,10 @@ export function buildFileBase(mov: { date: string; fojas?: string; description: 
  * Nombre de cada movimiento con documentos, calculado sobre la lista
  * COMPLETA de la ficha, del más viejo al más nuevo. Si dos quedan iguales,
  * el segundo lleva _2, el tercero _3, salteando cualquier nombre ya usado.
- * Como el cálculo es sobre la lista completa y no sobre lo tildado, el
- * nombre de un documento no cambia entre una descarga y otra.
+ * La comparación no distingue mayúsculas, igual que Windows: "OFICIO" y
+ * "Oficio" del mismo día y fojas se pisarían al descomprimir. Como el
+ * cálculo es sobre la lista completa y no sobre lo tildado, el nombre de un
+ * documento no cambia entre una descarga y otra.
  *
  * Devuelve un array paralelo a la entrada: null para los movimientos sin
  * documentos.
@@ -77,17 +79,32 @@ export function assignFileBases(movementsOldestFirst: NamingMovement[]): Array<s
     const base = buildFileBase(mov);
     let name = base;
     let n = 1;
-    while (used.has(name)) {
+    while (used.has(name.toLowerCase())) {
       n += 1;
       name = `${base}_${n}`;
     }
-    used.add(name);
+    used.add(name.toLowerCase());
     return name;
   });
 }
 
+/**
+ * Lo mismo que assignFileBases, para una lista en el orden en que la
+ * muestra la MEV (más nuevo primero): el cálculo se hace del más viejo al
+ * más nuevo y el resultado vuelve en el orden de la entrada. Así los pasos
+ * que aparecen mañana arriba de la lista no cambian el nombre de los de hoy.
+ */
+export function fileBasesInMevOrder(movementsNewestFirst: NamingMovement[]): Array<string | null> {
+  return assignFileBases(movementsNewestFirst.slice().reverse()).reverse();
+}
+
+/** Fecha y hora para nombres de archivo: AAAA-MM-DD_HHMM. */
+export function downloadStamp(at: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${at.getFullYear()}-${p(at.getMonth() + 1)}-${p(at.getDate())}_${p(at.getHours())}${p(at.getMinutes())}`;
+}
+
 /** Nombre del informe de faltantes, con fecha y hora para no pisar el de otra descarga. */
 export function verificationFileName(at: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `_verificacion_${at.getFullYear()}-${p(at.getMonth() + 1)}-${p(at.getDate())}_${p(at.getHours())}${p(at.getMinutes())}.txt`;
+  return `_verificacion_${downloadStamp(at)}.txt`;
 }
