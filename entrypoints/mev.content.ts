@@ -35,6 +35,9 @@ import {
   ICON_PACKAGE,
   ICON_DOWNLOAD,
 } from '@/modules/ui/icon-strings';
+import { assignFileBases } from '@/modules/pdf/file-naming';
+import { isChallengeTitle } from '@/modules/portals/mev-challenge';
+import { isMevDownloadRunning, startMevDownload } from '@/modules/ui/mev-download-ui';
 import {
   createConfigActionButton,
   createPortalActionBar,
@@ -48,7 +51,6 @@ const MEV_COLORS = PORTAL_COLORS.mev;
 const MEV_ACTION_BAR_ID = 'procu-asist-action-bar';
 const MEV_CONFIG_ID = 'procu-asist-config';
 const MEV_SET_IMPORT_SESSION_KEY = 'procu_asist_mev_set_import';
-const DANGER_COLOR = '#dc2626';
 
 interface MevSetImportSession {
   collected: MevSearchResult[];
@@ -98,6 +100,15 @@ export default defineContentScript({
     const doc = document;
 
     installWizardMessageListener();
+
+    // Pantalla de verificación de la MEV ("Validando acceso"): no se toca.
+    // Cuando se resuelve, el portal recarga la página y este script vuelve a
+    // correr sobre la página real. Sin esto, un recorrido de importación la
+    // tomaba por una página de resultados vacía (misma dirección, otra página).
+    if (isChallengeTitle(doc.title)) {
+      console.debug('[ProcuAsist] Pantalla de verificación de la MEV: no se hace nada hasta que se resuelva.');
+      return;
+    }
 
     if (isLoginPage(doc)) {
       // Una corrida del asistente que cae al login no puede seguir: avisar
@@ -2461,151 +2472,57 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
     variant: 'primary',
   });
 
-  // Progress bar element (hidden by default)
-  const progressBar = document.createElement('div');
-  Object.assign(progressBar.style, {
-    position: 'fixed',
-    bottom: '20px',
-    right: '188px',
-    width: '280px',
-    backgroundColor: 'white',
-    borderRadius: '8px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-    padding: '8px 12px',
-    fontSize: '11px',
-    zIndex: '999999',
-    display: 'none',
-    flexDirection: 'column',
-    gap: '4px',
+  // Nombres de archivo sobre la lista COMPLETA de la ficha, del más viejo al
+  // más nuevo: así no cambian entre una descarga y otra (file-naming.ts).
+  const oldestFirst = movements.slice().reverse();
+  const bases = assignFileBases(oldestFirst);
+  const fileBaseOf = new Map<Movement, string>();
+  oldestFirst.forEach((movement, i) => {
+    const base = bases[i];
+    if (base) fileBaseOf.set(movement, base);
   });
-
-  const progressLabel = document.createElement('span');
-  progressLabel.style.color = '#374151';
-  progressLabel.textContent = '';
-
-  const progressTrack = document.createElement('div');
-  Object.assign(progressTrack.style, {
-    height: '6px',
-    backgroundColor: '#e5e7eb',
-    borderRadius: '3px',
-    overflow: 'hidden',
-  });
-
-  const progressFill = document.createElement('div');
-  Object.assign(progressFill.style, {
-    height: '100%',
-    backgroundColor: MEV_COLORS.primary,
-    borderRadius: '3px',
-    width: '0%',
-    transition: 'width 0.3s',
-  });
-
-  progressTrack.appendChild(progressFill);
-  progressBar.appendChild(progressLabel);
-  progressBar.appendChild(progressTrack);
-  document.body.appendChild(progressBar);
 
   btn.addEventListener('click', async () => {
-    // Show selection modal first (lets the user pick ZIP or single PDF)
+    if (isMevDownloadRunning()) return;
     const choice = await showMovementSelectionModal(movements);
     if (!choice || choice.movements.length === 0) return;
-    const selectedMovements = choice.movements;
 
-    setPortalActionButtonState(btn, ICON_LOADER, 'Preparando', 'muted');
-    btn.disabled = true;
-    progressBar.style.display = 'flex';
-    progressLabel.textContent = 'Iniciando...';
-    progressFill.style.width = '5%';
-
-    try {
-      const response = (await chrome.runtime.sendMessage({
-        type: 'GENERATE_ZIP',
-        format: choice.format,
-        caseData: {
-          caseNumber: caseData.numero,
-          title: caseData.caratula,
-          court: caseData.juzgado,
-          portal: 'mev',
-          portalUrl: window.location.href,
-          fechaInicio: caseData.fechaInicio,
-          estadoPortal: caseData.estadoPortal,
-          numeroReceptoria: caseData.numeroReceptoria,
-          movements: selectedMovements.map((m) => ({
-            date: m.date,
-            fojas: m.fojas,
-            description: m.description,
-            type: m.type,
-            hasDocuments: m.hasDocuments,
-            documentUrls: m.documentUrls,
-          })),
-        },
-      })) as {
-        success: boolean;
-        filename?: string;
-        error?: string;
-        challenge?: boolean;
-        stats?: {
-          totalMovements: number;
-          proveidosDownloaded: number;
-          proveidosFailed: number;
-          adjuntosDownloaded: number;
-          adjuntosFailed: number;
-          allSuccessful: boolean;
-          failedItems: Array<{
-            type: string;
-            index: number;
-            date: string;
-            description: string;
-            url: string;
-            error: string;
-          }>;
-        };
-      };
-
-      if (response?.success) {
-        const s = response.stats;
-        const totalOk = (s?.proveidosDownloaded ?? 0) + (s?.adjuntosDownloaded ?? 0);
-        const totalFailed = (s?.proveidosFailed ?? 0) + (s?.adjuntosFailed ?? 0);
-        const summary = s
-          ? `${totalOk} descargados${totalFailed > 0 ? `, ${totalFailed} fallaron` : ''}`
-          : 'listo';
-        setPortalActionButtonState(
-          btn,
-          ICON_CHECK,
-          choice.format === 'pdf' ? 'PDF listo' : 'ZIP listo',
-          s?.allSuccessful ? 'success' : 'warning'
-        );
-        progressLabel.textContent = `Listo: ${summary}`;
-        progressFill.style.width = '100%';
-
-        // Show error overlay if there were failures
-        if (s && !s.allSuccessful && s.failedItems.length > 0) {
-          showVerificationOverlay(s.failedItems);
-        }
-      } else if (response?.challenge) {
-        // La MEV devolvió su pantalla de verificación. No hay archivo a
-        // propósito: se le explica al usuario qué pasó y qué hacer.
-        setPortalActionButtonState(btn, ICON_X, 'Verificación', 'warning');
-        progressLabel.textContent = 'La MEV pidió verificación. No se generó ningún archivo.';
-        progressFill.style.backgroundColor = DANGER_COLOR;
-        progressFill.style.width = '100%';
-        showChallengeOverlay(response.error ?? '');
-      } else {
-        setPortalActionButtonState(btn, ICON_X, 'Error', 'danger');
-        progressLabel.textContent = response?.error ?? 'Error';
-        progressFill.style.backgroundColor = DANGER_COLOR;
-        progressFill.style.width = '100%';
-      }
-    } catch (err) {
-      setPortalActionButtonState(btn, ICON_X, 'Error', 'danger');
-      progressLabel.textContent = String(err);
-    }
-
-    setTimeout(() => {
-      setPortalActionButtonState(btn, ICON_PACKAGE, 'Descargar', 'primary');
-      btn.disabled = false;
-      progressBar.style.display = 'none';
-    }, 5000);
+    startMevDownload({
+      button: btn,
+      format: choice.format,
+      caseData: {
+        caseNumber: caseData.numero,
+        title: caseData.caratula,
+        court: caseData.juzgado,
+        portal: 'mev',
+        portalUrl: window.location.href,
+        fechaInicio: caseData.fechaInicio,
+        estadoPortal: caseData.estadoPortal,
+        numeroReceptoria: caseData.numeroReceptoria,
+        allMovements: movements.map((m) => ({
+          date: m.date,
+          fojas: m.fojas,
+          description: m.description,
+          type: m.type,
+          hasDocuments: m.hasDocuments,
+        })),
+        movements: choice.movements.flatMap((m) => {
+          const fileBase = fileBaseOf.get(m);
+          if (!fileBase || !m.hasDocuments || m.documentUrls.length === 0) return [];
+          return [
+            {
+              date: m.date,
+              fojas: m.fojas,
+              description: m.description,
+              type: m.type,
+              hasDocuments: m.hasDocuments,
+              documentUrls: m.documentUrls,
+              fileBase,
+            },
+          ];
+        }),
+      },
+    });
   });
 
   const configBtn = document.getElementById(MEV_CONFIG_ID);
@@ -2614,144 +2531,6 @@ function injectZipButton(caseData: MevCaseData, movements: Movement[]) {
   } else {
     bar.prepend(btn);
   }
-}
-
-// --- Verification Error Overlay ---
-
-/**
- * Aviso de que la MEV interpuso su pantalla de verificación y la descarga se
- * detuvo sin generar archivo. Es deliberado: un expediente sin los despachos,
- * con apariencia de completo, es peor que no tener nada.
- */
-function showChallengeOverlay(detalle: string) {
-  const overlay = document.createElement('div');
-  Object.assign(overlay.style, {
-    position: 'fixed', inset: '0', backgroundColor: 'rgba(0,0,0,0.5)',
-    zIndex: '9999999', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  });
-
-  const modal = document.createElement('div');
-  Object.assign(modal.style, {
-    backgroundColor: 'white', borderRadius: '12px', padding: '24px',
-    maxWidth: '520px', width: '90%', display: 'flex', flexDirection: 'column',
-    gap: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-  });
-
-  const title = document.createElement('h3');
-  title.textContent = 'La MEV pidió verificación: descarga detenida';
-  Object.assign(title.style, {
-    margin: '0', color: '#b45309', fontSize: '16px',
-  });
-
-  const body = document.createElement('p');
-  // textContent: el detalle viene del service worker, nunca se interpreta HTML.
-  body.textContent = detalle || 'La MEV no devolvió la página del expediente.';
-  Object.assign(body.style, {
-    margin: '0', color: '#374151', fontSize: '13px', lineHeight: '1.5',
-  });
-
-  const nota = document.createElement('p');
-  nota.textContent =
-    'No se generó ningún archivo. Es a propósito: si la descarga siguiera, el PDF ' +
-    'saldría sin los despachos y con apariencia de estar completo.';
-  Object.assign(nota.style, {
-    margin: '0', color: '#6b7280', fontSize: '12px', lineHeight: '1.5',
-  });
-
-  const closeBtn = document.createElement('button');
-  closeBtn.textContent = 'Entendido';
-  Object.assign(closeBtn.style, {
-    padding: '8px 20px', borderRadius: '8px', border: 'none',
-    backgroundColor: '#7c3aed', color: 'white', fontSize: '13px',
-    fontWeight: '600', cursor: 'pointer', alignSelf: 'flex-end',
-  });
-  closeBtn.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-
-  modal.appendChild(title);
-  modal.appendChild(body);
-  modal.appendChild(nota);
-  modal.appendChild(closeBtn);
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
-}
-
-function showVerificationOverlay(
-  failedItems: Array<{ type: string; index: number; date: string; description: string; url: string; error: string }>
-) {
-  const overlay = document.createElement('div');
-  Object.assign(overlay.style, {
-    position: 'fixed', inset: '0', backgroundColor: 'rgba(0,0,0,0.5)',
-    zIndex: '9999999', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  });
-
-  const modal = document.createElement('div');
-  Object.assign(modal.style, {
-    backgroundColor: 'white', borderRadius: '12px', padding: '24px',
-    maxWidth: '550px', width: '90%', maxHeight: '70vh', display: 'flex',
-    flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-  });
-
-  const title = document.createElement('h3');
-  title.textContent = `Descarga con ${failedItems.length} error(es)`;
-  Object.assign(title.style, {
-    margin: '0 0 12px 0', color: '#dc2626', fontSize: '16px',
-  });
-
-  const subtitle = document.createElement('p');
-  subtitle.textContent = 'El ZIP se genero pero algunos archivos no pudieron descargarse. Ver archivo _verificacion.txt dentro del ZIP para mas detalles.';
-  Object.assign(subtitle.style, {
-    margin: '0 0 12px 0', color: '#6b7280', fontSize: '13px',
-  });
-
-  const list = document.createElement('div');
-  Object.assign(list.style, {
-    overflowY: 'auto', flex: '1', marginBottom: '12px',
-  });
-
-  for (const item of failedItems) {
-    const row = document.createElement('div');
-    Object.assign(row.style, {
-      padding: '8px', borderBottom: '1px solid #e5e7eb', fontSize: '12px',
-    });
-    // Built with textContent (not innerHTML): description/error come from
-    // portal data and must never be interpreted as HTML.
-    const badge = document.createElement('strong');
-    badge.style.color = '#dc2626';
-    badge.textContent = item.type === 'proveido' ? '[DOC]' : '[ADJ]';
-    row.appendChild(badge);
-    row.appendChild(
-      document.createTextNode(` Paso ${item.index} — ${item.date}`)
-    );
-    row.appendChild(document.createElement('br'));
-    const desc = document.createElement('span');
-    desc.style.color = '#374151';
-    desc.textContent = item.description;
-    row.appendChild(desc);
-    row.appendChild(document.createElement('br'));
-    const errSpan = document.createElement('span');
-    Object.assign(errSpan.style, { color: '#9ca3af', fontSize: '11px' });
-    errSpan.textContent = `Error: ${item.error}`;
-    row.appendChild(errSpan);
-    list.appendChild(row);
-  }
-
-  const closeBtn = document.createElement('button');
-  closeBtn.textContent = 'Cerrar';
-  Object.assign(closeBtn.style, {
-    padding: '8px 20px', borderRadius: '8px', border: 'none',
-    backgroundColor: '#7c3aed', color: 'white', fontSize: '13px',
-    fontWeight: '600', cursor: 'pointer', alignSelf: 'flex-end',
-  });
-  closeBtn.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-
-  modal.appendChild(title);
-  modal.appendChild(subtitle);
-  modal.appendChild(list);
-  modal.appendChild(closeBtn);
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
 }
 
 // --- Dark Mode ---
