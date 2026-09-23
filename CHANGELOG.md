@@ -47,15 +47,25 @@ Descarga confiable frente al límite de pedidos de la MEV.
 - El keep-alive de la MEV mira la respuesta y, si es la pantalla de verificación, deja de pedir durante 30 minutos; lo mismo si la vio la descarga o el monitoreo (`modules/portals/mev-keepalive.ts`, `entrypoints/background/mev-verification-state.ts`). Síntoma: un bloqueo de más de dos horas el 22/09 con pestañas de la MEV abiertas, y el keep-alive pidiendo `busqueda.asp` cada 4 minutos sin mirar qué volvía. Que eso lo sostuviera es hipótesis sin medir.
 - El aviso de pausa aclara que en una pestaña la pantalla se resuelve esperando, pero que eso no destraba la descarga. El aviso del monitoreo deja de pedir "resolvé la verificación", que no destraba nada.
 
+### Prueba real del 23/09/2026 y dos arreglos que salieron de ella
+
+- Expediente de 225 pasos, con la build de la rama del 22/09. Patricio pasó la verificación en su pestaña (la ficha cargó entera) y la descarga arrancó a las 09:51. La MEV contestó con su pantalla a todos los pedidos de la extensión, desde el primero: siete intentos del mismo documento con esperas de 30 s, 1, 2 y 4 minutos (unos 7 pedidos en 13 minutos), y "Detener y guardar lo bajado" a las 10:05. Bajados: 0 de 225.
+- Verificado contra el portal: la pantalla se reconoce y pausa en vez de fallar; la cuenta regresiva sigue sola y sin doble espera; "Saltear este documento" aparece desde el segundo bloqueo; "Detener y guardar lo bajado" arma el ZIP con `resumen.pdf` y el informe `_verificacion_2026-09-23_0951.txt`; el archivo sale `expediente_AL-..._2026-09-23_0951.zip`; los nombres van con la fecha adelante; aparece "Bajar los que faltan (225 pasos)".
+- Hallazgo: pasar la verificación en la pestaña NO destraba los pedidos que la descarga hace por detrás, y la pantalla llegó aun con un pedido cada varios minutos. El 22/09 a la mañana la descarga original bajó 116 documentos por detrás sin pantalla. No se sabe si la MEV sigue marcando al usuario o la conexión por lo del 22/09, o si endureció la regla para todo lo que no sea el navegador.
+- Arreglo 1, el informe: el documento que se estaba pidiendo cuando se detuvo desde la pausa figuraba "no se pidió: la descarga se detuvo antes", con cero faltantes, aunque se había pedido siete veces. Ahora figura con el motivo del bloqueo ("N intentos seguidos con la pantalla; la descarga se detuvo a pedido del usuario") y solo los que siguen quedan pendientes; lo mismo con un adjunto (`modules/pdf/mev-download-runner.ts`).
+- Arreglo 2, la hora de los archivos del ZIP: JSZip la escribía en UTC y Windows la mostraba con 3 horas de más. Cada entrada lleva la hora local (`zipEntryDate` en `modules/pdf/file-naming.ts`), verificado con JSZip y `unzip` en esta máquina.
+- Sin verificar todavía: la bajada real de documentos, el ZIP con PDFs, la descarga parcial que encaje en la carpeta y "Bajar los que faltan".
+
 ### Verificación
 
-- `npm test`: 75 casos (portero, nombres, clasificación, informe, recorrido y keep-alive), sin datos reales.
-- `npm run compile`, `npm run build` y `npm run zip` en verde. El agregado de la noche pasó `compile` y `test`; `build` y `zip` se corren después de la prueba real, para no pisar la build que está cargada en Chrome.
-- Pendiente: la prueba real con la MEV (descarga completa de un expediente grande, descarga parcial que encaje en la carpeta, pausa forzada). Hasta esa prueba, la descarga confiable no está verificada contra el portal.
+- `npm test`: 77 casos (portero, nombres, clasificación, informe, recorrido y keep-alive), sin datos reales.
+- `npm run compile`, `npm run build` y `npm run zip` en verde. El agregado de la noche y los arreglos de la prueba pasaron `compile` y `test`; `build` se corrió después de la prueba del 23/09 para cargar la versión nueva.
+- La prueba real del 23/09 verificó la pausa, el corte y el informe (ver arriba), no la bajada: la MEV no sirvió ningún documento por detrás.
 
 ### Sin medir
 
-- Si los pedidos a la ficha y a los adjuntos cuentan para el límite, si el límite va por usuario o por conexión, y si pasar la verificación a mano acorta el bloqueo.
+- Si los pedidos a la ficha y a los adjuntos cuentan para el límite y si el límite va por usuario o por conexión.
+- Si la pantalla que la MEV le mostró a la descarga el 23/09 es un resto del bloqueo del 22/09 o una regla nueva para todo lo que no sea el navegador. Pasar la verificación a mano en la pestaña no la destrabó.
 
 ## [Sin version] - 2026-09-09
 

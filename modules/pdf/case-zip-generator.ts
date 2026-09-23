@@ -24,7 +24,7 @@ import {
 import { mergePdfParts, type MergedPdfPart } from './merged-pdf-generator';
 import { runMevDownload, type RunnerHooks } from './mev-download-runner';
 import { buildVerificationLines, type MevDownloadStats } from './download-report';
-import { downloadStamp, verificationFileName } from './file-naming';
+import { downloadStamp, verificationFileName, zipEntryDate } from './file-naming';
 import { realClock, type MevPacer } from '@/modules/portals/mev-pacer';
 import type { MevDownloadCaseData } from '@/modules/messages/mev-download';
 import { blobToBase64 } from '@/modules/utils/blob';
@@ -50,6 +50,11 @@ export async function generateCaseDownload(
   // descarga parcial posterior no proponen pisar el archivo de la anterior.
   const startedAt = new Date();
   const outputBase = `expediente_${safeNumber}_${downloadStamp(startedAt)}`;
+  // Cada entrada lleva la hora local (zipEntryDate): sin eso JSZip la escribía en UTC y
+  // Windows mostraba 3 horas de más (prueba real del 23/09/2026). La carpeta se crea antes
+  // con su fecha, porque zip.folder() no la recibe.
+  const enZip = () => ({ date: zipEntryDate(new Date()) });
+  zip.file(`${safeNumber}_expte_completo/`, null, { dir: true, ...enZip() });
   const folder = zip.folder(`${safeNumber}_expte_completo`);
   if (!folder) throw new Error('No se pudo crear la carpeta dentro del ZIP');
   const mergeParts: MergedPdfPart[] = [];
@@ -75,7 +80,7 @@ export async function generateCaseDownload(
     attachments: [],
   };
   const resumenBlob = generateCasePdfBlob(pdfData);
-  folder.file('resumen.pdf', resumenBlob);
+  folder.file('resumen.pdf', resumenBlob, enZip());
 
   // La MEV lista del más nuevo al más viejo: se baja del más viejo al más
   // nuevo, que es el orden del PDF único.
@@ -112,14 +117,14 @@ export async function generateCaseDownload(
           referencias: page.referencias,
           datosPresentacion: page.datosPresentacion,
         });
-        folder.file(`${fileName}.pdf`, blob);
+        folder.file(`${fileName}.pdf`, blob, enZip());
         if (format === 'pdf') {
           mergeParts.push({ label: fileName, base64: await blobToBase64(blob), mimeType: 'application/pdf' });
         }
       },
       saveAttachment: async (fileName, base64, mimeType) => {
         const ext = getExtensionFromMime(mimeType);
-        folder.file(`${fileName}${ext}`, base64, { base64: true });
+        folder.file(`${fileName}${ext}`, base64, { base64: true, ...enZip() });
         if (format === 'pdf') mergeParts.push({ label: `${fileName}${ext}`, base64, mimeType });
       },
     },
@@ -135,7 +140,7 @@ export async function generateCaseDownload(
   if (run.stats.failedItems.length > 0) {
     const lines = buildVerificationLines({ caseNumber: data.caseNumber, generatedAt: new Date(), outcome, stats: run.stats });
     // Misma marca que el archivo de salida: el informe y su ZIP se reconocen como pareja.
-    folder.file(verificationFileName(startedAt), lines.join('\n'));
+    folder.file(verificationFileName(startedAt), lines.join('\n'), enZip());
     // En el PDF único el .txt no llega al usuario: va como última página.
     if (format === 'pdf') {
       try {

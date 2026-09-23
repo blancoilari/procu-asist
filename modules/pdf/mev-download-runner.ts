@@ -161,14 +161,30 @@ export async function runMevDownload<T>(
     missing.add(doc.mov.fileBase);
   };
 
+  /**
+   * Lo que estaba bloqueado cuando llegó la orden de detener desde el aviso. Prueba real del
+   * 23/09/2026: el informe decía "no se pidió: la descarga se detuvo antes" también del
+   * documento que se pidió siete veces y chocó siete veces con la pantalla, y contaba cero
+   * faltantes. Ese queda con el motivo del bloqueo; recién los que siguen, pendientes.
+   */
+  type Bloqueado = { doc: DocEntry; kind: 'proveido' | 'adjunto'; fileName: string; url: string; item: ItemBlocks };
+  const blockedDetail = (item: ItemBlocks) =>
+    item.lastReason === 'login'
+      ? 'la descarga se detuvo a pedido del usuario con la sesión de la MEV cerrada'
+      : `${item.count} ${item.count === 1 ? 'intento' : 'intentos seguidos'} con la pantalla; la descarga se detuvo a pedido del usuario`;
+
   const finish = (
     order: 'stop-save' | 'cancel',
     fromDoc: number,
-    pendingAttachments: PendingAttachment[] = []
+    pendingAttachments: PendingAttachment[] = [],
+    bloqueado?: Bloqueado
   ): RunnerResult => {
     if (order === 'cancel') {
       stats.missingFileBases = [...missing];
       return { outcome: 'cancelled', stats };
+    }
+    if (bloqueado) {
+      fail(bloqueado.doc, bloqueado.kind, bloqueado.fileName, bloqueado.url, bloqueado.item.lastReason, blockedDetail(bloqueado.item));
     }
     for (const a of pendingAttachments) fail(a.doc, 'adjunto', a.fileName, a.url, 'pendiente', '');
     for (let k = fromDoc; k < docs.length; k++) {
@@ -231,6 +247,7 @@ export async function runMevDownload<T>(
     let reentered = false;
     let retried = false;
     const item: ItemBlocks = { count: 0, lastReason: 'desafio' };
+    const esteBloqueado = (): Bloqueado => ({ doc, kind: 'proveido', fileName: `${doc.fileName}.pdf`, url: doc.url, item });
 
     while (!page && !failure) {
       if (hooks.shouldStop()) return finish(hooks.shouldStop()!, di);
@@ -244,7 +261,7 @@ export async function runMevDownload<T>(
       } else if (got.status === 'desafio' || got.status === 'login') {
         const next = await resolveBlock(got.status, item);
         if (next === 'skip') failure = { reason: item.lastReason, detail: skippedDetail(item) };
-        else if (next !== 'retry') return finish(next, di);
+        else if (next !== 'retry') return finish(next, di + 1, [], esteBloqueado());
       } else if (got.status === 'sin-contexto' && !reentered) {
         reentered = true;
         await deps.pace();
@@ -253,7 +270,7 @@ export async function runMevDownload<T>(
         if (entry.status === 'desafio' || entry.status === 'login') {
           const next = await resolveBlock(entry.status, item);
           if (next === 'skip') failure = { reason: item.lastReason, detail: skippedDetail(item) };
-          else if (next !== 'retry') return finish(next, di);
+          else if (next !== 'retry') return finish(next, di + 1, [], esteBloqueado());
           // El reingreso no llegó a hacerse: después de la espera se vuelve a intentar.
           else reentered = false;
         }
@@ -309,7 +326,9 @@ export async function runMevDownload<T>(
             fail(doc, 'adjunto', fileName, url, adjItem.lastReason, skippedDetail(adjItem));
             break;
           }
-          if (next !== 'retry') return finish(next, di + 1, restantes());
+          if (next !== 'retry') {
+            return finish(next, di + 1, restantes().slice(1), { doc, kind: 'adjunto', fileName, url, item: adjItem });
+          }
           continue;
         }
         if (mevHosted && !attachmentRetried) {

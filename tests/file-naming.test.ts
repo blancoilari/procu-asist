@@ -14,7 +14,20 @@ import {
   isoDateForName,
   safeDescription,
   verificationFileName,
+  zipEntryDate,
 } from '../modules/pdf/file-naming.ts';
+
+test('la fecha de las entradas del ZIP: lo que JSZip escribe como hora UTC es la hora local', () => {
+  // Prueba real del 23/09/2026: los archivos del ZIP salían a las 12:51 con la descarga
+  // de las 09:51. JSZip escribe la hora UTC y Windows la muestra como local.
+  const local = new Date(2026, 8, 23, 9, 51, 30);
+  const z = zipEntryDate(local);
+  assert.equal(z.getUTCFullYear(), 2026);
+  assert.equal(z.getUTCMonth(), 8);
+  assert.equal(z.getUTCDate(), 23);
+  assert.equal(z.getUTCHours(), 9);
+  assert.equal(z.getUTCMinutes(), 51);
+});
 
 test('fecha adelante, después fojas y descripción', () => {
   assert.equal(

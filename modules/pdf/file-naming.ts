@@ -108,3 +108,13 @@ export function downloadStamp(at: Date): string {
 export function verificationFileName(at: Date): string {
   return `_verificacion_${downloadStamp(at)}.txt`;
 }
+
+/**
+ * La fecha de cada entrada del ZIP. JSZip escribe la hora del ZIP con los componentes UTC
+ * de la fecha, y Windows la muestra como hora local: en la prueba real del 23/09/2026 los
+ * archivos de una descarga de las 09:51 salían a las 12:51. Se le pasa la fecha corrida por
+ * el huso horario, así lo que escribe como UTC es la hora local.
+ */
+export function zipEntryDate(at: Date): Date {
+  return new Date(at.getTime() - at.getTimezoneOffset() * 60_000);
+}

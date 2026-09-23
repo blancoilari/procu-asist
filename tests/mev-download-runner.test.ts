@@ -173,14 +173,35 @@ test('saltear se ofrece desde el segundo bloqueo seguido del mismo documento y l
   assert.deepEqual(r.stats.missingFileBases, ['B']);
 });
 
-test('detener y guardar en una pausa: entrega lo bajado y anota lo pendiente', async () => {
+test('detener y guardar en una pausa: entrega lo bajado, el documento bloqueado figura con la pantalla y el resto como pendiente', async () => {
   const d = dobles({ paginas: { [`${MEV}/p2`]: [BLOQUEO] } });
   const r = await runMevDownload(movs(), d.deps, ganchos(['stop-save']).hooks);
   assert.equal(r.outcome, 'partial');
   assert.deepEqual(d.guardados, ['A.pdf']);
-  assert.equal(r.stats.pending, 2);
+  // Prueba real del 23/09/2026: el informe decía "no se pidió" también del documento que
+  // se pidió siete veces y chocó siete veces con la pantalla.
+  assert.equal(r.stats.pending, 1);
+  assert.equal(r.stats.proveidosFailed, 1);
   assert.deepEqual(r.stats.missingFileBases, ['B', 'C']);
-  assert.deepEqual(r.stats.failedItems.map((f) => f.reason), ['pendiente', 'pendiente']);
+  assert.deepEqual(r.stats.failedItems.map((f) => f.reason), ['desafio', 'pendiente']);
+  assert.match(r.stats.failedItems[0].detail, /1 intento con la pantalla; la descarga se detuvo a pedido del usuario/);
+});
+
+test('detener y guardar en la pausa de un adjunto: ese adjunto figura con la pantalla y los que siguen, pendientes', async () => {
+  const conAdjuntos: PageFetch<Pagina> = { status: 'ok', data: { adjuntos: [`${MEV}/a1`, `${MEV}/a2`, `${MEV}/a3`] } };
+  const d = dobles({
+    paginas: { [`${MEV}/p1`]: [conAdjuntos] },
+    adjuntos: { [`${MEV}/a1`]: [{ status: 'desafio', detail: 'x' }] },
+  });
+  const r = await runMevDownload(movs(), d.deps, ganchos(['stop-save']).hooks);
+  assert.equal(r.outcome, 'partial');
+  assert.deepEqual(d.guardados, ['A.pdf']);
+  assert.deepEqual(
+    r.stats.failedItems.map((f) => `${f.fileName}:${f.reason}`),
+    ['A_adjunto_1:desafio', 'A_adjunto_2:pendiente', 'A_adjunto_3:pendiente', 'B.pdf:pendiente', 'C.pdf:pendiente']
+  );
+  assert.equal(r.stats.adjuntosFailed, 1);
+  assert.equal(r.stats.pending, 4);
 });
 
 test('cancelar en una pausa: no entrega nada', async () => {
@@ -197,6 +218,7 @@ test('detener durante la cuenta regresiva: no vuelve a pedir y entrega lo bajado
   assert.equal(r.outcome, 'partial');
   assert.equal(d.llamadas.filter((l) => l === 'proveido /p2').length, 1);
   assert.deepEqual(r.stats.missingFileBases, ['B', 'C']);
+  assert.deepEqual(r.stats.failedItems.map((f) => f.reason), ['desafio', 'pendiente'], 'B chocó con la pantalla: no es "no se pidió"');
 });
 
 test('la búsqueda en vez del proveído: reingresa a la ficha una vez y reintenta', async () => {
