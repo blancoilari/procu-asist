@@ -2,6 +2,14 @@
 
 Todos los cambios notables del proyecto se documentan en este archivo.
 
+## En pausa - 2026-09-25
+
+Decisión del titular: ProcuAsist queda en pausa y la prioridad pasa a Estudio OS. Esta rama (`descarga-confiable-mev`) no se integra ni se publica por ahora.
+
+- El 23/09/2026 la MEV contestó con su pantalla de verificación a todos los pedidos de la descarga por detrás, aunque la verificación se había pasado a mano en la pestaña (ver la prueba real, abajo).
+- La ayuda oficial de la MEV (sección USUARIOS) dice que sus usuarios "son para ser usados por seres humanos y no por sistemas informáticos o agentes de inteligencia artificial" y que el mal uso "generará el bloqueo de dicho usuario". Antes de publicar la 0.8.1 hay que revisar qué funciones de la MEV quedan: el login automático, el mantener sesión, el monitoreo automático, la importación y la descarga por detrás usan la cuenta del abogado en forma automatizada. Lo que asiste a la persona mientras navega (marcadores, ayudas en la pantalla) es otra cosa.
+- Para retomar: la rama tiene la descarga con portero, pausa, informe y nombres por fecha (probada contra el portal salvo la bajada real), el mantener sesión que no insiste durante un bloqueo y los arreglos de la prueba del 23/09. Hay una copia completa del repositorio con esta rama en un paquete de git fuera del repo (ver la memoria del proyecto).
+
 ## [Sin version] - 2026-09-22
 
 Descarga confiable frente al límite de pedidos de la MEV.
