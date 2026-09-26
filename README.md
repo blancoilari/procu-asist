@@ -166,14 +166,13 @@ La ayuda oficial de la MEV, sección USUARIOS, dice que sus usuarios "son para s
 
 ### Lo medido el 22/09/2026 contra el portal, con sesión real
 
-Medido en una rama de trabajo que no está integrada en `master` ni publicada:
+Medido en una rama de trabajo que no está integrada en `master` ni publicada. Se anota lo que explica por qué la descarga falla, no cómo evitar el filtro: eso no se documenta acá.
 
-- La MEV tiene un servidor intermedio (nginx) delante de su sistema, con un límite de pedidos de unos **30 proveídos por minuto**. Pasado el límite, toda página de la MEV responde con la pantalla "Validando acceso...": la misma dirección pedida, **HTTP 200**, unos 2.000 bytes, un script de Cloudflare Turnstile (el verificador de "¿sos humano?") y ningún texto visible en el cuerpo, porque el texto lo arma un script. Para un `fetch()` es una respuesta buena: `resp.ok` da true.
-- Sin pedidos, el bloqueo se levanta solo en unos 20 a 30 segundos. Si se sigue pidiendo durante el bloqueo, no se levanta, y cada bloqueo nuevo dura más. El bloqueo no es por pestaña: alcanza a otras sesiones del mismo usuario desde la misma conexión.
-- El 23/09/2026, en una prueba real sobre un expediente de 225 pasos, la MEV contestó con su pantalla a todos los pedidos que la extensión hizo por detrás, desde el primero y aun con un pedido cada varios minutos, aunque la verificación se había pasado a mano en la pestaña. Bajados: 0 de 225. No se sabe si la MEV seguía marcando al usuario o la conexión por el bloqueo del día anterior, o si endureció la regla para todo lo que no sea el navegador.
+- La MEV limita la cantidad de pedidos: pasados unos **30 proveídos por minuto**, toda página de la MEV responde con la pantalla "Validando acceso..." (un verificador de Cloudflare Turnstile, el de "¿sos humano?"). La pantalla llega con la misma dirección pedida y **HTTP 200**, y sus textos no vienen en el HTML servido (los arma un script). Para un `fetch()` es una respuesta buena: `resp.ok` da true. Un bloqueo que se levanta puede volver a aparecer, y cada uno dura más que el anterior.
+- El 23/09/2026, en una prueba real sobre un expediente de 225 pasos, la MEV contestó con su pantalla a todos los pedidos que la extensión hizo por detrás, desde el primero y aun con un pedido cada varios minutos, aunque la verificación se había pasado a mano en la pestaña. Bajados: 0 de 225. No se sabe si la MEV seguía marcando al usuario por el bloqueo del día anterior, o si endureció la regla para todo lo que no sea el navegador.
 - `VerMasTramitacion.asp` devuelve HTTP 500 desde el 21/08/2026, desde antes de la pantalla: son dos cosas distintas.
 
-Lo que sigue sin medir: si los pedidos a la ficha y a los adjuntos cuentan para el mismo límite; si el límite va por usuario o por conexión; si pasar la verificación a mano en la pestaña acorta el bloqueo; si el keep-alive era lo que sostenía el bloqueo largo del 22/09.
+Lo que sigue sin medir: qué pedidos cuentan para el límite, si el límite va por usuario o por conexión, y si pasar la verificación a mano en la pestaña cambia algo para los pedidos que la extensión hace por detrás.
 
 ### Lo que hace la versión de este repositorio (0.8.1, sin publicar)
 
@@ -184,9 +183,9 @@ Lo que sigue describe `master`, que es el código de la 0.8.1 armada el 09/09/20
 - Lo mismo en la descarga de adjuntos (una respuesta HTML con la frase corta la descarga entera y no gasta reintentos) y en el escaneo del monitoreo (si no se parseó ningún movimiento y el HTML trae la frase, la causa no se anota como "sin novedades": se avisa, y el resto del barrido MEV de esa corrida no se hace).
 - Tests: `npm test` (runner de node, sin dependencias nuevas; 8 casos en `tests/mev-challenge.test.ts`).
 
-Lo medido el 22/09 mostró que esa detección no alcanza: buscaba las frases en el texto visible, que en la pantalla real está vacío, así que la tomaba por "página inesperada", salteaba el documento y pedía el siguiente a los 0,3 segundos, lo que alargaba el bloqueo. En un expediente de 225 proveídos se salteaban más de 100. La búsqueda de causas y la importación masiva (`import-all`) siguen distinguiendo solo la pantalla de login: frente a la verificación degradan sin decirlo (la búsqueda informa "formulario no encontrado" y el asistente de importación puede mostrar cero causas o cero sets).
+Lo medido el 22/09 mostró que esa detección no alcanza: buscaba las frases en el texto visible, que en la pantalla real está vacío, así que la tomaba por "página inesperada", salteaba el documento y seguía pidiendo. En un expediente de 225 proveídos se salteaban más de 100. La búsqueda de causas y la importación masiva (`import-all`) siguen distinguiendo solo la pantalla de login: frente a la verificación degradan sin decirlo (la búsqueda informa "formulario no encontrado" y el asistente de importación puede mostrar cero causas o cero sets).
 
-Existe una rama de trabajo, no integrada ni publicada, con una descarga que espacia los pedidos a 20 por minuto, reconoce la pantalla por su título y su script, pausa y pregunta en vez de saltear, y un keep-alive que deja de pedir durante un bloqueo. Quedó en pausa el 25/09/2026 con la bajada real sin verificar (0 de 225 el 23/09) y no se integra mientras no se resuelva la revisión de la regla de la MEV.
+Existe una rama de trabajo, no integrada ni publicada, con otro recorrido de descarga (avisa y pregunta en vez de saltear). Quedó en pausa el 25/09/2026 con la bajada real sin verificar (0 de 225 el 23/09) y no se integra mientras no se resuelva la revisión de la regla de la MEV.
 
 ## Precio
 

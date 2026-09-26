@@ -171,7 +171,7 @@ El parámetro `filtro` es un JSON URL-encoded con los tipos de actuación a incl
     {
       "esCedula": 0,
       "codigo": "ESCRIT",
-      "numero": 0000000,
+      "numero": 0,
       "fechaFirma": 1767032849927,
       "firmantes": "APELLIDO FICTICIO,NOMBRE FICTICIO",
       "actId": 2000001,
