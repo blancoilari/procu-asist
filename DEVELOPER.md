@@ -67,9 +67,9 @@ al primer intento de lectura y el usuario recarga las credenciales.
 
 ### Archivos clave
 
-- `modules/crypto/aes-gcm.ts` — Funciones primitivas: `generateAesKey()`, `encrypt()`, `decrypt()`, export/import JWK
-- `modules/crypto/key-manager.ts` — Lifecycle del CryptoKey: `ensureKey()` (memoria → storage → generar), `cleanupLegacyVault()`
-- `modules/storage/credential-store.ts` — Almacena credenciales de portales encriptadas
+- `modules/crypto/aes-gcm.ts`: Funciones primitivas: `generateAesKey()`, `encrypt()`, `decrypt()`, export/import JWK
+- `modules/crypto/key-manager.ts`: Lifecycle del CryptoKey: `ensureKey()` (memoria → storage → generar), `cleanupLegacyVault()`
+- `modules/storage/credential-store.ts`: Almacena credenciales de portales encriptadas
 
 ## Estructura de Storage
 
@@ -124,8 +124,8 @@ Claves en `chrome.storage.local`:
 
 ## Convenciones de codigo
 
-- **TypeScript strict** — Sin `any` implicitos
-- **Imports con alias** — `@/modules/...` resuelve a `./modules/...`
-- **Prefijo de logs** — `[ProcuAsist]` en todos los console.debug/error
-- **Storage keys** — Prefijo `tl_` (por "turbolex", nombre original del proyecto)
-- **Mensajes** — PascalCase con underscore: `CASE_PAGE_DETECTED`, `ADD_BOOKMARK`
+- **TypeScript strict**: Sin `any` implicitos
+- **Imports con alias**: `@/modules/...` resuelve a `./modules/...`
+- **Prefijo de logs**: `[ProcuAsist]` en todos los console.debug/error
+- **Storage keys**: Prefijo `tl_` (por "turbolex", nombre original del proyecto)
+- **Mensajes**: PascalCase con underscore: `CASE_PAGE_DETECTED`, `ADD_BOOKMARK`

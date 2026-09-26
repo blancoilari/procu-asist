@@ -82,7 +82,7 @@ Fecha objetivo: 2026-04-27.
 
 ### Relevamiento "Dejar Nota" PJN - 2026-05-05
 
-Capturas aportadas sobre `scw.pjn.gov.ar/scw/expediente.seam?cid=209646`:
+Capturas aportadas sobre `scw.pjn.gov.ar/scw/expediente.seam?cid=000000`:
 
 - El expediente muestra el boton nativo `Dejar Nota` junto a `Volver a Mi Lista` y `Presentar escrito`.
 - Al hacer click, PJN abre un modal titulado `Libro de Notas Electronicas`.
@@ -91,7 +91,7 @@ Capturas aportadas sobre `scw.pjn.gov.ar/scw/expediente.seam?cid=209646`:
 - Al confirmar, PJN vuelve al expediente y muestra alerta informativa: `Se ha dejado nota en el expediente en forma correcta. Es posible verificar dicha accion en la seccion de notas del expediente`.
 - La seccion `Notas` agrega una fila con fecha `05/05/2026`, interviniente `PATRICIO GREGORIO BLANCO ILARI` y detalle horario.
 - El boton nativo `Dejar Nota` sigue visible aunque la nota del dia ya haya sido dejada.
-- Si se intenta confirmar otra vez el mismo dia, PJN responde con alerta de error: `Ya se ha dejado nota con el usuario 20301911298 en el expediente: 3638/2023. No es posible realizar dicha accion mas de una vez al dia por expediente`.
+- Si se intenta confirmar otra vez el mismo dia, PJN responde con alerta de error: `Ya se ha dejado nota con el usuario 00000000000 en el expediente: 00000/2020. No es posible realizar dicha accion mas de una vez al dia por expediente`.
 - Prueba local: el boton `Dejar nota` de ProcuAsist abre el mismo modal nativo de PJN; la extension no confirma por si sola.
 - Mejora local probada: ProcuAsist detecta las alertas de PJN y cambia su boton a `Nota hecha` si el portal informa exito, o a `Ya hecha` si informa duplicado del dia.
 - Observacion posterior a las 20:47 del mismo dia: PJN ya no muestra el boton nativo `Dejar Nota` en expedientes SCW; ProcuAsist debe dejar la accion deshabilitada porque no hay flujo oficial para abrir.
@@ -125,7 +125,7 @@ Capturas aportadas del sidepanel:
 
 - En viernes de nota, el listado `Relacionados letrado` muestra el boton nativo `Dejar nota` de PJN y el boton ProcuAsist `Dejar notas`.
 - El modal ProcuAsist `Dejar notas PJN` revisa la pagina visible, cruza contra marcadores, excluye causas `EN LETRA` y deja seleccionadas las causas elegibles.
-- En expediente SCW `COM 001520/2023`, ProcuAsist muestra `Dejar nota` junto a `ZIP`, `Guardado` y `Monitorear`.
+- En expediente SCW `COM 000000/2020`, ProcuAsist muestra `Dejar nota` junto a `ZIP`, `Guardado` y `Monitorear`.
 - Al hacer click en `Dejar nota`, ProcuAsist abre el modal oficial de PJN `Libro de Notas Electronicas`.
 - El modal oficial pregunta `Confirma dejar nota en el expediente seleccionado?` y ofrece `Confirmar` / `Cancelar`.
 - Alcance validado: ProcuAsist no confirma automaticamente; la confirmacion queda en manos del usuario.

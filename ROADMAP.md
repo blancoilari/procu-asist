@@ -4,11 +4,23 @@ ProcuAsist es una herramienta hecha por un abogado de la matricula, para colegas
 
 Este roadmap marca prioridades, no promesas cerradas. El orden puede cambiar segun estabilidad de los portales judiciales, feedback de usuarios y disponibilidad de prueba con casos reales.
 
+## Estado: en pausa desde el 25/09/2026
+
+Por decision del titular, ProcuAsist queda en pausa y la prioridad pasa a otro sistema del estudio. No hay fecha para retomar. Lo que sigue en este documento (v0.9.0, v1.0.0, capa premium, ProcuEstudio) son ideas anteriores a la pausa y se conservan como historia; no son un plan vigente.
+
+Condiciones para retomar, en este orden:
+
+1. Revisar que automatizaciones sobreviven a la regla publicada por la MEV para sus usuarios (son para personas, no para sistemas informaticos ni agentes de IA; el mal uso bloquea al usuario; ver la seccion "Verificacion de la MEV" del [README](README.md)). Auto-login, keep-alive, monitoreo automatico, importacion masiva y descarga por detras usan la cuenta del abogado en forma automatizada.
+2. Prueba real de la bajada de documentos contra la MEV (el 23/09/2026 el portal sirvio 0 de 225).
+3. Decision de publicar o no la 0.8.1 (cambia `host_permissions`: revision manual de la Store; ver `docs/release-v0.8.1-assets.md`).
+
+Los pendientes internos de este repositorio no se llevan aca: viven en el mapa de pendientes del ecosistema del estudio (`proyectos\MAPA_PENDIENTES_2026-09-26.md`, fuera de este repositorio; identificadores P1 a P6).
+
 ## Version actual
 
 - Publicada en Chrome Web Store: **v0.8.0** (publicada; confirmado por Patricio el 2026-07-19).
-- En este repositorio: **v0.8.1** (armada, pendiente de subir a la Store).
-- Ideas para la proxima version: Patricio las anota en `D:\OneDrive\Escritorio\Mejorar ProcuAsist.docx`.
+- En este repositorio: **v0.8.1** (armada el 09/09/2026, sin publicar; en pausa).
+- Ideas para una proxima version: Patricio las anota en un documento propio fuera del repositorio.
 
 Lo que ya existe:
 
@@ -44,7 +56,7 @@ Publicado en la v0.7.0 (Store, 2026-07-05):
 
 Las metas de saneamiento publico y Store (v0.6.x), UI unificada en portales (v0.7.0) y SCBA/MEV mas solido (v0.8.0) ya se cumplieron y estan publicadas en la Store. Ver [CHANGELOG.md](CHANGELOG.md) para el detalle de cada version.
 
-## Prioridad inmediata: ProcuAsist gratis estable
+## Prioridad inmediata (anterior a la pausa): ProcuAsist gratis estable
 
 ### v0.9.0 - PJN mas solido
 

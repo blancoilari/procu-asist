@@ -4,7 +4,9 @@ Extensión Chrome para abogados argentinos que automatiza la interacción con po
 
 > **Hecho por un abogado de la matrícula, para colegas. Es gratuito y sin fines de lucro.**
 
-**Versiones:** la versión publicada en Chrome Web Store es la **v0.8.0** (publicada; confirmado el 2026-07-19). Este repositorio está en la **v0.8.1** (pendiente de publicar).
+**Versiones:** la versión publicada en Chrome Web Store es la **v0.8.0** (publicada; confirmado el 2026-07-19). Este repositorio está en la **v0.8.1** (armada el 09/09/2026, sin publicar).
+
+> **Proyecto en pausa desde el 25/09/2026**, por decisión del titular: la prioridad pasa a otro sistema del estudio. La 0.8.1 no se publica por ahora y no hay fecha para retomar. El motivo de fondo es la regla publicada por la MEV para sus usuarios (sección "Verificación de la MEV", más abajo): antes de publicar cualquier versión hay que revisar qué automatizaciones de la extensión sobreviven a esa regla. La versión 0.8.0 publicada sigue instalable, pero la MEV endureció su filtro antirobot en septiembre de 2026 y la descarga de expedientes puede fallar o quedar bloqueada; ver la misma sección.
 
 ---
 
@@ -39,7 +41,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 - **Auto-reconexión** automática cuando la sesión expira
 - **Marcadores de causas** con búsqueda rápida y organización
 - **Monitoreo de movimientos** con notificaciones push en Chrome
-- **Descarga ZIP del expediente completo** con un click — incluye resumen PDF + un PDF por cada paso procesal (con todos sus metadatos) + adjuntos
+- **Descarga ZIP del expediente completo** con un click, incluye resumen PDF + un PDF por cada paso procesal (con todos sus metadatos) + adjuntos
 - **Selección de pasos procesales** a descargar antes de generar el ZIP
 - **Verificación automática** de la descarga con informe de errores
 - **Importación masiva** de causas desde resultados y sets de búsqueda MEV
@@ -55,7 +57,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 
 ## Stack Tecnológico
 
-- **Framework**: [WXT](https://wxt.dev) 0.20 (Manifest V3)
+- **Framework**: [WXT](https://wxt.dev) 0.21 (Manifest V3). `package.json` fija `wxt ^0.21.4` y el lockfile 0.21.4; el zip de la 0.8.1 armado el 09/09/2026 en el checkout principal salió con wxt 0.20.20 (el `node_modules` de ese checkout no se había reinstalado), por eso su `manifest.json` no trae `options_ui.open_in_tab`. Antes de publicar: `npm ci` y regenerar el zip.
 - **UI**: React 19 + TypeScript 5.9 (strict) + Tailwind CSS v4
 - **State**: chrome.storage.local (local-first)
 - **Crypto**: Web Crypto API (AES-GCM con clave de dispositivo persistida)
@@ -133,6 +135,7 @@ procu-asist/
 ├── tests/                       # Tests puros (node --test), fuera del build
 ├── docs/                        # Documentación
 │   └── manual-usuario.md        # Manual para usuarios no técnicos
+├── apps/procu-estudio/          # Scaffold de ProcuEstudio (app web futura), sin actividad desde mayo de 2026; se conserva
 ├── wxt.config.ts                # Configuración WXT + manifest
 ├── tsconfig.json                # Configuración TypeScript
 └── package.json                 # Dependencias y scripts
@@ -157,43 +160,37 @@ Los PDF salen **sin marca**: sin logo, sin color corporativo y sin el nombre de 
 
 ## Verificación de la MEV ("Validando acceso")
 
-**Estado al 09/09/2026. Todo lo que sigue está sin confirmar contra el portal.**
+### La regla publicada por la MEV (verificada el 23/09/2026)
 
-Lo observado:
+La ayuda oficial de la MEV, sección USUARIOS, dice que sus usuarios "son para ser usados por seres humanos y no por sistemas informáticos o agentes de inteligencia artificial" y que el mal uso "generará el bloqueo de dicho usuario". Se leyó en el portal el 23/09/2026 y es la razón principal de la pausa: el auto-login, el mantener sesión (keep-alive), el monitoreo automático, la importación masiva y la descarga por detrás usan la cuenta del abogado en forma automatizada. Lo que asiste a la persona mientras navega (marcadores, ayudas en la pantalla, cálculo de plazos) es otra cosa. Qué funciones quedan y cuáles se retiran es una revisión que no se hizo y que condiciona cualquier publicación futura. La extensión no resuelve, automatiza ni esquiva la verificación antirobot, y este repositorio no documenta cómo hacerlo.
 
-- El 08/09/2026 la MEV mostró en el navegador una pantalla intermedia con los textos "Validando acceso" y "verificando si está siendo navegado por un ser humano" antes de dejar ver el sitio.
-- Esa pantalla se sirve con HTTP 200. Para un `fetch()` es una respuesta buena: `resp.ok` da true y el código sigue como si tuviera la página pedida.
-- La consecuencia observable es un PDF armado y descargado, pero con los despachos vacíos: el parser no encuentra ninguno de los campos que busca y no se queja.
-- Un lector automatizado ajeno a esta extensión seguía leyendo bien las fichas de expediente en esas mismas fechas, así que el filtro no bloquea todo. En cambio `VerMasTramitacion.asp` devuelve HTTP 500 desde el 21/08/2026, o sea desde antes de que apareciera la pantalla: son dos cosas distintas y no hay que confundirlas.
+### Lo medido el 22/09/2026 contra el portal, con sesión real
 
-Lo que **no** se sabe:
+Medido en una rama de trabajo que no está integrada en `master` ni publicada:
 
-- Si la pantalla aparece siempre, por ráfagas o solo para ciertos pedidos.
-- Si el HTML que se sirve contiene los mismos textos que se ven en pantalla (la detección está escrita sobre esa suposición).
-- Si resolver la verificación en la pestaña deja una cookie que sirva para los `fetch` posteriores de la extensión.
-- Qué dispara el filtro: cantidad de pedidos, cadencia, agente, o nada de eso.
+- La MEV tiene un servidor intermedio (nginx) delante de su sistema, con un límite de pedidos de unos **30 proveídos por minuto**. Pasado el límite, toda página de la MEV responde con la pantalla "Validando acceso...": la misma dirección pedida, **HTTP 200**, unos 2.000 bytes, un script de Cloudflare Turnstile (el verificador de "¿sos humano?") y ningún texto visible en el cuerpo, porque el texto lo arma un script. Para un `fetch()` es una respuesta buena: `resp.ok` da true.
+- Sin pedidos, el bloqueo se levanta solo en unos 20 a 30 segundos. Si se sigue pidiendo durante el bloqueo, no se levanta, y cada bloqueo nuevo dura más. El bloqueo no es por pestaña: alcanza a otras sesiones del mismo usuario desde la misma conexión.
+- El 23/09/2026, en una prueba real sobre un expediente de 225 pasos, la MEV contestó con su pantalla a todos los pedidos que la extensión hizo por detrás, desde el primero y aun con un pedido cada varios minutos, aunque la verificación se había pasado a mano en la pestaña. Bajados: 0 de 225. No se sabe si la MEV seguía marcando al usuario o la conexión por el bloqueo del día anterior, o si endureció la regla para todo lo que no sea el navegador.
+- `VerMasTramitacion.asp` devuelve HTTP 500 desde el 21/08/2026, desde antes de la pantalla: son dos cosas distintas.
 
-Lo que hace la extensión hoy (`modules/portals/mev-challenge.ts`):
+Lo que sigue sin medir: si los pedidos a la ficha y a los adjuntos cuentan para el mismo límite; si el límite va por usuario o por conexión; si pasar la verificación a mano en la pestaña acorta el bloqueo; si el keep-alive era lo que sostenía el bloqueo largo del 22/09.
+
+### Lo que hace la versión de este repositorio (0.8.1, sin publicar)
+
+Lo que sigue describe `master`, que es el código de la 0.8.1 armada el 09/09/2026, escrito entonces sin poder probar contra el portal (`modules/portals/mev-challenge.ts`):
 
 - Antes de armar el PDF de un paso procesal, mira la respuesta: largo del HTML, muestra acotada del texto visible y si están las marcas estructurales de un proveído. Si la página no es un proveído, la descarga se **detiene** y se avisa por pantalla, en vez de generar un documento incompleto con apariencia de completo.
 - La detección es angosta a propósito: una página que trae estructura de proveído nunca se marca, aunque su texto contenga alguna de las frases buscadas. La frase sola decide únicamente cuando la página además carece de esa estructura.
-- Lo mismo en la descarga de adjuntos (una respuesta HTML con la frase corta la descarga entera y no gasta reintentos) y en el escaneo del monitoreo (si no se parseó ningún movimiento y el HTML trae la frase, la causa no se anota como "sin novedades": se avisa, y el resto del barrido MEV de esa corrida no se hace, para no seguir pidiendo contra un portal que está filtrando).
-- Tests: `npm test` (runner de node, sin dependencias nuevas).
+- Lo mismo en la descarga de adjuntos (una respuesta HTML con la frase corta la descarga entera y no gasta reintentos) y en el escaneo del monitoreo (si no se parseó ningún movimiento y el HTML trae la frase, la causa no se anota como "sin novedades": se avisa, y el resto del barrido MEV de esa corrida no se hace).
+- Tests: `npm test` (runner de node, sin dependencias nuevas; 8 casos en `tests/mev-challenge.test.ts`).
 
-Lo que **todavía no** detecta la verificación (brecha conocida al 09/09/2026):
+Lo medido el 22/09 mostró que esa detección no alcanza: buscaba las frases en el texto visible, que en la pantalla real está vacío, así que la tomaba por "página inesperada", salteaba el documento y pedía el siguiente a los 0,3 segundos, lo que alargaba el bloqueo. En un expediente de 225 proveídos se salteaban más de 100. La búsqueda de causas y la importación masiva (`import-all`) siguen distinguiendo solo la pantalla de login: frente a la verificación degradan sin decirlo (la búsqueda informa "formulario no encontrado" y el asistente de importación puede mostrar cero causas o cero sets).
 
-- La búsqueda de causas en la MEV y la importación masiva (`import-all`) siguen distinguiendo solo la pantalla de login. Frente a la verificación degradan sin decirlo: la búsqueda informa "formulario no encontrado" y el asistente de importación puede mostrar cero causas o cero sets, que se lee como "no hay nada" en vez de "no pude leer". Ninguno de los dos escribe datos ni baja la línea de base, pero tampoco avisa. Se corrige inyectando la misma comprobación de frase dentro de esas funciones; no se hizo en este cambio.
-- La detección por frase se apoya en que el HTML servido traiga los textos que se ven en pantalla. Si no los trae, en la descarga de proveídos queda la red estructural (sin campos de proveído la descarga se detiene igual); en adjuntos, búsqueda, importación y monitoreo no hay red: ahí la verificación pasaría sin detectarse.
-
-Camino de salida, **diseñado y no implementado**:
-
-- Reemplazar el `fetch` en el mundo MAIN por una navegación real de la pestaña de la MEV a la URL del proveído y leer el DOM ya renderizado. Es lo que hace una persona y lo que el filtro espera; también es el camino que sobrevive si mañana la pantalla exige ejecutar JavaScript. Cuesta caro: hay que tomar prestada la pestaña del usuario (o abrir una propia), esperar el `load`, devolverla a donde estaba y manejar el caso de varias descargas en fila.
-- Alternativa más barata: ante una detección, esperar y reintentar una vez, apostando a que la verificación ya dejó su cookie. No se implementó porque no hay ninguna evidencia de que esa cookie exista ni de cuánto dura, y un reintento a ciegas contra un portal que está filtrando empeora las cosas.
-- Nada de esto se puede probar sin sesión y con el portal filtrando. Queda para una sesión con el titular delante, mirando la pantalla real.
+Existe una rama de trabajo, no integrada ni publicada, con una descarga que espacia los pedidos a 20 por minuto, reconoce la pantalla por su título y su script, pausa y pregunta en vez de saltear, y un keep-alive que deja de pedir durante un bloqueo. Quedó en pausa el 25/09/2026 con la bajada real sin verificar (0 de 225 el 23/09) y no se integra mientras no se resuelva la revisión de la regla de la MEV.
 
 ## Precio
 
-**Gratuito** — todas las funciones habilitadas, sin límites. Si te resulta útil, podés [invitarme un cafecito](https://cafecito.app/procuasist).
+**Gratuito**: todas las funciones habilitadas, sin límites. Si te resulta útil, podés [invitarme un cafecito](https://cafecito.app/procuasist).
 
 ## Disclaimer
 

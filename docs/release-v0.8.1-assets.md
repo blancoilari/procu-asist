@@ -13,14 +13,23 @@ puede quedar varios dias en revision antes de publicarse, y mientras tanto la
 haga falta publicar un arreglo urgente.
 
 Segundo punto: la 0.8.1 sube la herramienta de empaquetado (`wxt`) de la linea
-0.20 a la 0.21. La build local sale limpia y el `manifest.json` generado se
-comparo campo por campo contra el de la 0.8.0 (que salio de wxt 0.20): la unica
-diferencia que no viene de esta version es un campo que agrega la herramienta,
-`options_ui.open_in_tab: false`, que es el valor por defecto de Chrome cuando el
-campo no esta. No cambia permisos ni comportamiento declarado, pero tampoco
-reemplaza probar la extension cargada: lo verificado es la build, no la
-extension corriendo. Antes de subir, cargar `.output/chrome-mv3` desde
-`chrome://extensions` y recorrer el checklist de la seccion 5.
+0.20 a la 0.21 en `package.json` y en el lockfile. Pero el zip que existe en
+`.output/procu-asist-0.8.1-chrome.zip` (09/09/2026, 605.055 bytes) se armo con
+wxt 0.20.20, porque el `node_modules` del checkout principal no se habia
+reinstalado: medido el 25/09/2026, su `manifest.json` NO trae
+`options_ui.open_in_tab` (el campo que agrega la 0.21). Hay un segundo zip
+0.8.1 distinto (22/09/2026, 612.634 bytes) en el worktree de la rama
+`descarga-confiable-mev`, armado con wxt 0.21.4 y con ese campo, pero es la
+build de la rama, no la de `master`. Ninguno de los dos es el que se sube: antes
+de publicar, `npm ci` en `master`, regenerar el zip, cotejar el manifest campo
+por campo contra el de la 0.8.0 y recorrer el checklist de la seccion 5 con la
+extension cargada desde `chrome://extensions`. Lo verificado hasta hoy es la
+build, no la extension corriendo.
+
+Tercer punto, el que manda: el proyecto esta **en pausa desde el 25/09/2026**
+y la publicacion de la 0.8.1 queda condicionada a revisar que automatizaciones
+sobreviven a la regla publicada por la MEV para sus usuarios (ver README,
+seccion "Verificacion de la MEV").
 
 ## 1. Que cambia respecto de la 0.8.0
 
@@ -113,9 +122,12 @@ Sin cambios en el flujo de trabajo: causas, alertas, plazos, descargas e importa
       arrancar.
 
 Lo que NO esta verificado: nada de esto prueba que la extension cargada
-funcione. No hay suite de tests en el repositorio (`package.json` no declara
-script `test`), asi que la unica verificacion de comportamiento posible es la
-manual de 5.2.
+funcione. La suite del repositorio es chica: `package.json` declara
+`test: node --test tests/mev-challenge.test.ts`, con 8 casos (contados el
+26/09/2026 con `grep -c "test("`, sin correrlos) que cubren solo la deteccion de
+la pantalla de verificacion de la MEV con HTML inventado. La rama
+`descarga-confiable-mev`, no integrada, tiene 77 casos. La verificacion de
+comportamiento sigue siendo la manual de 5.2.
 
 ### 5.2 Manual sobre la extension cargada (pendiente, lo hace quien publica)
 

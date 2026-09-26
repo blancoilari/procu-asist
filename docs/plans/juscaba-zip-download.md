@@ -1,4 +1,4 @@
-# Plan de implementación — Descarga completa de expediente JUSCABA en ZIP
+# Plan de implementación: Descarga completa de expediente JUSCABA en ZIP
 
 **Release target:** ProcuAsist v0.5.0
 **Estado al momento de redactar:** JUSCABA cubre auto-login y marcadores. Falta la descarga del expediente como ZIP, análoga a la que ya funciona en MEV.
@@ -23,7 +23,7 @@ Replicar en JUSCABA la funcionalidad de descarga de expediente completo en ZIP q
 
 ---
 
-## 2. Hallazgo clave — JUSCABA expone una API REST interna
+## 2. Hallazgo clave: JUSCABA expone una API REST interna
 
 A diferencia de MEV, en JUSCABA **no hace falta scrapear el DOM**. El portal es una SPA (Angular, muy probablemente) que consume una API REST pública bajo `/iol-api/`. Las llamadas se hacen desde el navegador del usuario autenticado reutilizando las cookies de sesión.
 
@@ -39,7 +39,7 @@ El content script queda mínimo: sólo inyecta el botón de "Descargar ZIP" en l
 
 | Vista | URL | Uso en ProcuAsist |
 |---|---|---|
-| Inicio consulta pública | `https://eje.juscaba.gob.ar/iol-ui/u/inicio` | — |
+| Inicio consulta pública | `https://eje.juscaba.gob.ar/iol-ui/u/inicio` | (sin dato) |
 | Listado "Mis Causas" | `https://eje.juscaba.gob.ar/iol-ui/u/causas?causas=1&tipoBusqueda=CAU&tituloBusqueda=Mis%20Causas` | No inyectar UI de descarga acá. |
 | **Detalle single de expediente** | `https://eje.juscaba.gob.ar/iol-ui/u/expedientes?identificador={CUIJ}&tipoBusqueda=CAU&open=true&tituloBusqueda=Causas&cuij={cuij}&anio={anio}&desmontar=true` | **Sí: inyectar botón "Descargar ZIP" acá.** |
 | Base API | `https://eje.juscaba.gob.ar/iol-api/api/` | Target de todas las llamadas `fetch()`. |
@@ -119,10 +119,10 @@ GET /iol-api/api/expedientes/encabezado?expId={expId}
 {
   "tipoExpediente": "INC",
   "cuij": "J-01-00000000-0/2021-0",
-  "numero": 139905,
+  "numero": 0,
   "anio": 2021,
   "sufijo": 2,
-  "caratula": "METROVIAS sa s/ QUEJA POR RECURSO DE INCONSTITUCIONALIDAD DENEGADO...",
+  "caratula": "PARTE FICTICIA SA s/ QUEJA POR RECURSO DE INCONSTITUCIONALIDAD DENEGADO...",
   "esPrivado": 0,
   "estadoAdministrativo": "EN LETRA",
   "favorito": false,
@@ -163,7 +163,7 @@ El parámetro `filtro` es un JSON URL-encoded con los tipos de actuación a incl
 }
 ```
 
-**Response** — formato `Page<T>` de Spring, confirmado en capturas:
+**Response**: formato `Page<T>` de Spring, confirmado en capturas:
 
 ```json
 {
@@ -171,9 +171,9 @@ El parámetro `filtro` es un JSON URL-encoded con los tipos de actuación a incl
     {
       "esCedula": 0,
       "codigo": "ESCRIT",
-      "numero": 2647183,
+      "numero": 0000000,
       "fechaFirma": 1767032849927,
-      "firmantes": "RUA,CLAUDIA TRINIDAD MARIA MARTA",
+      "firmantes": "APELLIDO FICTICIO,NOMBRE FICTICIO",
       "actId": 2000001,
       "...": "..."
     }
@@ -205,13 +205,13 @@ GET /iol-api/api/expedientes/actuaciones/adjuntos?actId={actId}&expId={expId}&ac
 Devuelve la lista de archivos adjuntos de una actuación. En UI se observó que abre un modal con columnas "Nombre" y "Fecha" cuando hay múltiples, p. ej.:
 
 ```
-2501655 metrovias c ente 199522.pdf   28/02/2025 10:28:25
-mail contestacion bco 199522.pdf       28/02/2025 10:28:25
+0000000 parte ficticia c otro 000000.pdf   28/02/2025 10:28:25
+mail contestacion bco 000000.pdf       28/02/2025 10:28:25
 ```
 
 **Response esperado** (a confirmar): array con objetos que incluyan `aacId`, `nombre`, `fecha`, y posiblemente `mimeType`, `tamaño`.
 
-**Importante:** cuando una actuación tiene 0 adjuntos, el ícono de clip no aparece en la UI. El listado de actuaciones (§3.3.2) probablemente trae un flag `tieneAdjuntos` o `cantidadAdjuntos` — a confirmar; si existe, usarlo para evitar llamadas innecesarias al endpoint de adjuntos.
+**Importante:** cuando una actuación tiene 0 adjuntos, el ícono de clip no aparece en la UI. El listado de actuaciones (§3.3.2) probablemente trae un flag `tieneAdjuntos` o `cantidadAdjuntos`, a confirmar; si existe, usarlo para evitar llamadas innecesarias al endpoint de adjuntos.
 
 #### 3.3.4 Descarga de adjunto individual
 
@@ -304,9 +304,9 @@ manifest (permissions / host_permissions)      # Agregar https://eje.juscaba.gob
 
 ### 5.3 Reutilización desde MEV (sin modificar)
 
-- `modules/pdf/case-pdf-generator.ts` — se consume vía `juscaba-mapper.ts` que normaliza a la interfaz común.
-- Módulo de armado de ZIP (el que MEV ya usa — JSZip o similar).
-- UI del botón / progreso / selector de pasos — si está desacoplada del portal, reutilizable 1:1.
+- `modules/pdf/case-pdf-generator.ts`: se consume vía `juscaba-mapper.ts` que normaliza a la interfaz común.
+- Módulo de armado de ZIP (el que MEV ya usa, JSZip o similar).
+- UI del botón / progreso / selector de pasos, si está desacoplada del portal, reutilizable 1:1.
 
 ### 5.4 Punto de integración con el selector de pasos procesales
 
@@ -342,7 +342,7 @@ Si el selector de MEV recibe una lista genérica de "pasos", `juscaba-mapper.ts`
 6. Agregar PDF resumen al ZIP.
 
 7. Disparar descarga con nombre:
-   expediente_J-01-00199522-3_2021-1.zip
+   expediente_J-01-00000000-0_2021-0.zip
    (normalizar CUIJ reemplazando '/' por '_').
 
 8. Aplicar las políticas de reintentos, timeouts y keep-alive
@@ -358,7 +358,7 @@ Si el selector de MEV recibe una lista genérica de "pasos", `juscaba-mapper.ts`
 ## 7. Estructura del ZIP
 
 ```
-expediente_J-01-00199522-3_2021-1.zip
+expediente_J-01-00000000-0_2021-0.zip
 │
 ├── 00-resumen.pdf
 │   (generado por case-pdf-generator:
@@ -408,7 +408,7 @@ expediente_J-01-00199522-3_2021-1.zip
 
 ## 8. Preguntas abiertas / a validar en implementación
 
-### 8.1 Cómo obtener el `expId` desde el `identificador` público — ✅ RESUELTO (2026-04-18)
+### 8.1 Cómo obtener el `expId` desde el `identificador` público: ✅ RESUELTO (2026-04-18)
 
 **Endpoint confirmado:** `POST /iol-api/api/expedientes/lista`, ver §3.3.0 para el contrato completo (payload, response, formato del `filter` anidado).
 
@@ -448,7 +448,7 @@ Estas pestañas (distintas de "Actuaciones") parecen filtrar al rol del usuario 
 
 | ID | Riesgo | Mitigación |
 |---|---|---|
-| R1 | ~~El endpoint de lookup `identificador → expId` no existe / es protegido.~~ ✅ Mitigado: endpoint confirmado en relevamiento (`POST /lista`, §3.3.0). | — |
+| R1 | ~~El endpoint de lookup `identificador → expId` no existe / es protegido.~~ ✅ Mitigado: endpoint confirmado en relevamiento (`POST /lista`, §3.3.0). | (sin dato) |
 | R2 | La API cambia sin aviso (no hay versionado visible). | El cliente tipado concentra los cambios en un solo archivo. Monitorear con telemetría mínima. |
 | R3 | `adjuntoPdf` devuelve un formato distinto al esperado. | Probar los tres formatos de §8.2 en orden, loggear el primer response en desarrollo. |
 | R4 | Rate limiting del servidor con usuarios agresivos. | Concurrencia limitada (3-5) y backoff exponencial (igual que MEV). |
@@ -477,7 +477,7 @@ Antes de publicar v0.5.0, validar con al menos tres causas reales de distinto pe
 - [ ] Paginación funciona: se obtienen las 53 actuaciones en 2 páginas.
 - [ ] Todas las categorías (despachos, escritos, cédulas, notas) quedan reflejadas.
 - [ ] Actuación "DEM DEMANDA" incluye el poder notarial como adjunto separado.
-- [ ] Actuación "ME66 AGREGA CORREO BCO CIUDAD" incluye ambos PDFs adjuntos (`2501655 metrovias c ente 199522.pdf` y `mail contestacion bco 199522.pdf`) con nombres originales.
+- [ ] Actuación "ME66 AGREGA CORREO BCO CIUDAD" incluye ambos PDFs adjuntos (`0000000 parte ficticia c otro 000000.pdf` y `mail contestacion bco 000000.pdf`) con nombres originales.
 - [ ] Marcadores del PDF resumen saltan a las secciones correctas.
 
 **Causa grande** (≥ 100 actuaciones, o > 200 MB de adjuntos):
@@ -495,18 +495,18 @@ Antes de publicar v0.5.0, validar con al menos tres causas reales de distinto pe
 
 ---
 
-## Apéndice A — Muestras reales observadas
+## Apéndice A: Muestras reales observadas
 
 **CUIJ de prueba:** `J-01-00000000-0/2021-0`
 **expId:** `1000001`
-**Carátula:** METROVIAS sa s/ QUEJA POR RECURSO DE INCONSTITUCIONALIDAD DENEGADO en METROVIAS S.A. CONTRA ENTE UNICO REGULADOR DE LOS SERVICIOS PUBLICOS DE LA CIUDAD AUTONOMA DE BUENOS AIRES SOBRE RECURSO DIRECTO SOBRE RESOLUCIONES DEL ENTE UNICO REGULADOR DE SERVICIOS PUBLICOS
+**Carátula:** PARTE FICTICIA SA s/ QUEJA POR RECURSO DE INCONSTITUCIONALIDAD DENEGADO en PARTE FICTICIA S.A. CONTRA ENTE FICTICIO SOBRE RECURSO DIRECTO
 **Total actuaciones:** 53 (paginado 50/pág → 2 páginas)
 **Códigos de actuación vistos:** `PS60`, `ME55`, `ME66`, `ME69`, `ME76`, `ESCRIT`, `DEM`, `JUETRA`, `SAC1`, `SAC42`, `CEDELE`.
 
 **Ejemplo de actuación con múltiples adjuntos:**
 - Título: `ME66 AGREGA CORREO BCO CIUDAD`
-- actId observado en captura: `50047772`
-- Adjuntos (de modal): `2501655 metrovias c ente 199522.pdf` + `mail contestacion bco 199522.pdf`
+- actId observado en captura: `00000000`
+- Adjuntos (de modal): `0000000 parte ficticia c otro 000000.pdf` + `mail contestacion bco 000000.pdf`
 
 **Ejemplo de adjunto individual descargado:**
 - URL: `https://eje.juscaba.gob.ar/iol-api/api/expedientes/actuaciones/adjuntoPdf?filter=%7B%22aacId%22:3000001,%22expId%22:1000001,%22actId%22:2000001,%22ministerios%22:false,%22esCedula%22:false%7D`

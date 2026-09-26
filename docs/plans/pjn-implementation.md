@@ -1,4 +1,4 @@
-# PJN — Sub-plan de implementación
+# PJN: Sub-plan de implementación
 
 > Release target: **v0.6.0** (posterior a v0.5.0 JUSCABA ZIP)
 > Fecha del relevamiento: 2026-04-18
@@ -73,7 +73,7 @@ https://sso.pjn.gov.ar/auth/realms/pjn/
 
 ### 3.3 Credenciales
 
-- **Usuario**: CUIT de 11 dígitos (ej: `20301911298`). No es el mail.
+- **Usuario**: CUIT de 11 dígitos (ej: `00000000000`). No es el mail.
 - **Contraseña**: alfanumérica provista por el PJN al registrarse.
 - Validar formato CUIT localmente (algoritmo de dígito verificador) antes de enviar.
 
@@ -85,7 +85,7 @@ Pasos:
 
 1. Extensión navega a `https://portalpjn.pjn.gov.ar/` (landing protegida → dispara redirect a Keycloak).
 2. Detecta que está en `sso.pjn.gov.ar/.../openid-connect/auth`.
-3. Obtiene credenciales de storage seguro (`chrome.storage.local` encriptado — ver sección 10).
+3. Obtiene credenciales de storage seguro (`chrome.storage.local` encriptado, ver sección 10).
 4. Rellena `<input name="username">` y `<input name="password">`.
 5. Dispara submit del form.
 6. Espera redirect final a `portalpjn.pjn.gov.ar/inicio`.
@@ -94,11 +94,11 @@ Pasos:
 **Alternativa descartada**: flujo "API-only" donde la extensión hace POST directo a `/token` con `grant_type=password`. Descartado porque:
 - Requiere habilitar Direct Access Grant en el client Keycloak (no controlamos eso).
 - Pierde el handshake de cookies que scw necesita.
-- Menos "natural" — más probable de romperse si cambian políticas.
+- Menos "natural", más probable de romperse si cambian políticas.
 
 ---
 
-## 4. Subsistema 1 — Portal nuevo (`api.pjn.gov.ar`)
+## 4. Subsistema 1: Portal nuevo (`api.pjn.gov.ar`)
 
 ### 4.1 Tecnología
 
@@ -116,7 +116,7 @@ Todos bajo base URL `https://api.pjn.gov.ar/`:
 | GET | `/token` | Obtener/refrescar JWT | `{access_token, refresh_token, expires_in, ...}` |
 | GET | `/info-inicial` | Flags del matriculado | `{verificarEmail, confirmarEmail, appsConfigurables, haySugerencia}` |
 | GET | `/apps` | Catálogo de subsistemas | Array de apps (ver tabla sección 2) |
-| GET | `/apps-config` | Config de apps (preflight OPTIONS) | — |
+| GET | `/apps-config` | Config de apps (preflight OPTIONS) | (sin dato) |
 | GET | `/eventos/` | **Feed de novedades** (principal) | `{hasNext, numberOfItems, page, pageSize, items[]}` |
 
 ### 4.3 Endpoint `/eventos/` (detalle)
@@ -125,7 +125,7 @@ Todos bajo base URL `https://api.pjn.gov.ar/`:
 - `page` (int, 0-indexed)
 - `pageSize` (int, típicamente 20)
 - `categoria` (string: `judicial`)
-- `fechaHasta` (Unix timestamp en milisegundos — **cursor-based pagination**)
+- `fechaHasta` (Unix timestamp en milisegundos, **cursor-based pagination**)
 
 **Ejemplo**: `GET /eventos/?page=1&pageSize=20&categoria=judicial&fechaHasta=1776443737618`
 
@@ -148,7 +148,7 @@ Todos bajo base URL `https://api.pjn.gov.ar/`:
       "hasDocument": true,
       "link": {
         "app": "pjn-scw",
-        "url": "/consultaNovedad.seam?identificacion=20301911298&idCamara=4&eid=34803191"
+        "url": "/consultaNovedad.seam?identificacion=00000000000&idCamara=4&eid=00000000"
       },
       "payload": {
         "id": 498198961,
@@ -163,7 +163,7 @@ Todos bajo base URL `https://api.pjn.gov.ar/`:
 ```
 
 **Campos clave**:
-- `tipo`: `despacho` (único valor visto; podría haber otros — validar).
+- `tipo`: `despacho` (único valor visto; podría haber otros, validar).
 - `link.app`: indica el subsistema destino del deep-link (típicamente `pjn-scw`).
 - `link.url`: URL relativa al subsistema destino.
 - `payload.claveExpediente`: **identificador único del expediente en formato legible** (`FUERO NÚMERO/AÑO[/SUFIJO]`).
@@ -179,7 +179,7 @@ Todos bajo base URL `https://api.pjn.gov.ar/`:
 
 ### 4.5 Uso en ProcuAsist
 
-**Opcional para v0.6.0** — el feed de novedades es útil para:
+**Opcional para v0.6.0**: el feed de novedades es útil para:
 - Badge de "novedades hoy" en el popup de la extensión.
 - Integración con la función de "monitoreo" que ya existe para MEV.
 - No es necesario para "descargar expediente" (que va 100% por scw).
@@ -188,17 +188,17 @@ Todos bajo base URL `https://api.pjn.gov.ar/`:
 
 ---
 
-## 5. Subsistema 2 — SCW (`scw.pjn.gov.ar`)
+## 5. Subsistema 2: SCW (`scw.pjn.gov.ar`)
 
 ### 5.1 Tecnología
 
 - **JBoss Seam 2** + **JSF 2** + **RichFaces 4.3** + **PrimeFaces** + **Bootstrap** + jQuery.
 - Server-side rendering: todas las páginas son HTML completo.
-- **Charset `ISO-8859-1`** (no UTF-8) — el parser de la extensión debe decodificar con este charset o los acentos se rompen.
+- **Charset `ISO-8859-1`** (no UTF-8), el parser de la extensión debe decodificar con este charset o los acentos se rompen.
 - Session: `JSESSIONID` (Tomcat, con jvmRoute para clustering: sufijo `.scw4_2`) + cookies F5 BIG-IP (`TS01xxxxx...`).
 - URLs con extensión `.seam`. Recursos estáticos también (`jquery.js.seam`, `theme.css.seam`).
 - **Sin API REST interna**. Todo es scraping.
-- **Conversation ID (`cid`)**: Seam mantiene conversaciones server-side. Muchas URLs incluyen `?cid=317192`. Hay que respetar esto — GETs directos sin cid pueden redirect a home.
+- **Conversation ID (`cid`)**: Seam mantiene conversaciones server-side. Muchas URLs incluyen `?cid=000000`. Hay que respetar esto, GETs directos sin cid pueden redirect a home.
 
 ### 5.2 URLs clave
 
@@ -224,8 +224,8 @@ Todos bajo base URL `https://api.pjn.gov.ar/`:
 
 **Scope v0.6.0**:
 - ✅ Relacionados (LETRADO + PARTE).
-- ✅ Favoritos — **prioritario**.
-- ❌ Radicaciones — documentado pero fuera de scope.
+- ✅ Favoritos, **prioritario**.
+- ❌ Radicaciones, documentado pero fuera de scope.
 
 **Selector de modo en UI de ProcuAsist**: al abrir el listado de causas PJN, mostrar tres tabs: "Relacionados (Letrado)", "Relacionados (Parte)", "Favoritos". Default: Favoritos.
 
@@ -249,13 +249,13 @@ Todos bajo base URL `https://api.pjn.gov.ar/`:
 
 **Selectores de parsing**:
 - Tabla: selector semántico por id estable si existe, o por `<table class="datagrid">` / estructura.
-- **NO confiar en `j_idtXXX`** — son IDs dinámicos que pueden cambiar entre sesiones/deploys.
+- **NO confiar en `j_idtXXX`**: son IDs dinámicos que pueden cambiar entre sesiones/deploys.
 - Filas: `<tbody> <tr>` iterando.
 - Columnas: por posición + validación por header cell.
 
 ### 5.5 Detalle del expediente (`expediente.seam`)
 
-#### 5.5.1 Bloque superior — Datos Generales
+#### 5.5.1 Bloque superior: Datos Generales
 
 Campos extraíbles (labels + valores):
 - Expediente (clave corta): `CIV 000000/2018`
@@ -281,13 +281,13 @@ Campos extraíbles (labels + valores):
 
 **Carga**: cada tab es AJAX (POST a `expediente.seam` con ViewState). El parser debe simular el click en cada tab y esperar DOM update.
 
-#### 5.5.3 Tab Actuaciones — estructura
+#### 5.5.3 Tab Actuaciones: estructura
 
 **Filtros nativos visibles** (checkboxes):
 - `Despachos/Escritos` (default OFF)
 - `Notificaciones` (default OFF)
 - `información` (default OFF)
-- `Ver Todos` (default ON — muestra todo)
+- `Ver Todos` (default ON, muestra todo)
 
 \+ botón "Aplicar".
 
@@ -304,7 +304,7 @@ Campos extraíbles (labels + valores):
 - `FIRMA DESPACHO` (con documento).
 - `ESCRITO AGREGADO` (con documento).
 - `EVENTO` (sin documento, eventos del sistema).
-- `DEO` (Diligenciamiento Electrónico de Oficios — link a `pjn-deox`).
+- `DEO` (Diligenciamiento Electrónico de Oficios, link a `pjn-deox`).
 - Otros a validar en implementación.
 
 **Regla**: si la fila tiene botones de descarga/ver → hay documento descargable. Si no tiene → registrar en PDF resumen pero sin descarga.
@@ -312,7 +312,7 @@ Campos extraíbles (labels + valores):
 **Paginación**:
 - Barra de páginas numeradas al final: `1 2 3 ... 10` + botón siguiente + botón "ir al final".
 - Se ve ~15 filas por página.
-- **AJAX postback** — no URLs distintas. Misma URL, mismo ViewState, parámetro de página.
+- **AJAX postback**: no URLs distintas. Misma URL, mismo ViewState, parámetro de página.
 
 **Botón "Ver históricas"** (CRÍTICO):
 - Al abrir el tab por defecto, solo se muestran actuaciones recientes (filtro temporal del portal).
@@ -323,7 +323,7 @@ Campos extraíbles (labels + valores):
 - Ejemplo: `El expediente no posee notas` (cuando está vacío).
 - Cuando tenga, incluir en el PDF resumen.
 
-#### 5.5.4 Tab Intervinientes — estructura
+#### 5.5.4 Tab Intervinientes: estructura
 
 Tablas agrupadas por tipo. Se confirmó la tabla **PARTES** con columnas:
 - `TIPO` (ACTOR, TERCERO, LETRADO APODERADO, LETRADO PATROCINANTE, LETRADO DEFENSOR OFICIAL, DEFENSORA PUBLICA OFICIAL, etc.).
@@ -335,13 +335,13 @@ Tablas agrupadas por tipo. Se confirmó la tabla **PARTES** con columnas:
 - PDF resumen: incluir lista completa de intervinientes.
 - **Auto-detección de rol del usuario**: si el CUIT del usuario aparece en la columna I.E.J. con tipo `LETRADO APODERADO` → el usuario es letrado en esta causa. Útil para UI/badges.
 
-#### 5.5.5 Tab Vinculados — estructura
+#### 5.5.5 Tab Vinculados: estructura
 
 - Cuando vacío: `El expediente no posee vinculados posibles de ser visualizados.`
 - Cuando tiene data: tabla (estructura a confirmar en implementación, capturar cuando aparezca un caso).
 - Incluir lista en PDF resumen.
 
-#### 5.5.6 Tab Recursos — decisión de producto
+#### 5.5.6 Tab Recursos: decisión de producto
 
 - Cuando vacío: `El expediente no posee recursos`.
 - Cuando tiene data: cada recurso es **un expediente independiente** (propio número, propia carátula, propias actuaciones).
@@ -383,9 +383,9 @@ https://scw.pjn.gov.ar/scw/viewer.seam
 **Endpoint**:
 - `POST https://scw.pjn.gov.ar/scw/expediente.seam` (mismo URL que la página, tradicional JSF postback).
 - Content-Type: `application/x-www-form-urlencoded`.
-- Es un **toggle puro** — no hay `action=add` vs `action=remove`. El servidor lee el estado actual y lo invierte.
+- Es un **toggle puro**, no hay `action=add` vs `action=remove`. El servidor lee el estado actual y lo invierte.
 
-**Payload capturado** (estructura, no valores — los IDs son dinámicos):
+**Payload capturado** (estructura, no valores, los IDs son dinámicos):
 
 ```
 expediente: expediente
@@ -449,14 +449,14 @@ interface BookmarkPjn {
 
 **Doble capa de filtros**:
 
-### Capa 1 — Categorías nativas de PJN
+### Capa 1: Categorías nativas de PJN
 Checkboxes con los filtros que expone el portal:
 - [ ] Despachos/Escritos (default ON)
 - [ ] Notificaciones (default OFF)
 - [ ] Información (default OFF)
 - [x] Ver Todos (atajo que marca las tres)
 
-### Capa 2 — Selector fino de pasos procesales
+### Capa 2: Selector fino de pasos procesales
 Similar a MEV: lista de pasos individuales filtrados por la capa 1. Cada uno con checkbox para de/seleccionar.
 
 **Ejecución**:
@@ -496,11 +496,11 @@ src/
 ```
 
 **Reutilizable de MEV/JUSCABA**:
-- `modules/pdf/case-pdf-generator.ts` — extender con renderer de `PjnCaseData`.
+- `modules/pdf/case-pdf-generator.ts`: extender con renderer de `PjnCaseData`.
 - Lógica de armado de ZIP (JSZip).
-- UI del selector de pasos procesales — extender con capa 1 (categorías PJN).
-- Keep-alive + auto-reconexión — mismo patrón.
-- Sistema de marcadores — extender modelo con `portal: 'pjn'`.
+- UI del selector de pasos procesales, extender con capa 1 (categorías PJN).
+- Keep-alive + auto-reconexión, mismo patrón.
+- Sistema de marcadores, extender modelo con `portal: 'pjn'`.
 
 ---
 
@@ -535,7 +535,7 @@ src/
 - `storage` (ya existe).
 - `downloads` (ya existe).
 - `alarms` (para keep-alive; ya existe).
-- `cookies` — evaluar si es necesario para leer/escribir JSESSIONID directamente (probablemente no, las cookies se mandan automáticamente en requests del mismo origin).
+- `cookies`: evaluar si es necesario para leer/escribir JSESSIONID directamente (probablemente no, las cookies se mandan automáticamente en requests del mismo origin).
 
 ---
 
@@ -561,14 +561,14 @@ src/
 1. **¿El endpoint `/eventos/` devuelve tipos distintos a `despacho`?** (notificaciones, escritos, cédulas). Confirmar con cuenta que tenga más variedad.
 2. **¿Hay parámetro `pageSize=999` en actuaciones del expediente?** Ahorraría N round-trips. Probar en implementación.
 3. **¿Qué pasa al clickear "Ver históricas"?** ¿Un solo postback? ¿Paginación también dentro de históricas?
-4. **¿El dropdown ▼ de cada fila del listado expone acciones útiles?** (copiar, descargar directo, etc.) — inspeccionar en implementación.
-5. **Estructura del tab "Vinculados" cuando tiene data real** — capturar con un caso que tenga vinculados.
-6. **Estructura del tab "Recursos" cuando tiene data real** — ídem.
-7. **Tipos de `tipoDoc` posibles en `viewer.seam`** — completar enum.
-8. **Formato de "Notas"** — capturar cuando el expediente tenga notas.
-9. **¿Hay CSRF token adicional en forms de Seam?** Aparte del ViewState — revisar forms de logout, escrito, etc.
+4. **¿El dropdown ▼ de cada fila del listado expone acciones útiles?** (copiar, descargar directo, etc.), inspeccionar en implementación.
+5. **Estructura del tab "Vinculados" cuando tiene data real**: capturar con un caso que tenga vinculados.
+6. **Estructura del tab "Recursos" cuando tiene data real**: ídem.
+7. **Tipos de `tipoDoc` posibles en `viewer.seam`**: completar enum.
+8. **Formato de "Notas"**: capturar cuando el expediente tenga notas.
+9. **¿Hay CSRF token adicional en forms de Seam?** Aparte del ViewState, revisar forms de logout, escrito, etc.
 10. **¿El CUIT puede tener varios "roles" simultáneos?** (ej: matriculado + representante legal). Ver si cambia la vista.
-11. **¿La cookie de Keycloak en `.pjn.gov.ar` funciona también para `csjn.gov.ar`?** (dominios separados — probablemente NO, pero validar).
+11. **¿La cookie de Keycloak en `.pjn.gov.ar` funciona también para `csjn.gov.ar`?** (dominios separados, probablemente NO, pero validar).
 12. **Comportamiento del toggle de favorito desde listado Relacionados (estrella gris) vs desde detalle**: ¿mismo endpoint, mismo payload, o distinto?
 
 ---
@@ -634,21 +634,21 @@ src/
 ## 12. Release plan
 
 - **v0.5.0** (actual): JUSCABA ZIP download.
-- **v0.6.0** (este plan): PJN completo — auto-login, listado, detalle, ZIP, favoritos sincronizados.
-- **v0.7.0** (tentativo): PJN roadmap — notificaciones (`pjn-sne`), presentación de escritos (`pjn-escritos`), descarga con recursos.
+- **v0.6.0** (este plan): PJN completo, auto-login, listado, detalle, ZIP, favoritos sincronizados.
+- **v0.7.0** (tentativo): PJN roadmap, notificaciones (`pjn-sne`), presentación de escritos (`pjn-escritos`), descarga con recursos.
 
 ### Sugerencia de milestones internos para v0.6.0
 
-1. **M1 — Auth**: auto-login contra Keycloak funcional. Solo eso. Verificable con test E2E.
-2. **M2 — API cliente**: wrapper para `api.pjn.gov.ar` con refresh automático de JWT. Feed de novedades.
-3. **M3 — SCW parser**: listado Relacionados + Favoritos parseados correctamente. Sin descarga todavía.
-4. **M4 — Detalle**: parsing de los 4 tabs. Sin descarga.
-5. **M5 — Documentos**: descarga individual de PDFs via `viewer.seam`.
-6. **M6 — ZIP completo**: orquestador + paginación + "Ver históricas" + filtros + PDF resumen.
-7. **M7 — Favoritos sync**: toggle bidireccional.
-8. **M8 — Integración UI**: botones inyectados, popup, settings.
-9. **M9 — Testing con cuentas reales**: batería de casos reales con variedad de fueros.
-10. **M10 — Release**: Chrome Web Store submission.
+1. **M1, Auth**: auto-login contra Keycloak funcional. Solo eso. Verificable con test E2E.
+2. **M2, API cliente**: wrapper para `api.pjn.gov.ar` con refresh automático de JWT. Feed de novedades.
+3. **M3, SCW parser**: listado Relacionados + Favoritos parseados correctamente. Sin descarga todavía.
+4. **M4, Detalle**: parsing de los 4 tabs. Sin descarga.
+5. **M5, Documentos**: descarga individual de PDFs via `viewer.seam`.
+6. **M6, ZIP completo**: orquestador + paginación + "Ver históricas" + filtros + PDF resumen.
+7. **M7, Favoritos sync**: toggle bidireccional.
+8. **M8, Integración UI**: botones inyectados, popup, settings.
+9. **M9, Testing con cuentas reales**: batería de casos reales con variedad de fueros.
+10. **M10, Release**: Chrome Web Store submission.
 
 ---
 
