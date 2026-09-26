@@ -1,5 +1,7 @@
 # Assets de release - ProcuAsist v0.8.1
 
+**Nota de vigencia (26/09/2026):** el proyecto está en pausa desde el 25/09/2026 y este documento es una foto fechada; el seguimiento de la ficha de la Store y de la publicación de la 0.8.1 vive en el mapa de pendientes del ecosistema del estudio, fuera de este repositorio (identificador P2, decisión D10), y nada de lo listado abajo consta hecho al 26/09/2026.
+
 Material para actualizar la ficha de Chrome Web Store. **La version 0.8.1 NO
 esta publicada**: la sube Patricio.
 
