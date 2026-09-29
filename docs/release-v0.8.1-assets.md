@@ -1,6 +1,6 @@
 # Publicación de ProcuAsist 0.8.1
 
-Estado al 29/09/2026: la ficha pública sigue en 0.8.0. No confundir paquete preparado, envío a revisión y publicación aprobada.
+Estado al 29/09/2026: el titular confirma que cargó el paquete y que el panel indica versión publicada 0.8.1. La última consulta pública disponible todavía devuelve 0.8.0; no se comprobó su actualización ni si la diferencia responde a caché o propagación. No confundir la confirmación del panel con una verificación independiente de la ficha pública.
 
 ## Paquete
 

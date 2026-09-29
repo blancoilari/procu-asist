@@ -432,3 +432,7 @@ Si un adjunto no puede incorporarse al PDF único, se entrega un ZIP que conserv
 El titular pide integrar, hacer push y preparar la actualización de Store, dejando sin efecto la pausa de publicación anterior para este arreglo. Se actualizaron README, manual, roadmap y material de la ficha. La descarga por navegación normal se comprobó en una prueba asistida de 131 documentos y 22 adjuntos. La ficha pública sigue en 0.8.0 al verificarla hoy. Se distingue el monitoreo, que puede dejar pendientes ante verificación, de la recuperación de descargas. Los cambios no conectan con Estudio OS ni agregan permisos. Revisión adversarial de los ajustes de integridad aprobada; 94/94 pruebas y tipos correctos.
 
 Paquete final reconstruido el 29/09/2026 con npm run zip (WXT 0.21.4): versión 0.8.1, 616.73 kB. Se comprobó manifest, ausencia de secretos/configuración local y de nativeMessaging en el ZIP. Build correcto. El envío a revisión y la aprobación de Google se registran por separado, no se dan por hechos.
+
+### 29/09/2026: confirmación del panel de publicación
+
+El titular confirmó la carga del ZIP 0.8.1 en la ficha existente y luego informó que el panel muestra la versión publicada 0.8.1. Se registra como confirmación del titular: el control de la consola no estuvo disponible y la última consulta de la ficha pública todavía devolvió 0.8.0. No se comprobó de forma independiente la propagación de la versión, descripción y capturas. El paquete y sus pruebas no cambiaron desde el cierre anterior.
