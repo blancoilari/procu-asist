@@ -186,10 +186,10 @@ function handlePort(port: chrome.runtime.Port, tabId: number): void {
         return;
       }
       if (!building) post({ type: 'building' });
-      const mime = format === 'pdf' ? 'application/pdf' : 'application/zip';
+      const mime = result.filename.endsWith('.pdf') ? 'application/pdf' : 'application/zip';
       const dataUri = await blobToDataUri(result.blob, mime);
       await chrome.downloads.download({ url: dataUri, filename: result.filename, saveAs: true });
-      post({ type: 'result', outcome: result.outcome, filename: result.filename, stats: result.stats });
+      post({ type: 'result', outcome: result.outcome, filename: result.filename, stats: result.stats, notice: result.notice });
     } catch (err) {
       console.error('[ProcuAsist] Descarga MEV:', err);
       post({ type: 'error', message: err instanceof Error ? err.message : String(err) });

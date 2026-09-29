@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { pendingScans, type ScanCoverage } from '@/modules/utils/scan-summary';
 import {
   Scale,
   Star,
@@ -696,6 +697,13 @@ function CasesTab({
       return;
     }
 
+    if (pendingScans(report) > 0 || report.skippedReason === 'mev_challenge') {
+      setSinceScanMessage(`Barrido incompleto: ${pendingScans(report)} causa(s) pendientes. ` +
+        `${report.matchedMovements} movimiento(s) encontrados en las causas leídas. ` +
+        (report.skippedReason === 'mev_challenge' ? 'La MEV pidió validar el acceso. Abrí el portal y reintentá cuando termine.' : 'Revisá la sesión del portal y reintentá.'));
+      return;
+    }
+
     setSinceScanMessage(
       `Barrido listo: ${report.matchedMovements} movimiento(s). ` +
         `Leídos: ${report.parsedMovements ?? 0}. ` +
@@ -1333,7 +1341,7 @@ function CaseAlertCard({
 // ──────────────────────────────────────────────────────────
 
 function LastScanInfo() {
-  const [lastScan, setLastScan] = useState<{
+  const [lastScan, setLastScan] = useState<ScanCoverage & {
     scanned: number;
     newMovements: number;
     timestamp: string;
@@ -1343,7 +1351,7 @@ function LastScanInfo() {
     chrome.storage.session.get('lastScanResult', (result) => {
       if (result.lastScanResult) {
         setLastScan(
-          result.lastScanResult as {
+          result.lastScanResult as ScanCoverage & {
             scanned: number;
             newMovements: number;
             timestamp: string;
@@ -1359,7 +1367,7 @@ function LastScanInfo() {
 
   return (
     <span className="text-[10px] text-text-secondary">
-      Último: {getRelativeTime(lastScan.timestamp)} ({lastScan.scanned} causas)
+      Último: {getRelativeTime(lastScan.timestamp)} ({lastScan.scanned} causas leídas{pendingScans(lastScan) > 0 ? `, ${pendingScans(lastScan)} pendientes` : ''})
     </span>
   );
 }
@@ -1806,7 +1814,7 @@ function compareAlertsByMovementDateDesc(
   return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
 }
 
-interface SinceScanReport {
+interface SinceScanReport extends ScanCoverage {
   fromDate: string;
   timestamp: string;
   scanned: number;

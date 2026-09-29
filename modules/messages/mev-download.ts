@@ -57,6 +57,6 @@ export type MevDownloadServerMessage =
     }
   | { type: 'waiting'; secondsLeft: number; done: number; total: number }
   | { type: 'building' }
-  | { type: 'result'; outcome: 'complete' | 'partial'; filename: string; stats: MevDownloadStats }
+  | { type: 'result'; outcome: 'complete' | 'partial'; filename: string; stats: MevDownloadStats; notice?: string }
   | { type: 'cancelled' }
   | { type: 'error'; message: string };

@@ -167,6 +167,7 @@ export function startMevDownload(options: StartMevDownloadOptions): void {
         const stats = message.stats;
         if (stats.failedItems.length === 0) {
           end('success', 'Listo');
+          if (message.notice) showMessageDialog('Descarga guardada como ZIP', message.notice);
           break;
         }
         end('warning', 'Con faltantes');

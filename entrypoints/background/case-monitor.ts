@@ -30,6 +30,7 @@ import { getSettings } from '@/modules/storage/settings-store';
 import { isDateOnOrAfter } from '@/modules/utils/date';
 import { isMevDownloadActive, requestScanAfterDownloads } from './mev-download-job';
 import { recordMevChallenge } from './mev-verification-state';
+import { pendingScans } from '@/modules/utils/scan-summary';
 
 /** How many cases to scan per batch (to avoid overloading) */
 const BATCH_SIZE = 5;
@@ -226,7 +227,7 @@ export async function scanMonitoredCases(options: ScanOptions = {}): Promise<Sca
   }
 
   const result: ScanResult = {
-    scanned: monitors.length,
+    scanned: Math.max(0, monitors.length - pendingScans({ errors: totalErrors, missingIds, missingTabs, skippedByChallenge, skippedByDownload })),
     newMovements: totalNew,
     errors: totalErrors,
     matchedMovements: matchedMovements.length,

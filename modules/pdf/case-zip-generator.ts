@@ -22,7 +22,7 @@ import {
   toAbsoluteMevUrl,
   type ProveidoPageData,
 } from './attachment-downloader';
-import { mergePdfParts, type MergedPdfPart } from './merged-pdf-generator';
+import { packageMergedPdf, type MergedPdfPart } from './merged-pdf-generator';
 import { runMevDownload, type RunnerHooks } from './mev-download-runner';
 import { buildVerificationLines, type MevDownloadStats } from './download-report';
 import { downloadStamp, verificationFileName, zipEntryDate } from './file-naming';
@@ -36,6 +36,7 @@ export interface CaseDownloadResult {
   filename?: string;
   stats: MevDownloadStats;
   error?: string;
+  notice?: string;
 }
 
 export async function generateCaseDownload(
@@ -175,8 +176,7 @@ export async function generateCaseDownload(
   try {
     if (format === 'pdf') {
       const resumenBytes = new Uint8Array(await resumenBlob.arrayBuffer());
-      const { blob } = await mergePdfParts(resumenBytes, mergeParts);
-      return { outcome, blob, filename: `${outputBase}.pdf`, stats: run.stats };
+      return { outcome, ...await packageMergedPdf(resumenBytes, mergeParts, zip, outputBase), stats: run.stats };
     }
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
     return { outcome, blob, filename: `${outputBase}.zip`, stats: run.stats };
