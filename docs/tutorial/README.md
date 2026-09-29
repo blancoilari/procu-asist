@@ -105,15 +105,23 @@ Las dieciséis se revisaron una por una, a ojo y con OCR.
 | `16-plazos-vencimientos.png` | ninguno (vencimientos con etiquetas genéricas) | sin cambios |
 | `17-backup.png` | ninguno | sin cambios |
 
-Los originales sin tapar siguen en la historia de git. Sacarlos de ahí es la
-purga de historial, que va aparte de esta carpeta.
+Los originales sin tapar se sacaron de la historia de git el 09/09/2026 (purga
+del historial y reposición de las capturas tapadas, commit `a4957c8`). Las
+copias previas a la purga quedaron guardadas fuera del repositorio, en el
+resguardo del estudio.
 
-## Lo que queda pendiente
+## Estado de las capturas (26/09/2026)
 
 - `04-configurar-pin.png` y `06-restablecer-pin.png` muestran el PIN maestro,
   eliminado en la 0.8.0: quedaron obsoletas por producto, no por privacidad.
-- `12-dialogo-multidepartamento.png` nunca se sacó; el manual la referencia y
-  la imagen no existe.
+- `14-importar-todo.png` muestra el aviso del umbral, que ya no existe desde la
+  0.8.0 (avisos activos siempre).
+- `12-dialogo-multidepartamento.png` nunca se sacó: no existe en esta carpeta
+  (verificado con `ls` el 26/09/2026) y el manual la referencia como pendiente.
 - Si en algún momento hay que rehacer una captura de portal sin datos reales,
   la maqueta de datos ficticios está en `docs/store-assets/v0.8.1` (HTML más
   `_render.py` con Playwright).
+
+Rehacer o completar estas capturas es un pendiente interno del estudio: vive en
+el mapa de pendientes del ecosistema (`proyectos\MAPA_PENDIENTES_2026-09-26.md`,
+fuera de este repositorio, identificador P6), no acá.

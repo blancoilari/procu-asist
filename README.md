@@ -4,7 +4,9 @@ Extensión Chrome para abogados argentinos que automatiza la interacción con po
 
 > **Hecho por un abogado de la matrícula, para colegas. Es gratuito y sin fines de lucro.**
 
-**Versiones:** la versión publicada en Chrome Web Store es la **v0.8.0** (publicada; confirmado el 2026-07-19). Este repositorio está en la **v0.8.1** (pendiente de publicar).
+**Versiones:** la versión publicada en Chrome Web Store es la **v0.8.0** (publicada; confirmado el 2026-07-19). Este repositorio está en la **v0.8.1** (armada el 09/09/2026, sin publicar).
+
+> **Proyecto en pausa desde el 25/09/2026**, por decisión del titular: la prioridad pasa a otro sistema del estudio. La 0.8.1 no se publica por ahora y no hay fecha para retomar. El motivo de fondo es la regla publicada por la MEV para sus usuarios (sección "Verificación de la MEV", más abajo): antes de publicar cualquier versión hay que revisar qué automatizaciones de la extensión sobreviven a esa regla. La versión 0.8.0 publicada sigue instalable, pero la MEV endureció su filtro antirobot en septiembre de 2026 y la descarga de expedientes puede fallar o quedar bloqueada; ver la misma sección.
 
 ---
 
@@ -39,7 +41,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 - **Auto-reconexión** automática cuando la sesión expira
 - **Marcadores de causas** con búsqueda rápida y organización
 - **Monitoreo de movimientos** con notificaciones push en Chrome
-- **Descarga ZIP del expediente completo** con un click — incluye resumen PDF + un PDF por cada paso procesal (con todos sus metadatos) + adjuntos
+- **Descarga ZIP del expediente completo** con un click, incluye resumen PDF + un PDF por cada paso procesal (con todos sus metadatos) + adjuntos
 - **Selección de pasos procesales** a descargar antes de generar el ZIP
 - **Verificación automática** de la descarga con informe de errores
 - **Importación masiva** de causas desde resultados y sets de búsqueda MEV
@@ -55,7 +57,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 
 ## Stack Tecnológico
 
-- **Framework**: [WXT](https://wxt.dev) 0.20 (Manifest V3)
+- **Framework**: [WXT](https://wxt.dev) 0.21 (Manifest V3). `package.json` fija `wxt ^0.21.4` y el lockfile 0.21.4; el zip de la 0.8.1 armado el 09/09/2026 en el checkout principal salió con wxt 0.20.20 (el `node_modules` de ese checkout no se había reinstalado), por eso su `manifest.json` no trae `options_ui.open_in_tab`. Antes de publicar: `npm ci` y regenerar el zip.
 - **UI**: React 19 + TypeScript 5.9 (strict) + Tailwind CSS v4
 - **State**: chrome.storage.local (local-first)
 - **Crypto**: Web Crypto API (AES-GCM con clave de dispositivo persistida)
@@ -133,6 +135,7 @@ procu-asist/
 ├── tests/                       # Tests puros (node --test), fuera del build
 ├── docs/                        # Documentación
 │   └── manual-usuario.md        # Manual para usuarios no técnicos
+├── apps/procu-estudio/          # Scaffold de ProcuEstudio (app web futura), sin actividad desde mayo de 2026; se conserva
 ├── wxt.config.ts                # Configuración WXT + manifest
 ├── tsconfig.json                # Configuración TypeScript
 └── package.json                 # Dependencias y scripts
@@ -161,45 +164,16 @@ Los PDF salen **sin marca**: sin logo, sin color corporativo y sin el nombre de 
 
 ## Verificación de la MEV ("Validando acceso")
 
-**Estado medido el 22/09/2026 contra el portal, con sesión real.**
+La descarga reconoce la verificación y puede abrir una pestaña para esperar a que la MEV complete su validación normal. No resuelve desafíos ni garantiza que el portal conceda acceso. Conserva lo descargado y detalla lo pendiente si no puede continuar.
 
-Lo que se midió:
+La descarga se comprobó en una prueba asistida el 29/09/2026 con 131 documentos y 22 adjuntos. Los adjuntos lentos tienen tiempo adicional para abrirse. El monitoreo es otro recorrido: ante una verificación informa un barrido incompleto y conserva pendientes; puede requerir volver a intentarlo tras validar la sesión.
 
-- La MEV tiene un servidor intermedio (nginx) delante de su sistema, con un límite de pedidos: unos **30 proveídos por minuto**. Pidiendo a unos 2 por segundo, el pedido 30 ya recibe la pantalla; a uno cada 1,2 segundos, la pantalla aparece exactamente cada 30 pedidos, una vez por minuto.
-- Pasado el límite, toda página de la MEV responde con la pantalla "Validando acceso...": la misma dirección pedida, HTTP 200, 2.000 bytes, un script de Cloudflare Turnstile (el verificador de "¿sos humano?") y ningún texto visible en el cuerpo, porque el texto lo arma un script.
-- Sin pedidos, el bloqueo se levanta solo en unos 20 a 30 segundos. Si se sigue pidiendo durante el bloqueo, no se levanta, y cada bloqueo nuevo dura más.
-- El bloqueo no es por pestaña: alcanza a otras sesiones del mismo usuario desde la misma conexión. La página de login no queda bloqueada.
-- Aparte: un proveído pedido sin que la sesión haya pasado antes por la ficha de su causa devuelve la pantalla de búsqueda.
+Si el PDF único no puede incluir algún archivo, se entrega un ZIP con los originales y el PDF de consulta, acompañado por un aviso. Los datos siguen locales. No depende de Estudio OS ni instala componentes en otros productos.
 
-Por qué la descarga fallaba: la detección anterior buscaba las frases de la verificación en el texto visible, que en esta pantalla está vacío. La tomaba por "página inesperada", salteaba el documento y pedía el siguiente a los 0,3 segundos, lo que alargaba el bloqueo. En un expediente de 225 proveídos se salteaban más de 100, en dos tandas.
-
-Lo que hace la extensión desde la v0.8.1:
-
-- Un portero (`modules/portals/mev-pacer.ts`) espacia los pedidos de la descarga a 20 por minuto, uno cada 3 segundos y de a uno por vez, para dejar margen a lo que el usuario navegue en la MEV al mismo tiempo. Un expediente de 225 proveídos tarda unos 12 minutos.
-- La pantalla de verificación se reconoce por su título y su script (`modules/portals/mev-challenge.ts`). Una página con estructura de proveído nunca se marca como verificación.
-- Si aparece la pantalla, la descarga deja de pedir y pregunta: esperar y seguir (espera 30 segundos, y 1, 2 o 4 minutos si vuelve a pasar, y reintenta el mismo documento), detener y guardar lo bajado, o cancelar. Si nadie elige, al terminar la cuenta del botón sigue sola: la espera corre desde el bloqueo, así que no suma tiempo. Por su cuenta nunca saltea un documento; desde el segundo bloqueo seguido del mismo documento, el usuario puede elegir saltearlo (`modules/pdf/mev-download-runner.ts`). Cada pausa muestra además un aviso del sistema.
-- Si la MEV devuelve la búsqueda en vez del proveído, la extensión vuelve a entrar una vez a la ficha y reintenta. Si aparece el login, pregunta y pide iniciar sesión en otra pestaña.
-- La descarga corre en el fondo de la extensión detrás de un canal abierto con la pestaña (`entrypoints/background/mev-download-job.ts`), no dentro de un mensaje: Chrome termina el proceso de fondo si un mensaje tarda más de 5 minutos.
-- Mientras hay una descarga, el escaneo automático no consulta la MEV (se repite al terminar) y el keep-alive no se manda.
-- Fuera de una descarga, el keep-alive de la MEV mira la respuesta: si es la pantalla de verificación, deja de pedir durante 30 minutos, y lo mismo si la vio la descarga o el monitoreo (`modules/portals/mev-keepalive.ts`). Hasta el 22/09/2026 seguía pidiendo cada 4 minutos mientras hubiera una pestaña de la MEV abierta; ese día un bloqueo duró más de dos horas.
-- El aviso de pausa aclara lo que desconcierta: en una pestaña la pantalla se resuelve sola a los pocos segundos y la MEV deja pasar, pero eso vale para la persona; la descarga pide por detrás y tiene que esperar a que la MEV deje de mostrarla.
-- Si la pestaña de la MEV muestra la pantalla de verificación, el content script no hace nada hasta que se resuelva: así un recorrido de importación no la toma por una página vacía.
-- Tests: `npm test` (runner de node, sin dependencias nuevas).
-
-Lo que la extensión **no** hace: resolver, automatizar ni esquivar la verificación. Si el bloqueo no se levanta, decide el usuario.
-
-Lo que sigue sin medir:
-
-- Si los pedidos a la ficha (`procesales.asp`) y a los adjuntos cuentan para el mismo límite.
-- Si el límite va por usuario o por conexión.
-- Si pasar la verificación a mano en la pestaña acorta el bloqueo. Observado una vez el 22/09: con la pestaña ya del otro lado, los pedidos de la extensión seguían recibiendo la pantalla.
-- Si el keep-alive era lo que sostenía el bloqueo largo del 22/09.
-
-Brecha conocida: la detección de sets del asistente "Importar todo" y el prefiltro por sets del monitoreo (beta) piden páginas directamente y todavía reconocen solo el login. Frente a la verificación pueden mostrar cero sets o cero causas, que se lee como "no hay nada" en vez de "no pude leer". Se aborda con el selector de alcance de la importación.
 
 ## Precio
 
-**Gratuito** — todas las funciones habilitadas, sin límites. Si te resulta útil, podés [invitarme un cafecito](https://cafecito.app/procuasist).
+**Gratuito**: todas las funciones habilitadas, sin límites. Si te resulta útil, podés [invitarme un cafecito](https://cafecito.app/procuasist).
 
 ## Disclaimer
 

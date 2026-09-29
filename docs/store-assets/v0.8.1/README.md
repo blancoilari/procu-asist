@@ -113,5 +113,10 @@ exactamente 1280x800. Requiere `playwright` (con Chromium instalado) y
 ## Que falta y quien lo hace
 
 Este material queda listo para usar; la subida a la ficha de Chrome Web Store
-la hace Patricio. Borrar las capturas viejas del repositorio no alcanza para
-sacarlas de la historia de git: eso es la purga de historial, que va aparte.
+la hace Patricio y al 26/09/2026 no consta hecha (el proyecto esta en pausa desde
+el 25/09; segun los documentos de este repositorio la ficha publicada sigue con
+las capturas de la 0.6.1, y solo el titular puede verificarlo en el panel de la
+Store: no medido desde aca). La purga
+del historial de git que sacaba las capturas viejas de la historia se hizo el
+09/09/2026 (commit `a4957c8`). El seguimiento vive en el mapa de pendientes del
+ecosistema del estudio, fuera de este repositorio (identificador P2).

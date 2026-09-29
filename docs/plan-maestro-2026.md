@@ -1,5 +1,13 @@
 # Plan Maestro 2026 - ProcuAsist
 
+> **Documento historico (banner del 26/09/2026).** Este plan es del 28/04/2026 y no se
+> actualiza. Quedo superado por los hechos: el soporte de EJE/JusCABA se retiro en la
+> 0.8.1, el PIN maestro se elimino en la 0.8.0, el repositorio es publico y el
+> proyecto esta **en pausa desde el 25/09/2026** por decision del titular (ver
+> README y ROADMAP). Se conserva sin reescribir como registro de lo que se penso
+> entonces. Los pendientes vigentes viven en el mapa de pendientes del ecosistema del
+> estudio, fuera de este repositorio.
+
 Ultima actualizacion: 2026-04-28
 
 ## 1. Decisiones madre

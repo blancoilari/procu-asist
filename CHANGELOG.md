@@ -86,6 +86,25 @@ Descarga confiable frente al límite de pedidos de la MEV.
 - Si los pedidos a la ficha y a los adjuntos cuentan para el límite y si el límite va por usuario o por conexión.
 - Si la pantalla que la MEV le mostró a la descarga el 23/09 es un resto del bloqueo del 22/09 o una regla nueva para todo lo que no sea el navegador. Pasar la verificación a mano en la pestaña no la destrabó.
 
+## [Sin version] - 2026-09-26
+
+Limpieza documental en `master`, sin cambios de codigo ni de producto. Rama `limpieza-2026-09-26`.
+
+- Sintoma: `master` no decia que el proyecto esta en pausa ni conocia la regla publicada por la MEV; el README describia la verificacion de la MEV como "sin confirmar contra el portal" cuando ya se habia medido el 22/09 en una rama de trabajo; decia WXT 0.20 cuando `package.json` fija 0.21; `docs/release-v0.8.1-assets.md` afirmaba que no hay suite de tests y describia una build con wxt 0.21 que no es la del zip existente; el manual, el tutorial y el README de las maquetas decian que los originales de las capturas "siguen en la historia de git" cuando la purga se hizo el 09/09; el manual referenciaba una captura que no existe; tres documentos publicos de `docs/` llevaban identificadores reales (un numero de usuario de PJN, numeros de expediente, un identificador de conversacion, una caratula y nombres de adjuntos de una causa); habia 78 guiones largos en cinco archivos.
+- Causa: la pausa y la medicion del 22/09 se escribieron solo en el CHANGELOG y el README de la rama `descarga-confiable-mev`, que no se integra; el resto son documentos que envejecieron sin que nadie los releyera, y los identificadores quedaron de relevamientos de 2025 y 2026 hechos sobre causas propias.
+- Arreglo: README (pausa del 25/09, regla de la MEV con la cita textual y lo medido el 22 y 23/09, WXT 0.21 con la nota sobre el zip de 0.20.20, scaffold `apps/procu-estudio` anotado), ROADMAP (estado en pausa, condiciones para retomar, remision al mapa de pendientes del ecosistema), `docs/release-v0.8.1-assets.md` (zip de master armado con 0.20.20, segundo zip en el worktree de la rama, suite de 8 tests), `docs/tutorial/README.md`, `docs/manual-usuario.md` y `docs/store-assets/v0.8.1/README.md` (purga hecha el 09/09; la captura 12 no existe; 04 y 06 muestran el PIN y 14 el umbral), `docs/plan-maestro-2026.md` (banner de documento historico, sin reescribir), identificadores reemplazados por valores claramente ficticios en `docs/qa-v0.6.1.md`, `docs/plans/pjn-implementation.md` y `docs/plans/juscaba-zip-download.md` con un commit normal (sin purga de historial: decision del 26/09, los valores siguen en la historia y en los paquetes de git previos guardados fuera del repositorio), guiones largos a cero. El scaffold `apps/procu-estudio` (16 archivos, sin actividad desde mayo de 2026) se conserva por decision del titular.
+- Verificacion: `grep` de guiones largos en cero sobre todos los `.md` del repositorio; `grep` de los patrones de identificadores en cero sobre `docs/`; fin de linea de cada archivo conservado; no se corrieron `npm ci` ni `build` (el proyecto esta en pausa y el checkout principal no se toca).
+- Revision del mismo dia (26/09): se recorto del README y de esta bitacora el detalle de como la rama de trabajo espacia los pedidos, cuanto tarda en levantarse un bloqueo y como se reconoce la pantalla (el repositorio es publico y la decision es no documentar como esquivar el filtro; queda lo que explica por que la descarga falla). Se corrigio un numero con ceros a la izquierda en un JSON de muestra de `docs/plans/juscaba-zip-download.md`. Suite corrida sin instalar nada (`node --test`, Node 24): 8 de 8 en verde.
+- Sin hacer a proposito: integrar o publicar la rama `descarga-confiable-mev`, publicar la 0.8.1, regenerar el zip, reemplazar las capturas de la ficha de la Store (lo hace el titular).
+
+## En pausa - 2026-09-25
+
+Decision del titular: ProcuAsist queda en pausa y la prioridad pasa a otro sistema del estudio. La rama de trabajo `descarga-confiable-mev` (otro recorrido de descarga: avisa y pregunta en vez de saltear, informe fechado, nombres de archivo por fecha) no se integra ni se publica por ahora.
+
+- El 23/09/2026 la MEV contesto con su pantalla de verificacion a todos los pedidos de la descarga por detras, aunque la verificacion se habia pasado a mano en la pestaña (prueba real sobre un expediente de 225 pasos: bajados 0 de 225).
+- La ayuda oficial de la MEV (seccion USUARIOS) dice que sus usuarios "son para ser usados por seres humanos y no por sistemas informáticos o agentes de inteligencia artificial" y que el mal uso "generará el bloqueo de dicho usuario". Antes de publicar la 0.8.1 hay que revisar que funciones de la MEV quedan: el login automatico, el mantener sesion, el monitoreo automatico, la importacion y la descarga por detras usan la cuenta del abogado en forma automatizada. Lo que asiste a la persona mientras navega (marcadores, ayudas en la pantalla) es otra cosa.
+- Para retomar: revision de las automatizaciones frente a la regla, prueba real de la bajada y decision de publicar. La rama queda en un worktree local y en un paquete de git fuera del repositorio; no se sube al repositorio publico.
+
 ## [Sin version] - 2026-09-09
 
 Dos cambios sobre la descarga de expedientes: cortar cuando la MEV interpone su pantalla de verificacion, y sacarle la marca al PDF que baja el usuario.
@@ -266,11 +285,11 @@ Consolida las versiones internas 0.6.7, 0.6.8 y 0.6.9. La 0.6.7 se publico en la
 
 **Auto-login compartido y catálogo**
 - Auto-login contra Keycloak SSO (`sso.pjn.gov.ar`): una sola ventana de login deja la sesión activa para todos los subsistemas PJN
-- Cliente de la API REST `api.pjn.gov.ar` con captura automática del token JWT del portal — feed de novedades disponible
+- Cliente de la API REST `api.pjn.gov.ar` con captura automática del token JWT del portal, feed de novedades disponible
 - Lectura del listado de causas en `scw.pjn.gov.ar`: Relacionados (letrado/parte) y Favoritos
 - Parser del detalle del expediente: datos generales + 4 pestañas (Actuaciones, Intervinientes, Vinculados, Recursos)
 
-**Descarga de expedientes PJN — ZIP completo**
+**Descarga de expedientes PJN: ZIP completo**
 - Nuevo botón flotante "Descargar ZIP" en las páginas de expediente y actuaciones históricas de scw.pjn.gov.ar
 - Modal de selección: tabla completa de actuaciones con checkbox por fila, atajos "Seleccionar visibles / Ninguna / Solo con documento"
 - Filtros por categoría nativa del portal: Despachos/Escritos, Notificaciones, Información, más atajo "Ver todos"
@@ -299,12 +318,12 @@ Consolida las versiones internas 0.6.7, 0.6.8 y 0.6.9. La 0.6.7 se publico en la
 - Fix: URL correcta de JUSCABA en el README (`eje.jus.gov.ar`)
 
 **Limpieza interna**
-- Removido módulo Supabase completo (auth, sync, OAuth, client) — la extensión es 100% local
+- Removido módulo Supabase completo (auth, sync, OAuth, client), la extensión es 100% local
 - Removido permission `identity` y host de Supabase del manifest
 - Renombrados content scripts a la convención WXT `*.content.ts`
 - Rebrand consistente: EJE → JUSCABA en toda la UI y documentación
 
-**MEV — mejoras menores**
+**MEV: mejoras menores**
 - Columna "Fojas" agregada al PDF resumen y al parser de movimientos
 - Selector de "Departamento Judicial" en formulario de auto-login
 - `docs.scba.gov.ar` agregado a host_permissions (necesario para descarga de adjuntos)
@@ -315,7 +334,7 @@ Consolida las versiones internas 0.6.7, 0.6.8 y 0.6.9. La 0.6.7 se publico en la
 
 ### Mejoras en descarga de expedientes (MEV)
 
-**Descarga ZIP — contenido enriquecido**
+**Descarga ZIP: contenido enriquecido**
 - El PDF de cada paso procesal ahora incluye todos los metadatos del proveido: juzgado, datos del expediente (carátula, fecha inicio, receptoría, estado), info del paso procesal (trámite, firmado, fojas), sección REFERENCIAS con adjuntos, sección DATOS DE PRESENTACIÓN, y el texto del proveido con título de sección
 - Los adjuntos (VER ADJUNTO) en el PDF del paso son hipervínculos clickables que abren el documento original
 - Estructura del ZIP reorganizada: `resumen.pdf` ahora va dentro de la carpeta `_expte_completo`, se eliminó `urls_documentos.txt`
@@ -337,13 +356,13 @@ Consolida las versiones internas 0.6.7, 0.6.8 y 0.6.9. La 0.6.7 se publico en la
 - El botón ZIP cambia a amarillo cuando el ZIP se completó pero con errores
 
 **Simplificación de interfaz**
-- Eliminado el botón "📄 PDF" — solo existe "📦 ZIP" que descarga el expediente completo
+- Eliminado el botón "📄 PDF", solo existe "📦 ZIP" que descarga el expediente completo
 
 ## [0.2.0] - 2026-04-01
 
 ### ProcuAsist ahora es gratuito
 
-- Eliminado sistema de planes pagos (Free/Junior/Senior) — todas las funciones sin limites
+- Eliminado sistema de planes pagos (Free/Junior/Senior), todas las funciones sin limites
 - Eliminada integracion con MercadoPago (checkout y webhook)
 - Agregado boton "Invitame un cafecito" para donaciones voluntarias
 - Agregado disclaimer legal en ajustes y en el onboarding
