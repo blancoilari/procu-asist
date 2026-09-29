@@ -11,6 +11,8 @@ Pedido expreso de Patricio para retomar este arreglo, con prioridad a completar 
 - Cuando falta contenidoTxt, no se copia el body completo con menús y datos del usuario. Un aviso explícito de texto inexistente produce una constancia breve; una página sin texto ni aviso se informa como inesperada.
 - Verificación: 83/83 pruebas, TypeScript sin errores y build Chrome. Casos nuevos: agotamiento en proveído y adjunto, presupuesto global y ausencia de texto. La versión anterior instalada completó una descarga durante la prueba conjunta; la versión modificada requiere recarga de la extensión y comprobación final en Chrome.
 
+Cierre 29/09/2026: integrado localmente en `descarga-confiable-mev` (9826523), 83 pruebas aprobadas, tipos y build sin errores en el worktree de uso. Carpeta reconstruida: `.output/chrome-mv3`. Pendiente de recarga por el titular y prueba final en Chrome (mapa del ecosistema). No se integró a master ni se publicó.
+
 ## En pausa - 2026-09-25
 
 Decisión del titular: ProcuAsist queda en pausa y la prioridad pasa a Estudio OS. Esta rama (`descarga-confiable-mev`) no se integra ni se publica por ahora.
