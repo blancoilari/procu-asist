@@ -209,9 +209,11 @@ Este barrido necesita que tengas una pestaña abierta y con sesión activa del p
 
 ![Modal "Seleccionar pasos procesales a descargar" con la lista de movimientos y los botones ZIP / Un PDF](tutorial/10-modal-zip-mev.png)
 
-La MEV limita cuántos documentos se pueden pedir por minuto: si se pasa, muestra su pantalla "Validando acceso" y deja de responder un rato. Por eso ProcuAsist baja los pasos a un ritmo que respeta ese límite, y un expediente grande tarda: unos 12 minutos para 225 pasos. Mientras tanto aparece una barra con el avance y el tiempo que falta. No cierres ni cambies de página en esa pestaña durante la descarga; si querés seguir usando la MEV, abrí otra pestaña.
+Durante una descarga grande se muestra el avance y el tiempo estimado. La duración depende de los documentos y de la respuesta del portal. No cierres ni cambies de página en la pestaña desde la que comenzaste.
 
-Si igual la MEV pide una pausa, la descarga se frena, aparece un aviso del sistema (tocalo para volver a la pestaña) y en la MEV se abre una ventana con tres opciones: **"Esperar y seguir"** (espera unos segundos y reintenta el mismo documento, sin saltear nada), **"Detener y guardar lo bajado"** o **"Cancelar sin guardar"**. El botón "Esperar y seguir" muestra una cuenta regresiva: si no elegís nada, al llegar a cero la descarga sigue sola. Así, si te levantaste de la computadora, no queda parada. Si el mismo documento se bloquea dos veces seguidas, aparece también **"Saltear este documento"**. Si durante la pausa abrís la MEV en otra pestaña, vas a ver esa pantalla y, esperando unos segundos, te deja entrar: eso vale para vos, no para la descarga, que tiene que esperar a que la MEV deje de mostrarla. Mientras la MEV muestra la pantalla, ProcuAsist deja de mandarle el pedido que mantiene tu sesión abierta (durante 30 minutos), para no alargar el bloqueo: si al volver la sesión se cerró, iniciala de nuevo. Mientras se piden los documentos, el botón **"Detener"** de la barra ofrece guardar lo bajado o cancelar; cuando ya se está armando el archivo, desaparece.
+Si aparece la verificación, ProcuAsist puede abrir una pestaña de recuperación y esperar a que la MEV complete su validación normal. Si te pide iniciar sesión o intervenir, hacelo en esa pestaña. Si no se recupera el acceso, se conserva lo descargado y se informa lo pendiente. Los controles permiten esperar, detener y guardar, o cancelar. ProcuAsist no resuelve desafíos del portal.
+
+Si elegiste PDF único y algún adjunto no se puede incorporar, se entrega un ZIP con los archivos originales, el PDF de consulta y un aviso. Así se conservan también los adjuntos incompatibles. Un archivo corrupto conserva lo recibido, pero puede requerir una nueva descarga desde el portal.
 
 Mientras dure la descarga conviene no usar "Escanear ahora" ni "Buscar movimientos desde una fecha": esos pedidos a la MEV se suman a los de la descarga y pueden hacer que la MEV pida una pausa. El escaneo automático, en cambio, se posterga solo y corre cuando la descarga termina.
 
@@ -425,3 +427,8 @@ Sesión de capturas del 2026-07-03: 16 de las 17 capturas ya están tomadas en v
 - **GitHub**: https://github.com/blancoilari/procu-asist/issues
 
 *ProcuAsist v0.8.0 - Copiloto Legal para Abogados Argentinos*
+
+
+### Monitoreo ante verificaciones (29/09/2026)
+
+El monitoreo y la descarga son recorridos distintos. Si el barrido encuentra una verificación, la sesión venció o hubo errores, muestra causas pendientes y no declara el barrido completo. Abrí el portal, comprobá que la sesión funcione y volvé a intentar el escaneo. Las causas no leídas conservan su estado anterior.

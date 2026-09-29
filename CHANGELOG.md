@@ -425,3 +425,10 @@ Los archivos de docs.scba se descargan desde una página de extensión con hasta
 La revisión previa a publicar detectó dos falsos resultados completos. El panel ahora informa barridos incompletos y cuenta solo causas leídas, con pendientes por verificación, sesión o error. La recuperación por navegación continúa siendo propia de la descarga, no del monitoreo.
 
 Si un adjunto no puede incorporarse al PDF único, se entrega un ZIP que conserva los originales, el PDF de consulta y un aviso de formato. El canal usa el MIME del archivo realmente generado. Pruebas con PDF válido, corrupto y documento incompatible: 94/94 tests y TypeScript correcto. No requiere permisos adicionales.
+
+
+### Cierre de preparación 29/09/2026
+
+El titular pide integrar, hacer push y preparar la actualización de Store, dejando sin efecto la pausa de publicación anterior para este arreglo. Se actualizaron README, manual, roadmap y material de la ficha. La descarga por navegación normal se comprobó en una prueba asistida de 131 documentos y 22 adjuntos. La ficha pública sigue en 0.8.0 al verificarla hoy. Se distingue el monitoreo, que puede dejar pendientes ante verificación, de la recuperación de descargas. Los cambios no conectan con Estudio OS ni agregan permisos. Revisión adversarial de los ajustes de integridad aprobada; 94/94 pruebas y tipos correctos.
+
+Paquete final reconstruido el 29/09/2026 con npm run zip (WXT 0.21.4): versión 0.8.1, 616.73 kB. Se comprobó manifest, ausencia de secretos/configuración local y de nativeMessaging en el ZIP. Build correcto. El envío a revisión y la aprobación de Google se registran por separado, no se dan por hechos.

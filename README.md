@@ -4,9 +4,9 @@ Extensión Chrome para abogados argentinos que automatiza la interacción con po
 
 > **Hecho por un abogado de la matrícula, para colegas. Es gratuito y sin fines de lucro.**
 
-**Versiones:** la versión publicada en Chrome Web Store es la **v0.8.0** (publicada; confirmado el 2026-07-19). Este repositorio está en la **v0.8.1** (armada el 09/09/2026, sin publicar).
+**Versiones:** Chrome Web Store publica la **v0.8.0** (verificado el 29/09/2026). La **v0.8.1** incorpora la recuperación de descargas y está preparada para enviar a revisión.
 
-> **Proyecto en pausa desde el 25/09/2026**, por decisión del titular: la prioridad pasa a otro sistema del estudio. La 0.8.1 no se publica por ahora y no hay fecha para retomar. El motivo de fondo es la regla publicada por la MEV para sus usuarios (sección "Verificación de la MEV", más abajo): antes de publicar cualquier versión hay que revisar qué automatizaciones de la extensión sobreviven a esa regla. La versión 0.8.0 publicada sigue instalable, pero la MEV endureció su filtro antirobot en septiembre de 2026 y la descarga de expedientes puede fallar o quedar bloqueada; ver la misma sección.
+> **Actualización del 29/09/2026:** se retoma el mantenimiento y la publicación por pedido del titular. La descarga MEV conserva el avance ante verificaciones. Un escaneo que no pudo leer todas las causas se informa como incompleto.
 
 ---
 
