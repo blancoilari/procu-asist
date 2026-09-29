@@ -3,7 +3,7 @@
  * pedidos, qué hacer con cada respuesta y cuándo frenar a preguntar.
  *
  * Política (especificación del 22/09/2026):
- *   - cada pedido a la MEV espera su turno en el portero (20 por minuto);
+ *   - cada pedido a la MEV espera su turno en el portero (10 por minuto);
  *   - pantalla de verificación o sesión cerrada: la descarga deja de pedir
  *     y pregunta; con "esperar" completa la espera que toca, contada desde
  *     el bloqueo (el tiempo que el aviso estuvo abierto ya cuenta), y
@@ -98,6 +98,8 @@ export interface RunnerResult {
 
 /** Tramo de la cuenta regresiva durante una espera. */
 export const WAIT_TICK_MS = 5_000;
+export const MAX_ITEM_RECOVERIES = 4;
+export const MAX_RUN_RECOVERIES = 12;
 
 interface DocEntry {
   mov: RunnerMovement;
@@ -135,6 +137,8 @@ export async function runMevDownload<T>(
   const missing = new Set<string>();
   let done = 0;
   let consecutiveBlocks = 0;
+  let totalRecoveries = 0;
+  let automaticStop = false;
 
   const fail = (
     doc: DocEntry,
@@ -169,7 +173,9 @@ export async function runMevDownload<T>(
    */
   type Bloqueado = { doc: DocEntry; kind: 'proveido' | 'adjunto'; fileName: string; url: string; item: ItemBlocks };
   const blockedDetail = (item: ItemBlocks) =>
-    item.lastReason === 'login'
+    automaticStop
+      ? 'verificación persistente: se agotaron las esperas automáticas; se conserva lo descargado y el resto queda pendiente para reintentar'
+      : item.lastReason === 'login'
       ? 'la descarga se detuvo a pedido del usuario con la sesión de la MEV cerrada'
       : `${item.count} ${item.count === 1 ? 'intento' : 'intentos seguidos'} con la pantalla; la descarga se detuvo a pedido del usuario`;
 
@@ -202,6 +208,11 @@ export async function runMevDownload<T>(
   const resolveBlock = async (reason: BlockReason, item: ItemBlocks): Promise<BlockOutcome> => {
     let current: BlockReason = reason;
     for (;;) {
+      if (current === 'desafio' && (item.count >= MAX_ITEM_RECOVERIES || totalRecoveries >= MAX_RUN_RECOVERIES)) {
+        automaticStop = true;
+        item.lastReason = current;
+        return 'stop-save';
+      }
       const canSkip = item.count >= 1;
       item.count += 1;
       item.lastReason = current;
@@ -211,6 +222,7 @@ export async function runMevDownload<T>(
       if (choice === 'stop-save' || choice === 'cancel') return choice;
       if (choice === 'skip' && canSkip) return 'skip';
       if (current === 'desafio') {
+        totalRecoveries += 1;
         consecutiveBlocks += 1;
         // Lo que el aviso estuvo abierto ya es espera: solo se completa lo que falta.
         let left = Math.max(0, waitMs - (deps.now() - blockedAt));

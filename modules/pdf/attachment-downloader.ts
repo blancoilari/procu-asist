@@ -14,6 +14,7 @@
  */
 
 import { MEV_BASE_URL } from '@/modules/portals/mev-selectors';
+import { textoMevValidado } from './mev-text';
 import {
   classifyMevPage,
   describeProbe,
@@ -42,6 +43,7 @@ const RATE_LIMIT_STATUSES = [429, 503];
 /** Datos de la página de un proveído de la MEV. */
 export interface ProveidoPageData {
   text: string;
+  textoInexistente?: boolean;
   adjuntoUrls: string[];
   juzgadoName: string;
   departamento: string;
@@ -364,9 +366,10 @@ export async function fetchMevPageContent(tabId: number, url: string): Promise<P
           let text = '';
           if (contentDiv) {
             text = contentDiv.innerText?.trim() ?? contentDiv.textContent?.trim() ?? '';
-          } else {
-            text = doc.body?.innerText?.trim() ?? doc.body?.textContent?.trim() ?? '';
           }
+          // Si falta el texto, nunca convertir los menús o los datos del usuario
+          // en un despacho. La ausencia debe estar declarada por el portal.
+          const textoInexistente = /Texto del Prove[ií]do inexistente/i.test(doc.body?.textContent ?? '');
           text = text.replace(/^[- ]*Para copiar y pegar el texto seleccione.*$/gm, '');
           text = text.replace(/\r\n/g, '\n').replace(/[ \t]{2,}/g, ' ').replace(/\n{4,}/g, '\n\n\n').trim();
 
@@ -391,6 +394,7 @@ export async function fetchMevPageContent(tabId: number, url: string): Promise<P
               rawHtmlSample: html.slice(0, rawLength),
             },
             text,
+            textoInexistente,
             adjuntoUrls: adjuntos.map((a) => a.url),
             juzgadoName,
             departamento,
@@ -422,7 +426,11 @@ export async function fetchMevPageContent(tabId: number, url: string): Promise<P
     }
 
     const verdict = result.probe ? classifyMevPage(result.probe) : { status: 'ok' as const };
-    if (verdict.status === 'ok') return { status: 'ok', data: result };
+    if (verdict.status === 'ok') {
+      const text = textoMevValidado(result.text, result.textoInexistente === true);
+      if (text === null) return { status: 'respuesta-inesperada', detail: 'Falta el texto del proveído y la MEV no informó que fuera inexistente' };
+      return { status: 'ok', data: { ...result, text } };
+    }
 
     console.warn(
       `[ProcuAsist] La MEV no devolvió el proveído (${verdict.status}${verdict.marker ? ': ' + verdict.marker : ''}):`,

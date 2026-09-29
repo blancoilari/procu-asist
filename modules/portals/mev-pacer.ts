@@ -5,15 +5,15 @@
  * de proveídos por minuto. Pasado ese número contesta a todo con su
  * pantalla de verificación y, si se sigue pidiendo, el bloqueo no se
  * levanta y cada vez dura más. El portero espacia los pedidos para no
- * llegar nunca al límite (20 por minuto deja margen para lo que el usuario
+ * reducir la presión (10 por minuto deja margen para lo que el usuario
  * navegue en la MEV al mismo tiempo) y define cuánto se espera cuando igual
  * aparece un bloqueo.
  *
  * Módulo puro: el reloj y la espera se inyectan, así se prueba en node.
  */
 
-/** Pedidos por minuto que se permite la descarga (decisión del 22/09/2026). */
-export const MEV_MAX_REQUESTS_PER_MINUTE = 20;
+/** Pedidos por minuto que se permite la descarga (prioridad a la fiabilidad, 28/09/2026). */
+export const MEV_MAX_REQUESTS_PER_MINUTE = 10;
 
 /** Separación mínima entre el inicio de dos pedidos. */
 export const MEV_MIN_INTERVAL_MS = Math.ceil(60_000 / MEV_MAX_REQUESTS_PER_MINUTE);
@@ -62,6 +62,6 @@ export function createMevPacer(
 
 /** Reloj real, para el service worker. */
 export const realClock: PacerClock = {
-  now: () => Date.now(),
+  now: () => performance.now(),
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 };

@@ -27,9 +27,9 @@ function relojSimulado(): PacerClock & { t: number; esperas: number[] } {
   return reloj;
 }
 
-test('20 pedidos por minuto: un inicio cada 3000 ms', () => {
-  assert.equal(MEV_MAX_REQUESTS_PER_MINUTE, 20);
-  assert.equal(MEV_MIN_INTERVAL_MS, 3000);
+test('10 pedidos por minuto: un inicio cada 6000 ms', () => {
+  assert.equal(MEV_MAX_REQUESTS_PER_MINUTE, 10);
+  assert.equal(MEV_MIN_INTERVAL_MS, 6000);
 });
 
 test('el primer pedido sale sin esperar y los siguientes se espacian', async () => {
@@ -40,14 +40,14 @@ test('el primer pedido sale sin esperar y los siguientes se espacian', async () 
     await portero.wait();
     inicios.push(reloj.t);
   }
-  assert.deepEqual(inicios, [0, 3000, 6000]);
+  assert.deepEqual(inicios, [0, 6000, 12000]);
 });
 
 test('si ya pasó el intervalo, no espera', async () => {
   const reloj = relojSimulado();
   const portero = createMevPacer(reloj);
   await portero.wait();
-  reloj.t += 5000;
+  reloj.t += 7000;
   await portero.wait();
   assert.deepEqual(reloj.esperas, []);
 });
@@ -58,7 +58,7 @@ test('espera solo lo que falta del intervalo', async () => {
   await portero.wait();
   reloj.t += 1000;
   await portero.wait();
-  assert.deepEqual(reloj.esperas, [2000]);
+  assert.deepEqual(reloj.esperas, [5000]);
 });
 
 test('los llamados concurrentes hacen fila: nunca salen dos juntos', async () => {
@@ -71,7 +71,7 @@ test('los llamados concurrentes hacen fila: nunca salen dos juntos', async () =>
       inicios.push(reloj.t);
     })
   );
-  assert.deepEqual(inicios, [0, 3000, 6000]);
+  assert.deepEqual(inicios, [0, 6000, 12000]);
 });
 
 test('escalera de esperas ante un bloqueo: 30 s, 1, 2 y 4 min, y la última se repite', () => {

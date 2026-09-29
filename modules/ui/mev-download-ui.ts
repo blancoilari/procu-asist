@@ -313,7 +313,8 @@ function showPauseDialog(
       paragraph(
         'La MEV limita cuántos documentos se pueden pedir por minuto y ahora respondió con su pantalla de verificación. ' +
           `${progress} La descarga espera ${message.waitSeconds} segundos y reintenta el mismo documento sola: no se saltea nada. ` +
-          'Si no elegís nada, sigue cuando termine la cuenta del botón; mientras tanto no se le pide nada a la MEV.'
+          'Si no elegís nada, sigue cuando termine la cuenta del botón; mientras tanto no se le pide nada a la MEV. ' +
+          'Si la verificación persiste, guarda lo descargado e informa los pendientes para reintentarlos.'
       ),
       // Lo que desconcertó en la prueba real del 22/09/2026: en una pestaña la
       // pantalla se resuelve sola y la MEV deja pasar, y parece que la

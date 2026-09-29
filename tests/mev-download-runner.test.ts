@@ -8,6 +8,8 @@ import assert from 'node:assert/strict';
 
 import {
   runMevDownload,
+  MAX_ITEM_RECOVERIES,
+  MAX_RUN_RECOVERIES,
   type AttachmentFetch,
   type BlockChoice,
   type CaseEntry,
@@ -31,6 +33,38 @@ const movs = (): RunnerMovement[] => [
 
 const OK: PageFetch<Pagina> = { status: 'ok', data: { adjuntos: [] } };
 const BLOQUEO: PageFetch<Pagina> = { status: 'desafio', detail: 'x' };
+
+test('bloqueo persistente guarda lo anterior y deja el resto pendiente sin repetir indefinidamente', async () => {
+  const d = dobles({ paginas: { [`${MEV}/p2`]: [BLOQUEO] } });
+  const h = ganchos(Array(MAX_ITEM_RECOVERIES + 2).fill('wait'), {}, d.ctl);
+  const r = await runMevDownload(movs(), d.deps, h.hooks);
+  assert.equal(r.outcome, 'partial');
+  assert.deepEqual(d.guardados, ['A.pdf']);
+  assert.deepEqual(r.stats.missingFileBases, ['B', 'C']);
+  assert.equal(d.llamadas.filter(x => x === 'proveido /p2').length, MAX_ITEM_RECOVERIES + 1);
+  assert.equal(d.llamadas.includes('proveido /p3'), false);
+  assert.match(r.stats.failedItems[0].detail, /agotaron las esperas/);
+});
+
+test('un adjunto bloqueado conserva el proveído y todos los pendientes', async () => {
+  const d = dobles({ paginas: { [`${MEV}/p1`]: [{ status: 'ok', data: { adjuntos: [`${MEV}/a1`, `${MEV}/a2`] } }] }, adjuntos: { [`${MEV}/a1`]: [{ status: 'desafio', detail: 'verificación' }] } });
+  const r = await runMevDownload(movs(), d.deps, ganchos(Array(6).fill('wait'), {}, d.ctl).hooks);
+  assert.equal(r.outcome, 'partial');
+  assert.deepEqual(d.guardados, ['A.pdf']);
+  assert.equal(r.stats.adjuntosFailed, 1);
+  assert.equal(r.stats.pending, 3);
+  assert.deepEqual(r.stats.missingFileBases, ['A', 'B', 'C']);
+});
+
+test('el presupuesto de la descarga no se reinicia con cada documento', async () => {
+  const movements = Array.from({ length: MAX_RUN_RECOVERIES + 1 }, (_, i) => ({ ...movs()[0], fileBase: `doc${i}`, documentUrls: [`${MEV}/p${i}`] }));
+  const paginas = Object.fromEntries(movements.map(m => [m.documentUrls[0], [BLOQUEO, OK]]));
+  const d = dobles({ paginas });
+  const r = await runMevDownload(movements, d.deps, ganchos(Array(MAX_RUN_RECOVERIES + 2).fill('wait'), {}, d.ctl).hooks);
+  assert.equal(r.outcome, 'partial');
+  assert.equal(r.stats.proveidosDownloaded, MAX_RUN_RECOVERIES);
+  assert.deepEqual(r.stats.missingFileBases, [`doc${MAX_RUN_RECOVERIES}`]);
+});
 
 /** Orden de detener compartida entre dobles y ganchos. */
 function control() {
