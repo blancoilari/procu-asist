@@ -393,3 +393,10 @@ Consolida las versiones internas 0.6.7, 0.6.8 y 0.6.9. La 0.6.7 se publico en la
 - Onboarding wizard para nuevos usuarios
 - Modo oscuro en toda la extension y paginas de portales
 - Iconos personalizados (16px a 128px)
+
+
+## 2026-09-29, recuperación mediante navegador (prueba local)
+
+La prueba de un expediente grande mostró que las esperas no resolvían la verificación, y que dos adjuntos accesibles manualmente agotaban el límite de respuesta inicial de 25 segundos. Ahora, al recibir la verificación de un proveído, se abre una pestaña normal, se espera hasta tres minutos sin recargar ni resolver el verificador y se lee el documento cargado, comprobando su identidad. El avance de esa ejecución permanece en memoria. Si no se recupera, se guarda parcial y se informa pendiente. Esto todavía no es persistencia frente a reinicios.
+
+Los archivos de docs.scba se descargan desde una página de extensión con hasta diez minutos de espera, cancelación y transferencia por bloques al fondo. No se amplían permisos. Pruebas locales: 90 tests, compilación de tipos y build. Revisión de fallos: cierre de pestaña, cancelación, origen del canal, conservación del resultado parcial ante fallo al crear la pestaña y rechazo de otro documento. La recuperación real en Chrome requiere recargar y probar; todavía no se validó un expediente completo con esta variante. No modifica el escaneo de Estudio OS ni publica la rama.

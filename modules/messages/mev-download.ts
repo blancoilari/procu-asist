@@ -44,6 +44,7 @@ export type MevDownloadClientMessage =
   | { type: 'stop'; save: boolean };
 
 export type MevDownloadServerMessage =
+  | { type: 'activity'; message: string }
   | { type: 'progress'; done: number; total: number; etaSeconds: number }
   | {
       type: 'paused';

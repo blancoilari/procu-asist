@@ -145,6 +145,7 @@ function handlePort(port: chrome.runtime.Port, tabId: number): void {
         tabId,
         format,
         {
+          onActivity: message => post({ type: 'activity', message }),
           onProgress: ({ done, total }) => {
             if (done >= total) {
               // Terminó de pedir: desde acá se arma el archivo y la pantalla

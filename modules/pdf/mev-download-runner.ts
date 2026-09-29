@@ -75,6 +75,7 @@ export type BlockChoice = 'wait' | 'continue' | 'skip' | 'stop-save' | 'cancel';
 export type StopRequest = 'stop-save' | 'cancel' | null;
 
 export interface RunnerHooks {
+  onActivity?(message: string): void;
   onProgress(p: { done: number; total: number }): void;
   /**
    * Pausa: la descarga no pide nada hasta que esto resuelva. `canSkip` es

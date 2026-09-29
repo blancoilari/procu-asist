@@ -6,14 +6,15 @@
  * descarga (mev-download-runner.ts) con el portero (mev-pacer.ts).
  *
  * Excepción: los adjuntos de docs.scba.gov.ar, otro servidor, se piden
- * desde el service worker (host_permissions evita CORS) y conservan sus
- * reintentos propios porque ese servidor falla de a ratos.
+ * desde una página de extensión (host_permissions evita CORS), con una
+ * espera larga que no depende del ciclo de vida del service worker.
  *
  * Las funciones que se inyectan con executeScript se serializan: no pueden
  * usar nada de este módulo, por eso repiten sus expresiones regulares.
  */
 
 import { MEV_BASE_URL } from '@/modules/portals/mev-selectors';
+import { downloadLongAttachment } from './long-attachment';
 import { textoMevValidado } from './mev-text';
 import {
   classifyMevPage,
@@ -24,15 +25,12 @@ import {
   MEV_RAW_SAMPLE_LENGTH,
   type MevPageProbe,
 } from '@/modules/portals/mev-challenge';
-import type { AttachmentFetch, CaseEntry, PageFetch } from '@/modules/pdf/mev-download-runner';
+import type { AttachmentFetch, CaseEntry, PageFetch, StopRequest } from '@/modules/pdf/mev-download-runner';
 
 /** Tiempo máximo de un pedido de proveído o de la ficha. */
 const PAGE_TIMEOUT_MS = 60_000;
 /** Tiempo máximo de un adjunto alojado en la MEV. */
 const ATTACHMENT_TIMEOUT_MS = 180_000;
-/** Chrome termina el service worker si una respuesta tarda más de 30 s en llegar. */
-const DOCS_HEADERS_TIMEOUT_MS = 25_000;
-const DOCS_BODY_TIMEOUT_MS = 180_000;
 /**
  * Códigos con los que un servidor limita pedidos. Hoy la MEV limita con su
  * pantalla de verificación y HTTP 200; si pasara a usar estos códigos, se
@@ -86,10 +84,10 @@ export function isMevHostedUrl(url: string): boolean {
   return !toAbsoluteMevUrl(url).includes('docs.scba.gov.ar');
 }
 
-/** Un pedido de adjunto. Los de docs.scba.gov.ar van por el service worker. */
-export async function downloadMevAttachment(tabId: number, attachmentUrl: string): Promise<AttachmentFetch> {
+/** Un pedido de adjunto. Los de docs.scba.gov.ar usan una página auxiliar de la extensión. */
+export async function downloadMevAttachment(tabId: number, attachmentUrl: string, shouldStop: () => StopRequest = () => null): Promise<AttachmentFetch> {
   const fullUrl = toAbsoluteMevUrl(attachmentUrl);
-  if (!isMevHostedUrl(fullUrl)) return downloadDocsScba(fullUrl, 3, 1500);
+  if (!isMevHostedUrl(fullUrl)) return downloadLongAttachment(fullUrl, shouldStop);
 
   try {
     const results = await chrome.scripting.executeScript({
@@ -154,21 +152,27 @@ export async function downloadMevAttachment(tabId: number, attachmentUrl: string
  * DOMParser, fetch y las cookies funcionan) y clasificado afuera con
  * classifyMevPage.
  */
-export async function fetchMevPageContent(tabId: number, url: string): Promise<PageFetch<ProveidoPageData>> {
+export async function fetchMevPageContent(tabId: number, url: string, loadedDocument = false): Promise<PageFetch<ProveidoPageData>> {
   const fullUrl = toAbsoluteMevUrl(url);
 
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: async (pageUrl: string, sampleLength: number, rawLength: number, timeoutMs: number) => {
+      func: async (pageUrl: string, sampleLength: number, rawLength: number, timeoutMs: number, loaded: boolean) => {
         try {
-          const resp = await fetch(pageUrl, { credentials: 'include', signal: AbortSignal.timeout(timeoutMs) });
-          if (!resp.ok) return { error: `HTTP ${resp.status}`, httpStatus: resp.status };
+          const expected = new URL(pageUrl);
+          const current = new URL(location.href);
+          if (loaded && (current.origin !== expected.origin || current.pathname !== expected.pathname ||
+              ["pidJuzgado", "sCodi", "nPosi"].some(key => current.searchParams.get(key) !== expected.searchParams.get(key)))) {
+            return { error: "La pestaña todavía no muestra el documento solicitado" };
+          }
+          const resp = loaded ? null : await fetch(pageUrl, { credentials: 'include', signal: AbortSignal.timeout(timeoutMs) });
+          if (resp && !resp.ok) return { error: `HTTP ${resp.status}`, httpStatus: resp.status };
 
           // La MEV es ASP clásico en Windows-1252: resp.text() rompería la ñ y el º.
-          const rawBuffer = await resp.arrayBuffer();
-          const html = new TextDecoder('windows-1252').decode(rawBuffer);
+          const html = loaded ? document.documentElement.outerHTML
+            : new TextDecoder('windows-1252').decode(await resp!.arrayBuffer());
           const parser = new DOMParser();
           const doc = parser.parseFromString(html, 'text/html');
 
@@ -182,7 +186,7 @@ export async function fetchMevPageContent(tabId: number, url: string): Promise<P
             !!doc.querySelector("input[name='usuario']") && !!doc.querySelector("input[name='clave']");
           let finalPath = '';
           try {
-            finalPath = new URL(resp.url).pathname.toLowerCase();
+            finalPath = new URL(resp?.url ?? location.href).pathname.toLowerCase();
           } catch {
             finalPath = '';
           }
@@ -409,7 +413,7 @@ export async function fetchMevPageContent(tabId: number, url: string): Promise<P
           return { error: String(e) };
         }
       },
-      args: [fullUrl, MEV_PROBE_SAMPLE_LENGTH, MEV_RAW_SAMPLE_LENGTH, PAGE_TIMEOUT_MS],
+      args: [fullUrl, MEV_PROBE_SAMPLE_LENGTH, MEV_RAW_SAMPLE_LENGTH, PAGE_TIMEOUT_MS, loadedDocument],
     });
 
     const result = results[0]?.result as
@@ -494,54 +498,4 @@ export async function enterMevCase(tabId: number, caseUrl: string): Promise<Case
 export async function findMevTab(): Promise<number | null> {
   const tabs = await chrome.tabs.query({ url: 'https://mev.scba.gov.ar/*' });
   return tabs[0]?.id ?? null;
-}
-
-/**
- * docs.scba.gov.ar: servidor público de archivos sin cabeceras CORS. Se
- * pide desde el service worker (host_permissions lo permite) y con
- * reintentos, porque ese servidor falla de a ratos. No cuenta para el
- * límite de la MEV (otro servidor).
- */
-async function downloadDocsScba(url: string, maxRetries: number, delayMs: number): Promise<AttachmentFetch> {
-  let lastError = 'error desconocido';
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (attempt > 0) await new Promise((r) => setTimeout(r, delayMs * attempt));
-    const controller = new AbortController();
-    const headersTimer = setTimeout(() => controller.abort(), DOCS_HEADERS_TIMEOUT_MS);
-    const bodyTimer = setTimeout(() => controller.abort(), DOCS_BODY_TIMEOUT_MS);
-    try {
-      const resp = await fetch(url, { signal: controller.signal });
-      clearTimeout(headersTimer);
-      if (!resp.ok) {
-        lastError = `HTTP ${resp.status}`;
-        controller.abort();
-        continue;
-      }
-      const contentType = resp.headers.get('content-type') ?? 'application/pdf';
-      if (contentType.includes('text/html')) {
-        lastError = 'El servidor devolvió una página en vez del archivo';
-        controller.abort();
-        continue;
-      }
-      const buffer = await resp.arrayBuffer();
-      if (buffer.byteLength < 100) {
-        lastError = `Archivo demasiado chico (${buffer.byteLength} bytes)`;
-        continue;
-      }
-      const bytes = new Uint8Array(buffer);
-      let binary = '';
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-      return { status: 'ok', base64: btoa(binary), mimeType: contentType };
-    } catch (err) {
-      lastError = controller.signal.aborted
-        ? 'tiempo agotado esperando al servidor'
-        : err instanceof Error
-          ? err.message
-          : String(err);
-    } finally {
-      clearTimeout(headersTimer);
-      clearTimeout(bodyTimer);
-    }
-  }
-  return { status: 'error', detail: `${lastError} (tras ${maxRetries} reintentos)` };
 }

@@ -63,6 +63,8 @@ export function startMevDownload(options: StartMevDownloadOptions): void {
 
   const panel = createProgressPanel();
   let finished = false;
+  let lastDone = 0;
+  let lastTotal = options.caseData.movements.length;
   let pauseOverlay: HTMLElement | null = null;
   let stopOverlay: HTMLElement | null = null;
 
@@ -122,7 +124,13 @@ export function startMevDownload(options: StartMevDownloadOptions): void {
 
   port.onMessage.addListener((message: MevDownloadServerMessage) => {
     switch (message.type) {
+      case 'activity':
+        closePause();
+        panel.update(lastDone, lastTotal, message.message);
+        break;
       case 'progress':
+        lastDone = message.done;
+        lastTotal = message.total;
         closePause();
         panel.update(
           message.done,

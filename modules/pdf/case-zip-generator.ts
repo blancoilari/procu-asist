@@ -10,6 +10,7 @@
  *     _verificacion_AAAA-MM-DD_HHMM.txt           solo si falta algo
  */
 
+import { recoverMevDocument } from './mev-browser-recovery';
 import JSZip from 'jszip';
 import { generateCasePdfBlob, type PdfCaseData } from './case-pdf-generator';
 import { generateProveidoPdf, generateTextReportPdf } from './proveido-pdf-generator';
@@ -89,16 +90,27 @@ export async function generateCaseDownload(
     .slice()
     .reverse();
 
+  let recoveryFailed = false;
   const run = await runMevDownload<ProveidoPageData>(
     oldestFirst,
     {
       pace: () => pacer.wait(),
       sleep: realClock.sleep,
       now: realClock.now,
-      fetchProveido: (url) => fetchMevPageContent(tabId, url),
+      fetchProveido: async (url) => {
+        const response = await fetchMevPageContent(tabId, url);
+        if (response.status !== 'desafio' || hooks.shouldStop()) return response;
+        const recovered = await recoverMevDocument(url, hooks.shouldStop, message => hooks.onActivity?.(message))
+          .catch(() => ({ status: 'desafio' as const, detail: 'No se pudo completar la recuperación en el navegador' }));
+        recoveryFailed = recovered.status !== 'ok';
+        return recovered;
+      },
       enterCase: () => enterMevCase(tabId, data.portalUrl),
       isMevHosted: isMevHostedUrl,
-      fetchAttachment: (url) => downloadMevAttachment(tabId, url),
+      fetchAttachment: (url) => {
+        hooks.onActivity?.('Descargando adjunto. El servidor puede tardar varios minutos...');
+        return downloadMevAttachment(tabId, url, hooks.shouldStop);
+      },
       adjuntoUrls: (page) => page.adjuntoUrls,
       saveProveido: async (fileName, mov, url, page) => {
         const blob = generateProveidoPdf({
@@ -128,8 +140,16 @@ export async function generateCaseDownload(
         if (format === 'pdf') mergeParts.push({ label: `${fileName}${ext}`, base64, mimeType });
       },
     },
-    hooks
+    { ...hooks, onBlocked: info => recoveryFailed ? Promise.resolve(hooks.shouldStop() ?? 'stop-save') : hooks.onBlocked(info) }
   );
+
+  if (recoveryFailed) {
+    for (const item of run.stats.failedItems) {
+      if (item.reason === 'desafio' || item.reason === 'login') {
+        item.detail = 'La recuperación en el navegador no terminó. Se conserva lo descargado y este documento queda pendiente.';
+      }
+    }
+  }
 
   if (run.outcome === 'cancelled') return { outcome: 'cancelled', stats: run.stats };
   const outcome = run.outcome;
