@@ -78,7 +78,7 @@ Una página con los pasos esenciales. Para el detalle completo, ver `manual-usua
 3. Clic en una tarjeta: abre la causa y la marca leída. O usá **"Marcar todas como leídas"**.
 4. Para buscar desde una fecha puntual: campo **"Desde"** + botón **"Buscar movimientos desde esa fecha"** (necesita el portal abierto con sesión activa).
 5. En MEV podés activar en Ajustes un atajo por **novedades de set** (beta, viene desactivado): consulta tus sets en una sola pasada y solo re-lee lo que se movió. El botón **"Escanear ahora"** siempre revisa causa por causa.
-6. Si la MEV muestra su pantalla de verificación durante un escaneo, el barrido queda incompleto y marca causas pendientes (el monitoreo no usa la recuperación de la descarga). Abrí la MEV, comprobá la sesión y volvé a escanear.
+6. Si la MEV muestra su pantalla de verificación durante un escaneo, el barrido queda incompleto, marca causas pendientes y vuelve a intentar en el próximo escaneo automático (el monitoreo no usa la recuperación de la descarga). Pasar la verificación en una pestaña no lo destraba. Si querés adelantarlo con **"Escanear ahora"**, dejá pasar un rato y comprobá antes que la MEV te deje navegar: ese botón no respeta esperas.
 
 **Plazos:**
 1. Panel lateral, pestaña **Plazos**.

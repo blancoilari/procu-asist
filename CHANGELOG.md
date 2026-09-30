@@ -14,11 +14,12 @@ Publicada en Chrome Web Store (verificado el 29/09/2026 con el servicio de actua
 - Adjuntos lentos: los de docs.scba.gov.ar se bajan desde una página propia de la extensión, con espera adicional (hasta diez minutos) y cancelación.
 - Escaneos parciales: un barrido de monitoreo que no pudo leer todas las causas se informa como incompleto; el panel muestra cuántas causas quedaron pendientes por verificación, sesión o error.
 - PDF único con respaldo: si un adjunto no puede incorporarse al PDF único, se entrega un ZIP con los originales, el PDF de consulta y un aviso.
+- PDF sin marca: los PDF que genera la descarga (resumen, PDF por paso e informe de verificación, y también el resumen de PJN) salen sin logo, sin color corporativo y sin el nombre de la extensión (entrada [Sin version] - 2026-09-09).
 - Sin permisos nuevos respecto de 0.8.0: el manifest del paquete subido pide los mismos permisos, menos el host del portal retirado.
 
 ### Límites
 
-- El monitoreo no usa la recuperación de la descarga. Cuando la MEV muestra su pantalla de verificación, el barrido puede dejar causas pendientes, y hay que volver a intentarlo después de comprobar la sesión en el portal.
+- El monitoreo no usa la recuperación de la descarga. Cuando la MEV muestra su pantalla de verificación, el barrido deja causas pendientes, se informa como incompleto y vuelve a intentar en el próximo escaneo automático. Pasar la verificación en una pestaña no lo destraba. Para adelantarlo con "Escanear ahora", conviene dejar pasar un rato y comprobar antes que la MEV deje navegar: ese botón no respeta esperas.
 - El avance de una descarga se conserva solo durante la ejecución en curso. Si la extensión se reinicia o se actualiza en el medio, la descarga se corta sin guardar ningún archivo y hay que empezarla de nuevo.
 - En la prueba asistida del 29/09/2026 (131 documentos y 22 adjuntos) ninguna pantalla de verificación puso en marcha la recuperación por pestaña normal. La recuperación está implementada, pero solo su espera del documento tiene pruebas unitarias: la apertura y el cierre de la pestaña, el control de que sea el documento pedido y la detención cuando falla no tienen pruebas automáticas, y no se demostró frente a una verificación real.
 - La extensión no resuelve desafíos del portal ni garantiza que la MEV conceda acceso.
@@ -27,16 +28,16 @@ Publicada en Chrome Web Store (verificado el 29/09/2026 con el servicio de actua
 
 - Paquete publicado: `procu-asist-0.8.1-chrome.zip`, generado el 29/09/2026 con `npm run zip` (WXT 0.21.4), 616,73 kB (616.728 bytes), SHA-256 `1db749aa37d113d26cc2cceaedd33d18889bd9dad725c8f144297ccf7957fd6b`. La advertencia sobre el zip obsoleto con el mismo nombre está en `docs/release-v0.8.1-assets.md`.
 - Suite: 94 casos con `npm test` y tipos sin errores, según el cierre de preparación del 29/09/2026 (más abajo).
-- Ficha: la descripción pública todavía menciona el PIN maestro, que no existe desde la 0.8.0. La corrección queda pendiente en el panel de la Store. Las cinco capturas publicadas son las maquetas sintéticas de la 0.7.0, sin datos reales.
+- Ficha: la descripción pública todavía menciona el PIN maestro, que no existe desde la 0.8.0. La corrección queda pendiente en el panel de la Store. Las cinco capturas publicadas son las promocionales sintéticas de `docs/store-assets/v0.7.0`, sin datos reales (cotejadas una por una el 29/09/2026).
 
 ## [Sin versión] - 2026-09-29 (documentación posterior a la publicación)
 
 Solo documentación, sin cambios de código.
 
-- Síntoma: con la 0.8.1 ya publicada, README, ROADMAP, el documento de publicación, el README de las capturas y el banner del plan maestro seguían diciendo que la ficha estaba en 0.8.0, que la 0.8.1 estaba sin publicar o que el proyecto estaba en pausa. La prueba asistida del 29/09 figuraba como comprobación de la recuperación por pestaña normal, que en esa prueba no se puso en marcha. Fuera de una entrada técnica de este archivo, ningún documento decía que el avance de una descarga no sobrevive a un reinicio de la extensión. El documento de publicación no identificaba el paquete subido, aunque hay dos zip con el mismo nombre. El manual y la guía rápida seguían rotulados v0.8.0, la sección del monitoreo del manual había quedado después del pie, la guía rápida presentaba el escaneo rápido por sets como activo de fábrica, PRIVACY no mencionaba las pestañas que abre la descarga ni todos los avisos que muestra, y DEVELOPER omitía el mensaje `activity` del canal de la descarga. Además, PRIVACY, el manual y la guía rápida decían que las credenciales nunca salen de la computadora, aunque el inicio de sesión automático las envía al portal correspondiente.
-- Causa: la mayoría de esos textos se escribió mientras la 0.8.1 se preparaba y no se releyó después de la publicación; el texto del escaneo rápido y el de las credenciales venían de antes.
+- Síntoma: con la 0.8.1 ya publicada, README, ROADMAP, el documento de publicación, el README de las capturas y el banner del plan maestro seguían diciendo que la ficha estaba en 0.8.0, que la 0.8.1 estaba sin publicar o que el proyecto estaba en pausa. La prueba asistida del 29/09 figuraba como comprobación de la recuperación por pestaña normal, que en esa prueba no se puso en marcha. Fuera de una entrada técnica de este archivo, ningún documento decía que el avance de una descarga no sobrevive a un reinicio de la extensión. El documento de publicación no identificaba el paquete subido, aunque hay dos zip con el mismo nombre. El manual y la guía rápida seguían rotulados v0.8.0, la sección del monitoreo del manual había quedado después del pie, la guía rápida presentaba el escaneo rápido por sets como activo de fábrica, PRIVACY no mencionaba las pestañas que abre la descarga ni todos los avisos que muestra, y DEVELOPER omitía el mensaje `activity` del canal de la descarga. Además, PRIVACY, el manual y la guía rápida decían que las credenciales nunca salen de la computadora, aunque el inicio de sesión automático las envía al portal correspondiente; PRIVACY decía que las comunicaciones externas ocurren solo cuando el usuario usa una función, aunque el mantener sesión y el monitoreo consultan los portales solos; el manual indicaba comprobar la sesión y volver a escanear ante una verificación, en contra del aviso del propio monitoreo; el resumen de la 0.8.1 omitía el PDF sin marca, y algunos documentos remitían a registros internos que no son parte del repositorio.
+- Causa: la mayoría de esos textos se escribió mientras la 0.8.1 se preparaba y no se releyó después de la publicación; el texto del escaneo rápido, el de las credenciales y el de las comunicaciones externas venían de antes.
 - Arreglo: la entrada [0.8.1] de arriba; correcciones fechadas debajo de las entradas contradichas, sin reescribirlas; README, ROADMAP, manual, guía rápida, PRIVACY, DEVELOPER, documento de publicación, README de las capturas y banner del plan maestro al día, con los límites a la vista.
-- Verificación: versión pública consultada el 29/09/2026 en el servicio de actualizaciones de Chrome y en la ficha pública; SHA-256 del zip subido calculado con `sha256sum` y con `Get-FileHash` (coinciden); `manifest.json` del zip leído sin extraerlo y comparado con el de la 0.8.0; 94 casos contados en `tests/` (de la recuperación por pestaña normal, solo su espera del documento tiene pruebas: tres casos); cada afirmación sobre el comportamiento, cotejada con el código; revisión independiente del cambio; cero guiones largos en los archivos tocados. No se corrieron `npm test` ni `build`: el cambio es solo de documentación.
+- Verificación: versión pública consultada el 29/09/2026 en el servicio de actualizaciones de Chrome y en la ficha pública; el 29/09/2026, entre las 20:33 y las 20:40, se abrieron una por una las cinco capturas de la ficha pública, y son las cinco promocionales sintéticas de `docs/store-assets/v0.7.0` (causas unificadas, alertas por expediente, plazos, importar todo y descargar expediente); el zip obsoleto del 09/09/2026 trae el PDF sin marca y el retiro de EJE, pero no los cambios de la descarga del 22/09 al 29/09/2026, según las cadenas de su código empaquetado; intervalos del mantener sesión (4 minutos, activo de fábrica) y del monitoreo (6 horas) leídos en el código; SHA-256 del zip subido calculado con `sha256sum` y con `Get-FileHash` (coinciden); `manifest.json` del zip leído sin extraerlo y comparado con el de la 0.8.0; 94 casos contados en `tests/` (de la recuperación por pestaña normal, solo su espera del documento tiene pruebas: tres casos); cada afirmación sobre el comportamiento, cotejada con el código; revisión independiente del cambio; cero guiones largos en los archivos tocados. No se corrieron `npm test` ni `build`: el cambio es solo de documentación.
 
 ## Recuperación local de MEV - 2026-09-28 (noche)
 
@@ -59,7 +60,7 @@ Decisión del titular: ProcuAsist queda en pausa y la prioridad pasa a Estudio O
 - La ayuda oficial de la MEV (sección USUARIOS) dice que sus usuarios "son para ser usados por seres humanos y no por sistemas informáticos o agentes de inteligencia artificial" y que el mal uso "generará el bloqueo de dicho usuario". Antes de publicar la 0.8.1 hay que revisar qué funciones de la MEV quedan: el login automático, el mantener sesión, el monitoreo automático, la importación y la descarga por detrás usan la cuenta del abogado en forma automatizada. Lo que asiste a la persona mientras navega (marcadores, ayudas en la pantalla) es otra cosa.
 - Para retomar: la rama tiene la descarga con portero, pausa, informe y nombres por fecha (probada contra el portal salvo la bajada real), el mantener sesión que no insiste durante un bloqueo y los arreglos de la prueba del 23/09. Hay una copia completa del repositorio con esta rama en un paquete de git fuera del repo (ver la memoria del proyecto).
 
-Corrección del 29/09/2026: la pausa quedó sin efecto para este arreglo por decisión del titular. La rama `descarga-confiable-mev` se integró a `master`, se subió al repositorio público y su contenido se publicó en la 0.8.1 (ver [0.8.1] - 2026-09-29).
+Corrección del 29/09/2026: por decisión del titular, la pausa quedó sin efecto para publicar la 0.8.1. La rama `descarga-confiable-mev` se integró a `master`, se subió al repositorio público y su contenido se publicó en esa versión (ver [0.8.1] - 2026-09-29).
 
 ## [Sin version] - 2026-09-22
 
@@ -145,7 +146,7 @@ Decision del titular: ProcuAsist queda en pausa y la prioridad pasa a otro siste
 - La ayuda oficial de la MEV (seccion USUARIOS) dice que sus usuarios "son para ser usados por seres humanos y no por sistemas informáticos o agentes de inteligencia artificial" y que el mal uso "generará el bloqueo de dicho usuario". Antes de publicar la 0.8.1 hay que revisar que funciones de la MEV quedan: el login automatico, el mantener sesion, el monitoreo automatico, la importacion y la descarga por detras usan la cuenta del abogado en forma automatizada. Lo que asiste a la persona mientras navega (marcadores, ayudas en la pantalla) es otra cosa.
 - Para retomar: revision de las automatizaciones frente a la regla, prueba real de la bajada y decision de publicar. La rama queda en un worktree local y en un paquete de git fuera del repositorio; no se sube al repositorio publico.
 
-Corrección del 29/09/2026: la pausa quedó sin efecto para este arreglo. La rama se integró a `master`, se subió al repositorio público y se publicó en la 0.8.1 (ver [0.8.1] - 2026-09-29).
+Corrección del 29/09/2026: por decisión del titular, la pausa quedó sin efecto para publicar la 0.8.1. La rama se integró a `master`, se subió al repositorio público y se publicó en esa versión (ver [0.8.1] - 2026-09-29).
 
 ## [Sin version] - 2026-09-09
 
@@ -187,7 +188,7 @@ Limpieza de auditoria, sin cambios de producto.
 
 Version de retiro del portal EJE/JusCABA y puesta al dia de dependencias de desarrollo. Sin funciones nuevas.
 
-Corrección del 29/09/2026: la 0.8.1 no se publicó con este contenido solo. Antes de subirla se le sumaron los cambios de la descarga de la MEV (22/09 a 29/09/2026), así que la 0.8.1 publicada sí trae funciones nuevas. El resumen de la versión publicada está en [0.8.1] - 2026-09-29, al principio de este archivo.
+Corrección del 29/09/2026: la 0.8.1 no se publicó con este contenido solo. Antes de subirla se le sumaron los cambios posteriores del 09/09/2026 (entrada [Sin version] - 2026-09-09: el PDF sin marca y un primer arreglo de la descarga ante la verificación, que después reemplazaron los cambios del 22/09) y los de la descarga de la MEV del 22/09 al 29/09/2026, así que la 0.8.1 publicada sí trae funciones nuevas. El resumen de la versión publicada está en [0.8.1] - 2026-09-29, al principio de este archivo.
 
 ### Se retira el soporte de EJE / JusCABA
 
@@ -219,6 +220,8 @@ Version nacida del primer test de instalacion desde cero en una computadora limp
 - Tambien arregla el "deslogueo" con el tiempo: la reconexion automatica dependia de esa clave en memoria; ahora la clave esta siempre disponible y el re-login automatico funciona tras cualquier reinicio del service worker o del navegador.
 - Migracion: quienes tenian "Mantener sesion iniciada" activado conservan sus credenciales tal cual. Quienes tenian PIN sin esa opcion deben recargarlas una vez (sin el PIN no hay forma tecnica de descifrarlas); la extension lo detecta y las pide de nuevo.
 - Opciones: la seccion Credenciales quedo siempre editable, con boton "Borrar" por portal. El popup ya no pide PIN.
+
+Corrección del 29/09/2026: las credenciales no salen hacia servidores de ProcuAsist ni de terceros, pero el inicio de sesión automático las envía al portal correspondiente (ver PRIVACY.md).
 
 ### Bienvenida que deja todo configurado
 
@@ -489,4 +492,4 @@ Corrección del 29/09/2026: el tamaño es 616,73 kB (616.728 bytes) y el SHA-256
 
 El titular confirmó la carga del ZIP 0.8.1 en la ficha existente y luego informó que el panel muestra la versión publicada 0.8.1. Se registra como confirmación del titular: el control de la consola no estuvo disponible y la última consulta de la ficha pública todavía devolvió 0.8.0. No se comprobó de forma independiente la propagación de la versión, descripción y capturas. El paquete y sus pruebas no cambiaron desde el cierre anterior.
 
-Corrección del 29/09/2026: la versión pública se comprobó después en forma independiente: el servicio de actualizaciones de Chrome y la ficha pública devuelven 0.8.1. La descripción de la ficha todavía menciona el PIN maestro, que no existe desde la 0.8.0, y su corrección queda pendiente en el panel de la Store. Las cinco capturas de la ficha son las maquetas sintéticas de la 0.7.0, sin datos reales.
+Corrección del 29/09/2026: la versión pública se comprobó después en forma independiente: el servicio de actualizaciones de Chrome y la ficha pública devuelven 0.8.1. La descripción de la ficha todavía menciona el PIN maestro, que no existe desde la 0.8.0, y su corrección queda pendiente en el panel de la Store. Las cinco capturas de la ficha se abrieron una por una el 29/09/2026: son las cinco promocionales sintéticas de `docs/store-assets/v0.7.0`, sin datos reales.

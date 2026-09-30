@@ -4,11 +4,11 @@ ProcuAsist es una herramienta hecha por un abogado de la matricula, para colegas
 
 Este roadmap marca prioridades, no promesas cerradas. El orden puede cambiar segun estabilidad de los portales judiciales, feedback de usuarios y disponibilidad de prueba con casos reales.
 
-## Estado: mantenimiento y publicación retomados el 29/09/2026
+## Estado al 29/09/2026: 0.8.1 publicada
 
-Por pedido del titular se preparó y se publicó la versión 0.8.1 (publicada en Chrome Web Store, verificado el 29/09/2026), con un intento de recuperación de descargas MEV, informes de pendientes y correcciones de integridad. Las ideas de versiones posteriores se conservan como referencia, no como compromisos de entrega.
+Por decisión del titular, la pausa quedó sin efecto para publicar la 0.8.1, que está publicada en Chrome Web Store (verificado el 29/09/2026). Trae una recuperación de descargas MEV implementada y todavía sin comprobar frente a una verificación real, informes de pendientes y correcciones de integridad. Las ideas de versiones posteriores se conservan como referencia, no como compromisos de entrega.
 
-Los pendientes internos de este repositorio no se llevan aca: viven en el mapa de pendientes del ecosistema del estudio (`proyectos\MAPA_PENDIENTES_2026-09-26.md`, fuera de este repositorio; identificadores P1 a P6).
+Los pendientes internos de este repositorio no se llevan aca: viven en el registro de pendientes del titular, fuera de este repositorio.
 
 ## Version actual
 
@@ -31,7 +31,8 @@ Publicado en la v0.8.1 (Store, verificado el 29/09/2026):
 - **Recuperación en una pestaña normal**: si la MEV contesta con su verificación al pedir un proveído, la extensión abre ese documento en una pestaña normal y espera a que el portal lo muestre, sin resolver desafíos. Está implementada, pero solo su espera del documento tiene pruebas unitarias y no se demostró frente a una verificación real: en la prueba asistida del 29/09/2026 (131 documentos y 22 adjuntos) no se puso en marcha.
 - **Adjuntos lentos**: los de docs.scba.gov.ar tienen tiempo adicional para descargarse.
 - **PDF único con respaldo**: si un adjunto no puede incorporarse al PDF único, se entrega un ZIP con los originales, el PDF de consulta y un aviso.
-- **Escaneos parciales a la vista**: un barrido que no pudo leer todas las causas se informa como incompleto, con las causas pendientes. El monitoreo no usa la recuperación de la descarga y puede dejar causas pendientes ante la verificación de la MEV.
+- **PDF sin marca**: los PDF que genera la descarga (resumen, PDF por paso e informe de verificación, y también el resumen de PJN) salen sin logo, sin color corporativo y sin el nombre de la extensión.
+- **Escaneos parciales a la vista**: un barrido que no pudo leer todas las causas se informa como incompleto, con las causas pendientes. El monitoreo no usa la recuperación de la descarga: ante la verificación de la MEV deja causas pendientes y vuelve a intentar en el próximo escaneo automático.
 - **Límite del avance**: lo bajado se conserva solo durante la ejecución en curso; si la extensión se reinicia o se actualiza en el medio, la descarga se corta sin guardar ningún archivo.
 - **Sin JusCABA/EJE**: se retiro el soporte del portal EJE. Salieron el permiso de host `https://eje.jus.gov.ar/*`, el content script, los parsers y selectores, el keep-alive, el color y la etiqueta de portal. El auto-login SSO contra Keycloak, que compartia archivo con EJE, quedo en `entrypoints/sso.content.ts` y sigue sirviendo a PJN.
 - **Credenciales de portales retirados**: al arrancar, la extension borra las credenciales guardadas de EJE (`tl_cred_eje`), que ya no pueden usarse, y la alarma de keep-alive de ese portal.

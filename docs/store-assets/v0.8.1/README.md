@@ -113,11 +113,13 @@ exactamente 1280x800. Requiere `playwright` (con Chromium instalado) y
 ## Que falta y quien lo hace
 
 Este material queda listo para usar; la subida a la ficha de Chrome Web Store
-la hace Patricio. Estado al 29/09/2026, con la 0.8.1 ya publicada: la ficha
-pública muestra cinco capturas que son las maquetas sintéticas de la 0.7.0
-(`docs/store-assets/v0.7.0`), sin datos reales, y ya no las de la 0.6.1. Estas
-cinco de la 0.8.1 no se subieron. La pausa del proyecto (25/09/2026) quedó sin
-efecto el 29/09/2026 para publicar la 0.8.1. La purga
+la hace el titular. Estado al 29/09/2026, con la 0.8.1 ya publicada: ese día se
+abrieron una por una las cinco capturas de la ficha pública, y son las cinco
+promocionales sintéticas de `docs/store-assets/v0.7.0` (causas unificadas,
+alertas por expediente, plazos, importar todo y descargar expediente), sin datos
+reales; ya no figuran las de la 0.6.1. Estas cinco de la 0.8.1 no se subieron.
+Por decisión del titular, la pausa del proyecto (25/09/2026) quedó sin efecto
+el 29/09/2026 para publicar la 0.8.1. La purga
 del historial de git que sacaba las capturas viejas de la historia se hizo el
-09/09/2026 (commit `a4957c8`). El seguimiento vive en el mapa de pendientes del
-ecosistema del estudio, fuera de este repositorio (identificador P2).
+09/09/2026 (commit `a4957c8`). El seguimiento vive en el registro de pendientes
+del titular, fuera de este repositorio.

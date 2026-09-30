@@ -16,7 +16,7 @@ ProcuAsist es una extension de Chrome para abogados argentinos que automatiza ta
 
 ProcuAsist puede almacenar localmente:
 
-1. **Credenciales de portales judiciales**: usuario y contrasena de los portales configurados por el usuario. Se guardan cifradas con AES-256-GCM. La clave de cifrado se genera automaticamente en el dispositivo y se guarda en el almacenamiento local del navegador; la clave no sale de la computadora del usuario, y las credenciales solo se envían al portal correspondiente cuando la extensión inicia sesión en él, nunca a servidores de ProcuAsist ni de terceros.
+1. **Credenciales de portales judiciales**: usuario y contraseña de los portales configurados por el usuario. Se guardan cifradas con AES-256-GCM. La clave de cifrado se genera automáticamente en el dispositivo y se guarda en el almacenamiento local del navegador; la clave no sale de la computadora del usuario, y las credenciales solo se envían al portal correspondiente cuando la extensión inicia sesión en él, nunca a servidores de ProcuAsist ni de terceros.
 2. **Marcadores de causas**: portal, numero de expediente, caratula, juzgado, URL y metadatos necesarios para volver a abrir la causa.
 3. **Causas monitoreadas**: causas elegidas por el usuario para recibir alertas de movimientos.
 4. **Alertas y movimientos detectados**: informacion procesal visible en los portales judiciales, guardada localmente para mostrar novedades en el panel lateral.
@@ -35,7 +35,7 @@ Ninguno de estos datos se envia a servidores de ProcuAsist.
 | `sidePanel` | Mostrar el panel lateral de ProcuAsist con marcadores, monitoreo y ajustes. |
 | `activeTab` | Leer o interactuar con la pestana activa solo cuando el usuario inicia una accion desde la extension. |
 | `scripting` | Inyectar scripts de contenido en los portales judiciales declarados para leer causas, completar login o descargar documentos. |
-| `tabs` | Abrir pestañas de portales judiciales cuando el usuario hace click en una causa o acción. Durante una descarga de la MEV iniciada por el usuario, también puede abrir una pestaña normal de la MEV para recuperar un documento cuando el portal muestra su verificación, y una página propia de la extensión, en segundo plano, desde la que baja los adjuntos de `docs.scba.gov.ar` con más tiempo de espera; esa página se cierra al terminar. Lo que se lee en esas pestañas se procesa en el navegador y no sale de él hacia servidores de ProcuAsist ni de terceros. |
+| `tabs` | Abrir pestañas de portales judiciales cuando el usuario hace clic en una causa o acción. Durante una descarga de la MEV iniciada por el usuario, también puede abrir una pestaña normal de la MEV para recuperar un documento cuando el portal muestra su verificación, y una página propia de la extensión, en segundo plano, desde la que baja los adjuntos de `docs.scba.gov.ar` con más tiempo de espera; esa página se cierra al terminar. Lo que se lee en esas pestañas se procesa en el navegador y no sale de él hacia servidores de ProcuAsist ni de terceros. |
 | `downloads` | Descargar al disco del usuario los ZIP/PDF generados por la extension. |
 | `webRequest` | Leer, de forma restringida, el encabezado de autorizacion enviado por PJN a `https://api.pjn.gov.ar/*` para reutilizar el token contra la API oficial. |
 
@@ -65,7 +65,13 @@ La extension no se inyecta en otros sitios.
 
 ## Comunicaciones externas
 
-Las comunicaciones externas ocurren solo cuando el usuario usa funciones de la extension sobre portales judiciales oficiales:
+Las comunicaciones externas se dirigen solo a los portales judiciales oficiales declarados y, si el usuario lo elige, a Cafecito.app. Algunas ocurren sin que el usuario inicie cada vez una acción:
+
+- **Mantener sesión**: viene activo de fábrica y se puede apagar en Ajustes, por portal. Cada 4 minutos manda un pedido al portal (MEV o PJN) que tenga una pestaña abierta, para que la sesión no venza.
+- **Monitoreo de causas**: cada 6 horas revisa las causas guardadas con avisos activos. En la MEV consulta el portal a través de una pestaña abierta con sesión; en PJN usa por lo general la API oficial de novedades, con el token capturado del propio portal.
+- **Reconexión automática**: viene activa de fábrica. Si una pestaña del portal vuelve a la pantalla de inicio de sesión y hay credenciales guardadas, la extensión inicia sesión con ellas.
+
+Además, cuando el usuario usa funciones de la extensión:
 
 - MEV/SCBA y documentos asociados para consultar causas y descargar adjuntos.
 - PJN/SCW y API oficial de PJN para consultar listados, novedades y documentos permitidos por el portal.
