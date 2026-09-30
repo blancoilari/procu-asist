@@ -1,4 +1,4 @@
-# ProcuAsist - Guía rápida (v0.8.0)
+# ProcuAsist - Guía rápida (v0.8.1)
 
 Una página con los pasos esenciales. Para el detalle completo, ver `manual-usuario.md`.
 
@@ -38,6 +38,9 @@ Una página con los pasos esenciales. Para el detalle completo, ver `manual-usua
 1. Clic en el botón de descarga de la botonera flotante, dentro de la causa.
 2. En el modal "Seleccionar pasos procesales a descargar", dejá todos tildados o elegí los que quieras.
 3. Clic en **"ZIP (N)"** (un PDF por paso + resumen) o en **"Un PDF (N)"** (todo junto en un solo archivo).
+4. No cierres ni cambies de página en esa pestaña mientras descarga. El avance vale solo para esa descarga: si la extensión se reinicia o se actualiza en el medio, se corta sin guardar ningún archivo y hay que empezar de nuevo.
+5. Si la MEV muestra su pantalla de verificación, ProcuAsist puede abrir el documento en una pestaña normal y esperar a que el portal lo muestre (no resuelve desafíos). Si no aparece, la descarga se detiene, entrega lo bajado con un informe de pendientes y ofrece **"Bajar los que faltan"**. Esta recuperación todavía no se comprobó frente a una verificación real de la MEV.
+6. Si elegiste **"Un PDF"** y algún adjunto no puede incorporarse, recibís un ZIP con los originales, el PDF de consulta y un aviso.
 
 **En PJN:**
 1. Clic en el botón de descarga dentro del expediente en scw.pjn.gov.ar.
@@ -74,7 +77,8 @@ Una página con los pasos esenciales. Para el detalle completo, ver `manual-usua
 2. El badge rojo **NOVEDAD** marca causas con movimientos sin leer.
 3. Clic en una tarjeta: abre la causa y la marca leída. O usá **"Marcar todas como leídas"**.
 4. Para buscar desde una fecha puntual: campo **"Desde"** + botón **"Buscar movimientos desde esa fecha"** (necesita el portal abierto con sesión activa).
-5. En MEV, el escaneo automático usa un atajo por **novedades de set** (beta): consulta tus sets en una sola pasada y solo re-lee lo que se movió. Se apaga en Ajustes; el botón **"Escanear ahora"** siempre revisa causa por causa.
+5. En MEV podés activar en Ajustes un atajo por **novedades de set** (beta, viene desactivado): consulta tus sets en una sola pasada y solo re-lee lo que se movió. El botón **"Escanear ahora"** siempre revisa causa por causa.
+6. Si la MEV muestra su pantalla de verificación durante un escaneo, el barrido queda incompleto y marca causas pendientes (el monitoreo no usa la recuperación de la descarga). Abrí la MEV, comprobá la sesión y volvé a escanear.
 
 **Plazos:**
 1. Panel lateral, pestaña **Plazos**.
@@ -85,4 +89,4 @@ Una página con los pasos esenciales. Para el detalle completo, ver `manual-usua
 
 ---
 
-*ProcuAsist v0.8.0 - Copiloto Legal para Abogados Argentinos. Manual completo en `docs/manual-usuario.md`.*
+*ProcuAsist v0.8.1 - Copiloto Legal para Abogados Argentinos. Manual completo en `docs/manual-usuario.md`.*

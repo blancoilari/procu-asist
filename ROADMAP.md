@@ -6,14 +6,14 @@ Este roadmap marca prioridades, no promesas cerradas. El orden puede cambiar seg
 
 ## Estado: mantenimiento y publicación retomados el 29/09/2026
 
-Por pedido del titular se prepara la versión 0.8.1, con recuperación de descargas MEV, informes de pendientes y correcciones de integridad. Las ideas de versiones posteriores se conservan como referencia, no como compromisos de entrega.
+Por pedido del titular se preparó y se publicó la versión 0.8.1 (publicada en Chrome Web Store, verificado el 29/09/2026), con un intento de recuperación de descargas MEV, informes de pendientes y correcciones de integridad. Las ideas de versiones posteriores se conservan como referencia, no como compromisos de entrega.
 
 Los pendientes internos de este repositorio no se llevan aca: viven en el mapa de pendientes del ecosistema del estudio (`proyectos\MAPA_PENDIENTES_2026-09-26.md`, fuera de este repositorio; identificadores P1 a P6).
 
 ## Version actual
 
-- Publicada en Chrome Web Store: **v0.8.0** (publicada; confirmado por Patricio el 2026-07-19).
-- En este repositorio: **v0.8.1** (preparada el 29/09/2026 para revisión, todavía sin publicar).
+- Publicada en Chrome Web Store: **v0.8.1** (verificado el 29/09/2026 con el servicio de actualizaciones de Chrome y en la ficha pública).
+- En este repositorio: **v0.8.1**, la misma versión publicada.
 - Ideas para una proxima version: Patricio las anota en un documento propio fuera del repositorio.
 
 Lo que ya existe:
@@ -25,8 +25,14 @@ Lo que ya existe:
 - **Credenciales locales**: cifrado AES-GCM con clave de dispositivo automatica (sin PIN desde la 0.8.0).
 - **Modelo local-first**: los datos se guardan en el navegador; no hay backend obligatorio.
 
-Preparado en la v0.8.1 (sin publicar):
+Publicado en la v0.8.1 (Store, verificado el 29/09/2026):
 
+- **Descarga MEV que no saltea documentos por su cuenta**: ante la verificación de la MEV se pausa o se detiene en vez de saltear, entrega lo bajado con un informe fechado de pendientes, nombra los archivos por fecha y ofrece "Bajar los que faltan".
+- **Recuperación en una pestaña normal**: si la MEV contesta con su verificación al pedir un proveído, la extensión abre ese documento en una pestaña normal y espera a que el portal lo muestre, sin resolver desafíos. Está implementada y cubierta por pruebas unitarias, pero no se demostró frente a una verificación real: en la prueba asistida del 29/09/2026 (131 documentos y 22 adjuntos) no se puso en marcha.
+- **Adjuntos lentos**: los de docs.scba.gov.ar tienen tiempo adicional para descargarse.
+- **PDF único con respaldo**: si un adjunto no puede incorporarse al PDF único, se entrega un ZIP con los originales, el PDF de consulta y un aviso.
+- **Escaneos parciales a la vista**: un barrido que no pudo leer todas las causas se informa como incompleto, con las causas pendientes. El monitoreo no usa la recuperación de la descarga y puede dejar causas pendientes ante la verificación de la MEV.
+- **Límite del avance**: lo bajado se conserva solo durante la ejecución en curso; si la extensión se reinicia o se actualiza en el medio, la descarga se corta sin guardar ningún archivo.
 - **Sin JusCABA/EJE**: se retiro el soporte del portal EJE. Salieron el permiso de host `https://eje.jus.gov.ar/*`, el content script, los parsers y selectores, el keep-alive, el color y la etiqueta de portal. El auto-login SSO contra Keycloak, que compartia archivo con EJE, quedo en `entrypoints/sso.content.ts` y sigue sirviendo a PJN.
 - **Credenciales de portales retirados**: al arrancar, la extension borra las credenciales guardadas de EJE (`tl_cred_eje`), que ya no pueden usarse, y la alarma de keep-alive de ese portal.
 - **Dependencias de desarrollo al dia**: `npm audit` de 18 vulnerabilidades (3 criticas) a 0, sin cambios en lo que se instala en el navegador.

@@ -1,4 +1,4 @@
-# ProcuAsist - Manual de Usuario (v0.8.0)
+# ProcuAsist - Manual de Usuario (v0.8.1)
 
 ## Índice
 
@@ -162,6 +162,10 @@ Sobre este modo, tres aclaraciones prudentes:
 - Ante cualquier falla del portal, ProcuAsist abandona el atajo solo y escanea todo causa por causa; además, al menos una vez por día hace un barrido completo aunque el atajo esté funcionando.
 - El botón **"Escanear ahora" siempre revisa causa por causa**, sin atajo: es tu forma de verificar todo cuando tengas dudas.
 
+### 4.6. Monitoreo ante verificaciones de la MEV
+
+El monitoreo y la descarga son recorridos distintos: el monitoreo no usa la recuperación en una pestaña normal que tiene la descarga (ver 6.1). Cuando la MEV muestra su pantalla de verificación, el barrido puede dejar causas sin leer. Si encuentra una verificación, la sesión venció o hubo errores, muestra causas pendientes y no declara el barrido completo: junto a "Escanear ahora" vas a ver cuántas causas se leyeron y cuántas quedaron pendientes, y el barrido "Buscar movimientos desde esa fecha" (punto 5.4) avisa "Barrido incompleto". Abrí el portal, comprobá que la sesión funcione y volvé a intentar el escaneo. Las causas no leídas conservan su estado anterior.
+
 ---
 
 ## 5. Alertas
@@ -211,7 +215,13 @@ Este barrido necesita que tengas una pestaña abierta y con sesión activa del p
 
 Durante una descarga grande se muestra el avance y el tiempo estimado. La duración depende de los documentos y de la respuesta del portal. No cierres ni cambies de página en la pestaña desde la que comenzaste.
 
-Si aparece la verificación, ProcuAsist puede abrir una pestaña de recuperación y esperar a que la MEV complete su validación normal. Si te pide iniciar sesión o intervenir, hacelo en esa pestaña. Si no se recupera el acceso, se conserva lo descargado y se informa lo pendiente. Los controles permiten esperar, detener y guardar, o cancelar. ProcuAsist no resuelve desafíos del portal.
+El avance se conserva solo mientras dura esa descarga. Si la extensión se reinicia o se actualiza en el medio (o se cierra Chrome), la descarga se corta sin guardar ningún archivo y hay que volver a empezarla.
+
+Si la MEV contesta con su pantalla de verificación al pedir un proveído, ProcuAsist abre ese documento en una pestaña normal de la MEV (se abre al frente) y espera a que el portal complete su validación normal; si el documento aparece, lo toma de esa pestaña, la cierra y sigue. ProcuAsist no resuelve desafíos del portal. Si la verificación te pide una acción, hacela en esa pestaña: la espera dura hasta tres minutos. Si el documento no aparece (por ejemplo, porque la pestaña queda en la verificación o muestra el inicio de sesión), la descarga se detiene, conserva lo descargado e informa lo pendiente; la pestaña queda abierta para que revises el portal, y después podés usar **"Bajar los que faltan"**.
+
+Tené presente que esta recuperación todavía no se comprobó frente a una verificación real de la MEV: en la prueba asistida del 29/09/2026 ninguna verificación la puso en marcha. En las otras pausas (por ejemplo, si se cerró la sesión o si un adjunto de la MEV recibe la verificación), los controles permiten esperar, detener y guardar, o cancelar.
+
+Los adjuntos de docs.scba.gov.ar pueden tardar en responder: ProcuAsist los baja desde una página propia de la extensión, que se abre en segundo plano, les da más tiempo y se cierra sola al terminar.
 
 Si elegiste PDF único y algún adjunto no se puede incorporar, se entrega un ZIP con los archivos originales, el PDF de consulta y un aviso. Así se conservan también los adjuntos incompatibles. Un archivo corrupto conserva lo recibido, pero puede requerir una nueva descarga desde el portal.
 
@@ -361,7 +371,7 @@ Si tenías la auto-reconexión activada (interruptor en Ajustes) y hay credencia
 
 Depende del portal:
 
-- **En MEV**, el escaneo automático necesita sí o sí que tengas **una pestaña de mev.scba.gov.ar abierta** en ese momento, con sesión iniciada. Sin eso, no hay forma de que ProcuAsist consulte el portal, y esas causas no se revisan. Si pasó mucho tiempo sin pestañas de MEV abiertas, vas a recibir una notificación pidiéndote que abras MEV e inicies sesión. Si tenés activado el escaneo rápido por sets (ver 4.5) y sospechás que se está perdiendo algo, usá "Escanear ahora" (que siempre revisa causa por causa) o apagá el modo beta en Ajustes.
+- **En MEV**, el escaneo automático necesita sí o sí que tengas **una pestaña de mev.scba.gov.ar abierta** en ese momento, con sesión iniciada. Sin eso, no hay forma de que ProcuAsist consulte el portal, y esas causas no se revisan. Si pasó mucho tiempo sin pestañas de MEV abiertas, vas a recibir una notificación pidiéndote que abras MEV e inicies sesión. Si tenés activado el escaneo rápido por sets (ver 4.5) y sospechás que se está perdiendo algo, usá "Escanear ahora" (que siempre revisa causa por causa) o apagá el modo beta en Ajustes. Si la MEV mostró su pantalla de verificación, el escaneo queda incompleto y marca causas pendientes (ver 4.6).
 - **En PJN**, el escaneo funciona por lo general a través del sistema de novedades del propio portal, sin necesitar una pestaña abierta. Solo cuando ese sistema falla (por ejemplo, si la sesión de PJN venció del todo), ProcuAsist recurre a un respaldo que sí necesita una pestaña abierta del listado de causas en SCW (Relacionados o Favoritos) con sesión activa.
 
 Lo mismo aplica al barrido "Buscar movimientos desde esa fecha" de la sección Alertas: si aparece el mensaje "Abrí el portal correspondiente con sesión activa y probá nuevamente", es por esta misma razón.
@@ -426,9 +436,4 @@ Sesión de capturas del 2026-07-03: 16 de las 17 capturas ya están tomadas en v
 - **Mail**: blancoilariasistente@gmail.com
 - **GitHub**: https://github.com/blancoilari/procu-asist/issues
 
-*ProcuAsist v0.8.0 - Copiloto Legal para Abogados Argentinos*
-
-
-### Monitoreo ante verificaciones (29/09/2026)
-
-El monitoreo y la descarga son recorridos distintos. Si el barrido encuentra una verificación, la sesión venció o hubo errores, muestra causas pendientes y no declara el barrido completo. Abrí el portal, comprobá que la sesión funcione y volvé a intentar el escaneo. Las causas no leídas conservan su estado anterior.
+*ProcuAsist v0.8.1 - Copiloto Legal para Abogados Argentinos*

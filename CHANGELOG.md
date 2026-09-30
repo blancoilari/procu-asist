@@ -2,6 +2,42 @@
 
 Todos los cambios notables del proyecto se documentan en este archivo.
 
+## [0.8.1] - 2026-09-29
+
+Publicada en Chrome Web Store (verificado el 29/09/2026 con el servicio de actualizaciones de Chrome, que para el identificador de la extensión devuelve la versión 0.8.1, y en la ficha pública). Esta entrada resume la versión publicada; el detalle y las pruebas de cada tramo están en las entradas del 09/09, 22/09, 28/09 y 29/09/2026, más abajo.
+
+### Qué trae
+
+- Retiro del portal EJE/JusCABA y de su permiso de host, con el acceso SSO de PJN conservado, y dependencias de desarrollo al día (entrada [0.8.1] - 2026-09-09).
+- Descarga de expedientes MEV que no saltea documentos por su cuenta: pausa o detención ante la verificación de la MEV, informe fechado de pendientes, nombres de archivo por fecha y "Bajar los que faltan" (entradas del 22/09 y del 28/09/2026).
+- Recuperación mediante una pestaña normal: si la MEV contesta con su pantalla de verificación al pedir un proveído, la extensión abre ese documento en una pestaña normal de la MEV, espera sin resolver ni manipular el verificador y lo lee cuando el portal lo muestra. Si no lo consigue, la descarga se detiene, entrega lo bajado y deja el documento como pendiente.
+- Adjuntos lentos: los de docs.scba.gov.ar se bajan desde una página propia de la extensión, con espera adicional (hasta diez minutos) y cancelación.
+- Escaneos parciales: un barrido de monitoreo que no pudo leer todas las causas se informa como incompleto; el panel cuenta solo las causas leídas y muestra las pendientes por verificación, sesión o error.
+- PDF único con respaldo: si un adjunto no puede incorporarse al PDF único, se entrega un ZIP con los originales, el PDF de consulta y un aviso.
+- Sin permisos nuevos respecto de 0.8.0: el manifest del paquete subido pide los mismos permisos, menos el host del portal retirado.
+
+### Límites
+
+- El monitoreo no usa la recuperación de la descarga. Cuando la MEV muestra su pantalla de verificación, el barrido puede dejar causas pendientes, y hay que volver a intentarlo después de comprobar la sesión en el portal.
+- El avance de una descarga se conserva solo durante la ejecución en curso. Si la extensión se reinicia o se actualiza en el medio, la descarga se corta sin guardar ningún archivo y hay que empezarla de nuevo.
+- En la prueba asistida del 29/09/2026 (131 documentos y 22 adjuntos) ninguna pantalla de verificación puso en marcha la recuperación por pestaña normal. La recuperación está implementada y cubierta por pruebas unitarias, pero no se demostró frente a una verificación real.
+- La extensión no resuelve desafíos del portal ni garantiza que la MEV conceda acceso.
+
+### Paquete y ficha
+
+- Paquete publicado: `procu-asist-0.8.1-chrome.zip`, generado el 29/09/2026 con `npm run zip` (WXT 0.21.4), 616,73 kB (616.728 bytes), SHA-256 `1db749aa37d113d26cc2cceaedd33d18889bd9dad725c8f144297ccf7957fd6b`. La advertencia sobre el zip obsoleto con el mismo nombre está en `docs/release-v0.8.1-assets.md`.
+- Suite: 94 casos con `npm test` y tipos sin errores, según el cierre de preparación del 29/09/2026 (más abajo).
+- Ficha: la descripción pública todavía menciona el PIN maestro, que no existe desde la 0.8.0. La corrección queda pendiente en el panel de la Store. Las cinco capturas publicadas son las maquetas sintéticas de la 0.7.0, sin datos reales.
+
+## [Sin version] - 2026-09-29 (documentación posterior a la publicación)
+
+Solo documentación, sin cambios de código.
+
+- Síntoma: con la 0.8.1 ya publicada, README, ROADMAP, el documento de publicación, el README de las capturas y el banner del plan maestro seguían diciendo que la ficha estaba en 0.8.0, que la 0.8.1 estaba sin publicar o que el proyecto estaba en pausa. La prueba asistida del 29/09 figuraba como comprobación de la recuperación por pestaña normal, que en esa prueba no se puso en marcha. Fuera de una entrada técnica de este archivo, ningún documento decía que el avance de una descarga no sobrevive a un reinicio de la extensión. El documento de publicación no identificaba el paquete subido, aunque hay dos zip con el mismo nombre. El manual y la guía rápida seguían rotulados v0.8.0, la sección del monitoreo del manual había quedado después del pie, la guía rápida presentaba el escaneo rápido por sets como activo de fábrica, PRIVACY no mencionaba las pestañas que abre la descarga y DEVELOPER omitía el mensaje `activity` del canal de la descarga.
+- Causa: la mayoría de esos textos se escribió mientras la 0.8.1 se preparaba y no se releyó después de la publicación; el texto del escaneo rápido en la guía rápida venía de antes.
+- Arreglo: la entrada [0.8.1] de arriba; correcciones fechadas debajo de las entradas contradichas, sin reescribirlas; README, ROADMAP, manual, guía rápida, PRIVACY, DEVELOPER, documento de publicación, README de las capturas y banner del plan maestro al día, con los límites a la vista.
+- Verificación: versión pública consultada el 29/09/2026 en el servicio de actualizaciones de Chrome y en la ficha pública; SHA-256 del zip subido calculado con `sha256sum` y con `Get-FileHash` (coinciden); `manifest.json` del zip leído sin extraerlo y comparado con el de la 0.8.0; 94 casos contados en `tests/`; cero guiones largos en los archivos tocados. No se corrieron `npm test` ni `build`: el cambio es solo de documentación.
+
 ## Recuperación local de MEV - 2026-09-28 (noche)
 
 Pedido expreso de Patricio para retomar este arreglo, con prioridad a completar la descarga aunque demore más. Sin publicación en la Store ni push al repositorio público.
@@ -13,6 +49,8 @@ Pedido expreso de Patricio para retomar este arreglo, con prioridad a completar 
 
 Cierre 29/09/2026: integrado localmente en `descarga-confiable-mev` (9826523), 83 pruebas aprobadas, tipos y build sin errores en el worktree de uso. Carpeta reconstruida: `.output/chrome-mv3`. Pendiente de recarga por el titular y prueba final en Chrome (mapa del ecosistema). No se integró a master ni se publicó.
 
+Corrección del 29/09/2026: estos cambios se integraron después a `master`, se subieron al repositorio público y forman parte de la 0.8.1 publicada en Chrome Web Store (ver [0.8.1] - 2026-09-29, al principio de este archivo). La comprobación en Chrome que consta es la prueba asistida del 29/09/2026, descripta en esa entrada.
+
 ## En pausa - 2026-09-25
 
 Decisión del titular: ProcuAsist queda en pausa y la prioridad pasa a Estudio OS. Esta rama (`descarga-confiable-mev`) no se integra ni se publica por ahora.
@@ -20,6 +58,8 @@ Decisión del titular: ProcuAsist queda en pausa y la prioridad pasa a Estudio O
 - El 23/09/2026 la MEV contestó con su pantalla de verificación a todos los pedidos de la descarga por detrás, aunque la verificación se había pasado a mano en la pestaña (ver la prueba real, abajo).
 - La ayuda oficial de la MEV (sección USUARIOS) dice que sus usuarios "son para ser usados por seres humanos y no por sistemas informáticos o agentes de inteligencia artificial" y que el mal uso "generará el bloqueo de dicho usuario". Antes de publicar la 0.8.1 hay que revisar qué funciones de la MEV quedan: el login automático, el mantener sesión, el monitoreo automático, la importación y la descarga por detrás usan la cuenta del abogado en forma automatizada. Lo que asiste a la persona mientras navega (marcadores, ayudas en la pantalla) es otra cosa.
 - Para retomar: la rama tiene la descarga con portero, pausa, informe y nombres por fecha (probada contra el portal salvo la bajada real), el mantener sesión que no insiste durante un bloqueo y los arreglos de la prueba del 23/09. Hay una copia completa del repositorio con esta rama en un paquete de git fuera del repo (ver la memoria del proyecto).
+
+Corrección del 29/09/2026: la pausa quedó sin efecto para este arreglo por decisión del titular. La rama `descarga-confiable-mev` se integró a `master`, se subió al repositorio público y su contenido se publicó en la 0.8.1 (ver [0.8.1] - 2026-09-29).
 
 ## [Sin version] - 2026-09-22
 
@@ -105,6 +145,8 @@ Decision del titular: ProcuAsist queda en pausa y la prioridad pasa a otro siste
 - La ayuda oficial de la MEV (seccion USUARIOS) dice que sus usuarios "son para ser usados por seres humanos y no por sistemas informáticos o agentes de inteligencia artificial" y que el mal uso "generará el bloqueo de dicho usuario". Antes de publicar la 0.8.1 hay que revisar que funciones de la MEV quedan: el login automatico, el mantener sesion, el monitoreo automatico, la importacion y la descarga por detras usan la cuenta del abogado en forma automatizada. Lo que asiste a la persona mientras navega (marcadores, ayudas en la pantalla) es otra cosa.
 - Para retomar: revision de las automatizaciones frente a la regla, prueba real de la bajada y decision de publicar. La rama queda en un worktree local y en un paquete de git fuera del repositorio; no se sube al repositorio publico.
 
+Corrección del 29/09/2026: la pausa quedó sin efecto para este arreglo. La rama se integró a `master`, se subió al repositorio público y se publicó en la 0.8.1 (ver [0.8.1] - 2026-09-29).
+
 ## [Sin version] - 2026-09-09
 
 Dos cambios sobre la descarga de expedientes: cortar cuando la MEV interpone su pantalla de verificacion, y sacarle la marca al PDF que baja el usuario.
@@ -145,6 +187,8 @@ Limpieza de auditoria, sin cambios de producto.
 
 Version de retiro del portal EJE/JusCABA y puesta al dia de dependencias de desarrollo. Sin funciones nuevas.
 
+Corrección del 29/09/2026: la 0.8.1 no se publicó con este contenido solo. Antes de subirla se le sumaron los cambios de la descarga de la MEV (22/09 a 29/09/2026), así que la 0.8.1 publicada sí trae funciones nuevas. El resumen de la versión publicada está en [0.8.1] - 2026-09-29, al principio de este archivo.
+
 ### Se retira el soporte de EJE / JusCABA
 
 - El soporte era codigo muerto: el manifest pedia permiso de host sobre `https://eje.jus.gov.ar/*`, un dominio que no resuelve, y el portal estaba oculto de la interfaz desde la 0.6.7.
@@ -160,6 +204,9 @@ Version de retiro del portal EJE/JusCABA y puesta al dia de dependencias de desa
 
 - `npm audit` pasa de 18 vulnerabilidades (3 criticas) a 0. Ninguna dependencia de produccion (lo que se empaqueta y corre en el navegador) cambio de version: todo lo que se subio es tooling.
 - `npm audit fix` cierra siete (18 a 11). Las once restantes colgaban de `web-ext-run`, el runner de Firefox que arrastra `wxt` (diez de ellas, las tres criticas incluidas), y de `sharp` (una, alta, por libvips): se cierran subiendo `wxt` de 0.20.20 a 0.21.x y `sharp` de 0.34 a 0.35. El `manifest.json` que genera la build nueva difiere del de la 0.20 en un solo campo agregado por la herramienta, `options_ui.open_in_tab: false`, que es el valor por defecto de Chrome cuando el campo no esta; el resto de los campos y el listado de archivos del ZIP quedan igual salvo el content script del portal retirado. Aun asi es un salto de version de la herramienta de empaquetado: antes de subir a la Store hay que probar la extension cargada (checklist en `docs/release-v0.8.1-assets.md`).
+
+  Corrección del 29/09/2026: ese checklist ya no está en `docs/release-v0.8.1-assets.md`. Se retiró el 29/09/2026 sin que conste completado, y la versión anterior del documento sigue en la historia de git. El paquete publicado se armó con WXT 0.21.4 (ver [0.8.1] - 2026-09-29). La prueba con la extensión cargada que consta es la prueba asistida de descarga MEV del 29/09/2026; del resto del checklist (por ejemplo, el auto-login de PJN por SSO o un perfil que venga de la 0.8.0) no hay registro de prueba.
+
 - `wxt` 0.21 activa `noUncheckedIndexedAccess` en el tsconfig que genera, lo que saca a la luz 108 errores de tipos preexistentes en 19 archivos (los mas cargados: `pjn-zip-generator.ts` con 20, `pjn-zip-ui.ts` con 16, `case-zip-generator.ts` con 12, `mev.content.ts` con 11, `mev-parser.ts` con 10). Ninguno lo introduce esta version. Se deja la regla explicitamente apagada en `tsconfig.json` para conservar el nivel de chequeo que el proyecto ya tenia; ponerla en verde es un trabajo propio, no de una version que va a revision de la Store.
 
 ## [0.8.0] - 2026-07-07
@@ -420,6 +467,8 @@ La prueba de un expediente grande mostró que las esperas no resolvían la verif
 
 Los archivos de docs.scba se descargan desde una página de extensión con hasta diez minutos de espera, cancelación y transferencia por bloques al fondo. No se amplían permisos. Pruebas locales: 90 tests, compilación de tipos y build. Revisión de fallos: cierre de pestaña, cancelación, origen del canal, conservación del resultado parcial ante fallo al crear la pestaña y rechazo de otro documento. La recuperación real en Chrome requiere recargar y probar; todavía no se validó un expediente completo con esta variante. No modifica el escaneo de Estudio OS ni publica la rama.
 
+Corrección del 29/09/2026: la rama se integró y se publicó como 0.8.1. Con esta variante se hizo después la prueba asistida de 131 documentos y 22 adjuntos, pero ninguna pantalla de verificación puso en marcha la recuperación: sigue sin demostrarse frente a una verificación real (ver [0.8.1] - 2026-09-29).
+
 ## 29/09/2026: integridad de publicación
 
 La revisión previa a publicar detectó dos falsos resultados completos. El panel ahora informa barridos incompletos y cuenta solo causas leídas, con pendientes por verificación, sesión o error. La recuperación por navegación continúa siendo propia de la descarga, no del monitoreo.
@@ -431,8 +480,14 @@ Si un adjunto no puede incorporarse al PDF único, se entrega un ZIP que conserv
 
 El titular pide integrar, hacer push y preparar la actualización de Store, dejando sin efecto la pausa de publicación anterior para este arreglo. Se actualizaron README, manual, roadmap y material de la ficha. La descarga por navegación normal se comprobó en una prueba asistida de 131 documentos y 22 adjuntos. La ficha pública sigue en 0.8.0 al verificarla hoy. Se distingue el monitoreo, que puede dejar pendientes ante verificación, de la recuperación de descargas. Los cambios no conectan con Estudio OS ni agregan permisos. Revisión adversarial de los ajustes de integridad aprobada; 94/94 pruebas y tipos correctos.
 
+Corrección del 29/09/2026: la prueba asistida comprobó la descarga de 131 documentos y 22 adjuntos, no la recuperación por navegación normal. En esa prueba ninguna pantalla de verificación la puso en marcha: la recuperación está implementada y cubierta por pruebas unitarias, pero no se demostró frente a una verificación real. La ficha pública pasó después a 0.8.1 (ver la corrección de la confirmación, abajo, y [0.8.1] - 2026-09-29).
+
 Paquete final reconstruido el 29/09/2026 con npm run zip (WXT 0.21.4): versión 0.8.1, 616.73 kB. Se comprobó manifest, ausencia de secretos/configuración local y de nativeMessaging en el ZIP. Build correcto. El envío a revisión y la aprobación de Google se registran por separado, no se dan por hechos.
+
+Corrección del 29/09/2026: el tamaño es 616,73 kB (616.728 bytes) y el SHA-256 del archivo subido es `1db749aa37d113d26cc2cceaedd33d18889bd9dad725c8f144297ccf7957fd6b`. La publicación de la 0.8.1 quedó verificada el 29/09/2026 (ver [0.8.1] - 2026-09-29).
 
 ### 29/09/2026: confirmación del panel de publicación
 
 El titular confirmó la carga del ZIP 0.8.1 en la ficha existente y luego informó que el panel muestra la versión publicada 0.8.1. Se registra como confirmación del titular: el control de la consola no estuvo disponible y la última consulta de la ficha pública todavía devolvió 0.8.0. No se comprobó de forma independiente la propagación de la versión, descripción y capturas. El paquete y sus pruebas no cambiaron desde el cierre anterior.
+
+Corrección del 29/09/2026: la versión pública se comprobó después en forma independiente: el servicio de actualizaciones de Chrome y la ficha pública devuelven 0.8.1. La descripción de la ficha todavía menciona el PIN maestro, que no existe desde la 0.8.0, y su corrección queda pendiente en el panel de la Store. Las cinco capturas de la ficha son las maquetas sintéticas de la 0.7.0, sin datos reales.

@@ -1,6 +1,6 @@
 # Politica de Privacidad - ProcuAsist
 
-**Ultima actualizacion:** 2026-09-09
+**Ultima actualizacion:** 29/09/2026 (v0.8.1)
 
 ProcuAsist es una extension de Chrome para abogados argentinos que automatiza tareas repetitivas en portales judiciales: MEV/SCBA y PJN/SCW. Esta politica explica que datos maneja la extension, donde se guardan y como se protegen.
 
@@ -35,7 +35,7 @@ Ninguno de estos datos se envia a servidores de ProcuAsist.
 | `sidePanel` | Mostrar el panel lateral de ProcuAsist con marcadores, monitoreo y ajustes. |
 | `activeTab` | Leer o interactuar con la pestana activa solo cuando el usuario inicia una accion desde la extension. |
 | `scripting` | Inyectar scripts de contenido en los portales judiciales declarados para leer causas, completar login o descargar documentos. |
-| `tabs` | Abrir pestanas de portales judiciales cuando el usuario hace click en una causa o accion. |
+| `tabs` | Abrir pestanas de portales judiciales cuando el usuario hace click en una causa o accion. Durante una descarga de la MEV iniciada por el usuario, también puede abrir una pestaña normal de la MEV para recuperar un documento cuando el portal muestra su verificación, y una página propia de la extensión, en segundo plano, desde la que baja los adjuntos de `docs.scba.gov.ar` con más tiempo de espera; esa página se cierra al terminar. Lo que se lee en esas pestañas se procesa en el navegador y no sale de él hacia servidores de ProcuAsist ni de terceros. |
 | `downloads` | Descargar al disco del usuario los ZIP/PDF generados por la extension. |
 | `webRequest` | Leer, de forma restringida, el encabezado de autorizacion enviado por PJN a `https://api.pjn.gov.ar/*` para reutilizar el token contra la API oficial. |
 
