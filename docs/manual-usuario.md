@@ -92,7 +92,7 @@ Para que ProcuAsist pueda iniciar sesión automáticamente en los portales judic
 
 En la segunda pantalla de la bienvenida, completá usuario y contraseña de cada portal y hacé clic en **"Guardar"**. El paso no te deja avanzar sin guardarlas o sin tildar explícitamente que preferís cargarlas más tarde: es la pieza que hace funcionar el auto-login y la reconexión automática.
 
-**No hay PIN**: las credenciales se cifran con AES-256-GCM usando una clave generada automáticamente en tu computadora. Quedan cifradas **exclusivamente en tu navegador**: ProcuAsist no tiene servidores, nunca viajan a internet, ni siquiera a un servidor del autor. Tené presente que cualquiera que use tu perfil de Chrome desbloqueado puede usar la extensión, así que si compartís la computadora, cerrá tu sesión de Windows o usá un perfil de Chrome propio.
+**No hay PIN**: las credenciales se cifran con AES-256-GCM usando una clave generada automáticamente en tu computadora. Quedan cifradas **exclusivamente en tu navegador**: ProcuAsist no tiene servidores, y las credenciales solo viajan al portal correspondiente cuando ProcuAsist inicia sesión por vos, nunca a un servidor del autor ni de terceros. Tené presente que cualquiera que use tu perfil de Chrome desbloqueado puede usar la extensión, así que si compartís la computadora, cerrá tu sesión de Windows o usá un perfil de Chrome propio.
 
 ### 3.2. Cargarlas o cambiarlas después (Ajustes)
 
@@ -219,7 +219,7 @@ El avance se conserva solo mientras dura esa descarga. Si la extensión se reini
 
 Si la MEV contesta con su pantalla de verificación al pedir un proveído, ProcuAsist abre ese documento en una pestaña normal de la MEV (se abre al frente) y espera a que el portal complete su validación normal; si el documento aparece, lo toma de esa pestaña, la cierra y sigue. ProcuAsist no resuelve desafíos del portal. Si la verificación te pide una acción, hacela en esa pestaña: la espera dura hasta tres minutos. Si el documento no aparece (por ejemplo, porque la pestaña queda en la verificación o muestra el inicio de sesión), la descarga se detiene, conserva lo descargado e informa lo pendiente; la pestaña queda abierta para que revises el portal, y después podés usar **"Bajar los que faltan"**.
 
-Tené presente que esta recuperación todavía no se comprobó frente a una verificación real de la MEV: en la prueba asistida del 29/09/2026 ninguna verificación la puso en marcha. En las otras pausas (por ejemplo, si se cerró la sesión o si un adjunto de la MEV recibe la verificación), los controles permiten esperar, detener y guardar, o cancelar.
+Tené presente que esta recuperación todavía no se comprobó frente a una verificación real de la MEV: en la prueba asistida del 29/09/2026 ninguna verificación la puso en marcha. Con un adjunto de la MEV o con la sesión cerrada no hay recuperación: aparece una pausa. Si un adjunto recibe la verificación, **"Esperar y seguir"** reintenta después de una espera; si se cerró la sesión, iniciá sesión en otra pestaña de la MEV (no en la de la descarga) y tocá **"Seguir"**. En las dos pausas también podés detener y guardar lo bajado, o cancelar sin guardar. Si la verificación persiste, la descarga se detiene sola y entrega lo bajado con la lista de pendientes.
 
 Los adjuntos de docs.scba.gov.ar pueden tardar en responder: ProcuAsist los baja desde una página propia de la extensión, que se abre en segundo plano, les da más tiempo y se cierra sola al terminar.
 
@@ -347,7 +347,7 @@ El archivo que se descarga (un .json) incluye tus causas guardadas, los monitore
 
 ### 9.2. Qué NO incluye, nunca
 
-**El backup nunca incluye tus credenciales de los portales ni la clave de cifrado.** Es intencional: ese material sensible no sale de tu computadora bajo ninguna circunstancia, ni siquiera en un archivo de resguardo. Si pasás tus datos a otra computadora con este backup, vas a tener que volver a cargar las credenciales de los portales ahí.
+**El backup nunca incluye tus credenciales de los portales ni la clave de cifrado.** Es intencional: ese material sensible no se exporta bajo ninguna circunstancia, ni siquiera en un archivo de resguardo. Si pasás tus datos a otra computadora con este backup, vas a tener que volver a cargar las credenciales de los portales ahí.
 
 ### 9.3. Cómo se importa: es un agregado, no un reemplazo
 
@@ -411,7 +411,7 @@ Es esperable: el interruptor de modo oscuro de ProcuAsist (en Ajustes) cambia la
 
 ProcuAsist funciona enteramente en tu computadora: no hay backend propio para la versión gratuita ni servidores del autor que reciban tus datos. Tus causas, alertas, plazos y credenciales cifradas se guardan únicamente en el almacenamiento local de Chrome, en tu perfil de usuario.
 
-Las credenciales de los portales se cifran con AES-256-GCM usando una clave generada automáticamente que existe solo en tu navegador: nunca viajan a internet y el autor de la extensión no puede leerlas. La clave vive en tu perfil de Chrome, así que quien use tu computadora con tu sesión abierta podría usar la extensión: si compartís la máquina, usá un perfil de Chrome propio o bloqueá tu sesión.
+Las credenciales de los portales se cifran con AES-256-GCM usando una clave generada automáticamente que existe solo en tu navegador: solo viajan al portal correspondiente cuando ProcuAsist inicia sesión por vos, y el autor de la extensión no puede leerlas. La clave vive en tu perfil de Chrome, así que quien use tu computadora con tu sesión abierta podría usar la extensión: si compartís la máquina, usá un perfil de Chrome propio o bloqueá tu sesión.
 
 ProcuAsist es una herramienta complementaria: no reemplaza el control manual de las actuaciones judiciales ni el criterio profesional del abogado. Se ofrece "tal cual", sin garantías de ningún tipo.
 

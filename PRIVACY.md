@@ -1,6 +1,6 @@
 # Politica de Privacidad - ProcuAsist
 
-**Ultima actualizacion:** 29/09/2026 (v0.8.1)
+**Última actualización:** 29/09/2026 (v0.8.1)
 
 ProcuAsist es una extension de Chrome para abogados argentinos que automatiza tareas repetitivas en portales judiciales: MEV/SCBA y PJN/SCW. Esta politica explica que datos maneja la extension, donde se guardan y como se protegen.
 
@@ -16,7 +16,7 @@ ProcuAsist es una extension de Chrome para abogados argentinos que automatiza ta
 
 ProcuAsist puede almacenar localmente:
 
-1. **Credenciales de portales judiciales**: usuario y contrasena de los portales configurados por el usuario. Se guardan cifradas con AES-256-GCM. La clave de cifrado se genera automaticamente en el dispositivo y se guarda en el almacenamiento local del navegador; ni las credenciales ni la clave salen de la computadora del usuario.
+1. **Credenciales de portales judiciales**: usuario y contrasena de los portales configurados por el usuario. Se guardan cifradas con AES-256-GCM. La clave de cifrado se genera automaticamente en el dispositivo y se guarda en el almacenamiento local del navegador; la clave no sale de la computadora del usuario, y las credenciales solo se envían al portal correspondiente cuando la extensión inicia sesión en él, nunca a servidores de ProcuAsist ni de terceros.
 2. **Marcadores de causas**: portal, numero de expediente, caratula, juzgado, URL y metadatos necesarios para volver a abrir la causa.
 3. **Causas monitoreadas**: causas elegidas por el usuario para recibir alertas de movimientos.
 4. **Alertas y movimientos detectados**: informacion procesal visible en los portales judiciales, guardada localmente para mostrar novedades en el panel lateral.
@@ -31,11 +31,11 @@ Ninguno de estos datos se envia a servidores de ProcuAsist.
 | --- | --- |
 | `storage` | Guardar localmente credenciales cifradas, marcadores, monitores, alertas y preferencias. |
 | `alarms` | Programar chequeos periodicos de causas monitoreadas. |
-| `notifications` | Mostrar notificaciones del navegador cuando hay novedades en causas monitoreadas. |
+| `notifications` | Mostrar notificaciones del navegador cuando hay novedades en causas monitoreadas, y avisos de la propia extensión, por ejemplo un plazo por vencer, una sesión vencida o una descarga de la MEV en pausa. |
 | `sidePanel` | Mostrar el panel lateral de ProcuAsist con marcadores, monitoreo y ajustes. |
 | `activeTab` | Leer o interactuar con la pestana activa solo cuando el usuario inicia una accion desde la extension. |
 | `scripting` | Inyectar scripts de contenido en los portales judiciales declarados para leer causas, completar login o descargar documentos. |
-| `tabs` | Abrir pestanas de portales judiciales cuando el usuario hace click en una causa o accion. Durante una descarga de la MEV iniciada por el usuario, también puede abrir una pestaña normal de la MEV para recuperar un documento cuando el portal muestra su verificación, y una página propia de la extensión, en segundo plano, desde la que baja los adjuntos de `docs.scba.gov.ar` con más tiempo de espera; esa página se cierra al terminar. Lo que se lee en esas pestañas se procesa en el navegador y no sale de él hacia servidores de ProcuAsist ni de terceros. |
+| `tabs` | Abrir pestañas de portales judiciales cuando el usuario hace click en una causa o acción. Durante una descarga de la MEV iniciada por el usuario, también puede abrir una pestaña normal de la MEV para recuperar un documento cuando el portal muestra su verificación, y una página propia de la extensión, en segundo plano, desde la que baja los adjuntos de `docs.scba.gov.ar` con más tiempo de espera; esa página se cierra al terminar. Lo que se lee en esas pestañas se procesa en el navegador y no sale de él hacia servidores de ProcuAsist ni de terceros. |
 | `downloads` | Descargar al disco del usuario los ZIP/PDF generados por la extension. |
 | `webRequest` | Leer, de forma restringida, el encabezado de autorizacion enviado por PJN a `https://api.pjn.gov.ar/*` para reutilizar el token contra la API oficial. |
 

@@ -4,7 +4,7 @@ Extensión Chrome para abogados argentinos que automatiza la interacción con po
 
 > **Hecho por un abogado de la matrícula, para colegas. Es gratuito y sin fines de lucro.**
 
-**Versiones:** Chrome Web Store publica la **v0.8.1** (verificado el 29/09/2026), que es la versión de este repositorio. Suma a la descarga MEV un intento de recuperación en una pestaña normal cuando el portal muestra su verificación, y retira el portal EJE/JusCABA.
+**Versiones:** Chrome Web Store publica la **v0.8.1** (verificado el 29/09/2026), que es la versión de este repositorio. Suma a la descarga MEV un intento de recuperación en una pestaña normal cuando el portal muestra su verificación al pedir un proveído, y retira el portal EJE/JusCABA.
 
 > **Actualización del 29/09/2026:** se retoma el mantenimiento y la publicación por pedido del titular. Ante una verificación, la descarga MEV conserva lo bajado y lista lo pendiente, pero ese avance vale solo para la ejecución en curso: si la extensión se reinicia o se actualiza durante una descarga, la descarga se corta sin guardar ningún archivo. Un escaneo que no pudo leer todas las causas se informa como incompleto.
 
@@ -41,7 +41,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 - **Auto-reconexión** automática cuando la sesión expira
 - **Marcadores de causas** con búsqueda rápida y organización
 - **Monitoreo de movimientos** con notificaciones push en Chrome
-- **Descarga ZIP del expediente completo** con un click, incluye resumen PDF + un PDF por cada paso procesal (con todos sus metadatos) + adjuntos
+- **Descarga ZIP del expediente completo** desde la página de la causa, cuando el portal sirve los documentos: incluye resumen PDF + un PDF por cada paso procesal (con todos sus metadatos) + adjuntos
 - **Selección de pasos procesales** a descargar antes de generar el ZIP
 - **Verificación automática** de la descarga con informe de errores
 - **Importación masiva** de causas desde resultados y sets de búsqueda MEV
@@ -57,7 +57,7 @@ Si sos abogado/a y querés usarla, no hace falta que entiendas nada de programac
 
 ## Stack Tecnológico
 
-- **Framework**: [WXT](https://wxt.dev) 0.21 (Manifest V3). `package.json` fija `wxt ^0.21.4` y el lockfile 0.21.4. El paquete publicado de la 0.8.1 se armó el 29/09/2026 con `npm run zip` y WXT 0.21.4: `procu-asist-0.8.1-chrome.zip`, 616,73 kB (616.728 bytes), SHA-256 `1db749aa37d113d26cc2cceaedd33d18889bd9dad725c8f144297ccf7957fd6b`. El zip con el mismo nombre armado el 09/09/2026 en el checkout principal (605.055 bytes, con wxt 0.20.20 y sin los cambios de descarga de la MEV) es obsoleto y no debe subirse.
+- **Framework**: [WXT](https://wxt.dev) 0.21 (Manifest V3). `package.json` fija `wxt ^0.21.4` y el lockfile 0.21.4. El paquete publicado de la 0.8.1 se armó el 29/09/2026 con `npm run zip` y WXT 0.21.4: `procu-asist-0.8.1-chrome.zip`, 616,73 kB (616.728 bytes), SHA-256 `1db749aa37d113d26cc2cceaedd33d18889bd9dad725c8f144297ccf7957fd6b`. Un zip con el mismo nombre armado el 09/09/2026 (605.055 bytes, con wxt 0.20.20 y sin los cambios de descarga de la MEV) es obsoleto y no debe subirse.
 - **UI**: React 19 + TypeScript 5.9 (strict) + Tailwind CSS v4
 - **State**: chrome.storage.local (local-first)
 - **Crypto**: Web Crypto API (AES-GCM con clave de dispositivo persistida)
@@ -166,7 +166,7 @@ Los PDF salen **sin marca**: sin logo, sin color corporativo y sin el nombre de 
 
 La descarga reconoce la verificación. Si la recibe al pedir un proveído, abre ese documento en una pestaña normal de la MEV, espera a que el portal complete su validación normal e intenta leerlo desde ahí. No resuelve desafíos ni garantiza que el portal conceda acceso. Si no puede continuar, se detiene, conserva lo descargado y detalla lo pendiente. Ese avance vale solo para la ejecución en curso: si la extensión se reinicia o se actualiza a mitad de una descarga, la descarga se corta sin guardar ningún archivo.
 
-Lo comprobado y lo que no: el 29/09/2026 una prueba asistida bajó 131 documentos y 22 adjuntos, pero en esa prueba ninguna pantalla de verificación puso en marcha la recuperación por pestaña normal. La recuperación está implementada y cubierta por pruebas unitarias; no se demostró frente a una verificación real. Los adjuntos lentos tienen tiempo adicional para abrirse. El monitoreo es otro recorrido y no usa esa recuperación: ante una verificación puede dejar causas pendientes, informa el barrido como incompleto y puede requerir volver a intentarlo tras validar la sesión.
+Lo comprobado y lo que no: el 29/09/2026 una prueba asistida bajó 131 documentos y 22 adjuntos, pero en esa prueba ninguna pantalla de verificación puso en marcha la recuperación por pestaña normal. La recuperación está implementada, pero solo su espera del documento tiene pruebas unitarias y no se demostró frente a una verificación real. Con un adjunto de la MEV o con la sesión cerrada no hay recuperación: la descarga se pausa y ofrece esperar o seguir, detener y guardar, o cancelar. Los adjuntos lentos tienen tiempo adicional para abrirse. El monitoreo es otro recorrido y no usa esa recuperación: ante una verificación puede dejar causas pendientes, informa el barrido como incompleto y puede requerir volver a intentarlo tras validar la sesión.
 
 Si el PDF único no puede incluir algún archivo, se entrega un ZIP con los originales y el PDF de consulta, acompañado por un aviso. Los datos siguen locales: la extensión no depende de servidores propios ni instala componentes en otros productos.
 

@@ -27,8 +27,8 @@ Lo que ya existe:
 
 Publicado en la v0.8.1 (Store, verificado el 29/09/2026):
 
-- **Descarga MEV que no saltea documentos por su cuenta**: ante la verificación de la MEV se pausa o se detiene en vez de saltear, entrega lo bajado con un informe fechado de pendientes, nombra los archivos por fecha y ofrece "Bajar los que faltan".
-- **Recuperación en una pestaña normal**: si la MEV contesta con su verificación al pedir un proveído, la extensión abre ese documento en una pestaña normal y espera a que el portal lo muestre, sin resolver desafíos. Está implementada y cubierta por pruebas unitarias, pero no se demostró frente a una verificación real: en la prueba asistida del 29/09/2026 (131 documentos y 22 adjuntos) no se puso en marcha.
+- **Descarga MEV que no saltea documentos por la verificación**: ante la pantalla de la MEV se pausa o se detiene en vez de saltear, entrega lo bajado con un informe fechado de pendientes, nombra los archivos por fecha y ofrece "Bajar los que faltan". Lo que falla por otro motivo queda anotado como faltante y la descarga sigue.
+- **Recuperación en una pestaña normal**: si la MEV contesta con su verificación al pedir un proveído, la extensión abre ese documento en una pestaña normal y espera a que el portal lo muestre, sin resolver desafíos. Está implementada, pero solo su espera del documento tiene pruebas unitarias y no se demostró frente a una verificación real: en la prueba asistida del 29/09/2026 (131 documentos y 22 adjuntos) no se puso en marcha.
 - **Adjuntos lentos**: los de docs.scba.gov.ar tienen tiempo adicional para descargarse.
 - **PDF único con respaldo**: si un adjunto no puede incorporarse al PDF único, se entrega un ZIP con los originales, el PDF de consulta y un aviso.
 - **Escaneos parciales a la vista**: un barrido que no pudo leer todas las causas se informa como incompleto, con las causas pendientes. El monitoreo no usa la recuperación de la descarga y puede dejar causas pendientes ante la verificación de la MEV.

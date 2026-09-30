@@ -17,7 +17,7 @@ Una página con los pasos esenciales. Para el detalle completo, ver `manual-usua
 
 1. Al instalar, ProcuAsist abre la **bienvenida** con los campos para cargar usuario y contraseña de **MEV** y **PJN** (las mismas que ya usás para entrar a esos portales). Cargalas ahí mismo y clic en **"Guardar"** en cada portal.
 2. Si la salteaste: panel lateral, pestaña **Ajustes**, botón **"Credenciales de portales y configuración avanzada"**, y cargalas en la sección **Credenciales**.
-3. No hay PIN: las credenciales se guardan encriptadas en tu navegador con una clave propia del dispositivo y nunca salen de tu computadora.
+3. No hay PIN: las credenciales se guardan encriptadas en tu navegador con una clave propia del dispositivo. Solo se envían al portal correspondiente cuando ProcuAsist inicia sesión por vos, nunca a servidores de ProcuAsist ni de terceros.
 4. Con las credenciales guardadas, ProcuAsist te loguea solo en los portales y te reconecta cuando la sesión se cae. En MEV, el departamento judicial que elijas al entrar queda aprendido para la próxima reconexión.
 
 ---
@@ -39,7 +39,7 @@ Una página con los pasos esenciales. Para el detalle completo, ver `manual-usua
 2. En el modal "Seleccionar pasos procesales a descargar", dejá todos tildados o elegí los que quieras.
 3. Clic en **"ZIP (N)"** (un PDF por paso + resumen) o en **"Un PDF (N)"** (todo junto en un solo archivo).
 4. No cierres ni cambies de página en esa pestaña mientras descarga. El avance vale solo para esa descarga: si la extensión se reinicia o se actualiza en el medio, se corta sin guardar ningún archivo y hay que empezar de nuevo.
-5. Si la MEV muestra su pantalla de verificación, ProcuAsist puede abrir el documento en una pestaña normal y esperar a que el portal lo muestre (no resuelve desafíos). Si no aparece, la descarga se detiene, entrega lo bajado con un informe de pendientes y ofrece **"Bajar los que faltan"**. Esta recuperación todavía no se comprobó frente a una verificación real de la MEV.
+5. Si la MEV muestra su pantalla de verificación al pedir un proveído, ProcuAsist puede abrir ese documento en una pestaña normal y esperar a que el portal lo muestre (no resuelve desafíos). Si no aparece, la descarga se detiene, entrega lo bajado con un informe de pendientes y ofrece **"Bajar los que faltan"**. Esta recuperación todavía no se comprobó frente a una verificación real de la MEV. Si la verificación aparece con un adjunto o se cierra la sesión, la descarga se pausa y podés esperar o seguir, detener y guardar, o cancelar.
 6. Si elegiste **"Un PDF"** y algún adjunto no puede incorporarse, recibís un ZIP con los originales, el PDF de consulta y un aviso.
 
 **En PJN:**
